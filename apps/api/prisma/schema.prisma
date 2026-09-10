@@ -125,12 +125,13 @@ model Finding {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  domainIntel  DomainIntel?
-  websiteIntel WebsiteIntel?
-  evidence     FindingEvidence[]
-  scoreEvents  FindingScoreEvent[]
-  scans        Scan[]
-  notes        FindingNote[]
+  domainIntel    DomainIntel?
+  websiteIntel   WebsiteIntel?
+  evidence       FindingEvidence[]
+  scoreEvents    FindingScoreEvent[]
+  scans          Scan[]
+  notes          FindingNote[]
+  aiExplanations AiExplanation[]
 
   @@unique([brandId, identifier])
   @@map("findings")
@@ -167,10 +168,36 @@ model Scan {
   finishedAt  DateTime? @map("finished_at")
   error       String?
 
-  scoreEvents FindingScoreEvent[]
-  evidence    FindingEvidence[]
+  scoreEvents   FindingScoreEvent[]
+  evidence      FindingEvidence[]
+  aiExplanation AiExplanation?
 
   @@map("scans")
+}
+
+// One row per (attempted) AI narration of a scan's deterministic score/evidence -- keyed
+// by scanId, never findingId, so it can't go stale: Scan.id is always a fresh cuid and
+// Finding.lastScanId only ever advances forward, so once a recheck moves on, the old
+// explanation simply stops matching rather than needing an "outdated" flag maintained
+// elsewhere. `prompt` is the exact context sent to the model -- the audit trail
+// ARCHITECTURE.md §9 requires. status/error are written even on failure (not just
+// success) so a failed attempt still counts toward the per-org rate limit in
+// routes/findings.ts and leaves an honest record, rather than a silent, unaudited spend.
+model AiExplanation {
+  id        String   @id @default(cuid())
+  scanId    String   @unique @map("scan_id")
+  scan      Scan     @relation(fields: [scanId], references: [id])
+  findingId String   @map("finding_id")
+  finding   Finding  @relation(fields: [findingId], references: [id])
+  prompt    String
+  response  String?
+  model     String
+  status    String   @default("pending") // pending | succeeded | failed
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_explanations")
 }
 
 model DomainIntel {

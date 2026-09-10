@@ -33,4 +33,10 @@ export const env = {
   smtpPass: process.env.SMTP_PASS ?? "",
   smtpFrom: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
   webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  // A narration task fed pre-computed evidence, not open-ended reasoning -- doesn't need
+  // a larger model.
+  anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
+  // Per-org cost guardrail for Stage E's AI explanations -- see routes/findings.ts.
+  aiExplanationDailyLimit: Number(process.env.AI_EXPLANATION_DAILY_LIMIT ?? 100),
 };

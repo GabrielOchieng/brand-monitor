@@ -5,6 +5,12 @@ import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
 import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
+import { env } from "../env";
+import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
+
+// How long a "pending" AiExplanation row can sit before we treat it as an abandoned
+// attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
+const PENDING_STALE_MS = 30_000;
 
 const FINDING_STATUSES = ["new", "investigating", "confirmed", "false_positive", "resolved"] as const;
 
@@ -93,8 +99,116 @@ export async function findingsRoutes(app: FastifyInstance) {
         )
       : [[], []];
 
-    return reply.send({ ...finding, evidence, scoreEvents });
+    // Read-only lookup -- this route never triggers generation itself (that's the
+    // explicit POST .../explain below), so a normal page load stays free/fast and the
+    // costly LLM call only ever happens behind a deliberate user action.
+    const aiExplanation = finding.lastScanId
+      ? await withTenant(request.auth!.orgId, (tx) => tx.aiExplanation.findUnique({ where: { scanId: finding.lastScanId! } }))
+      : null;
+
+    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation });
   });
+
+  app.post(
+    "/api/findings/:id/explain",
+    { preHandler: [authenticate, requireRole("owner", "admin", "analyst")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const orgId = request.auth!.orgId;
+
+      type Claim =
+        | { kind: "not_found" }
+        | { kind: "not_yet_scanned" }
+        | { kind: "rate_limited" }
+        | { kind: "cached"; record: any }
+        | { kind: "claimed"; record: any };
+
+      const claim: Claim = await withTenant(orgId, async (tx) => {
+        const finding = await tx.finding.findUnique({
+          where: { id },
+          include: { brand: { select: { name: true } }, domainIntel: true, websiteIntel: true },
+        });
+        if (!finding) return { kind: "not_found" };
+        const lastScanId = finding.lastScanId;
+        if (!lastScanId) return { kind: "not_yet_scanned" };
+
+        // Sliding 24h window (not a calendar-day bucket) counting every attempt,
+        // including failures -- a retry storm against an unexplained scan still spends
+        // real Anthropic budget even when it doesn't produce a usable result, so it must
+        // still count. RLS already scopes this count to the calling org.
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const usedToday = await tx.aiExplanation.count({ where: { createdAt: { gte: since } } });
+        if (usedToday >= env.aiExplanationDailyLimit) return { kind: "rate_limited" };
+
+        const scoreEvents = await tx.findingScoreEvent.findMany({ where: { scanId: lastScanId }, orderBy: { createdAt: "asc" } });
+        const prompt = buildExplanationPrompt({
+          identifier: finding.identifier,
+          brandName: finding.brand.name,
+          riskScore: finding.riskScore,
+          severity: finding.severity,
+          scoreEvents,
+          domainIntel: finding.domainIntel,
+          websiteIntel: finding.websiteIntel,
+        });
+
+        const existing = await tx.aiExplanation.findUnique({ where: { scanId: lastScanId } });
+        if (existing) {
+          const isStalePending = existing.status === "pending" && Date.now() - existing.updatedAt.getTime() > PENDING_STALE_MS;
+          if (existing.status === "succeeded" || (existing.status === "pending" && !isStalePending)) {
+            return { kind: "cached", record: existing };
+          }
+          // status "failed", or an abandoned stale "pending" -- retry.
+          const retried = await tx.aiExplanation.update({
+            where: { scanId: lastScanId },
+            data: { status: "pending", prompt, model: env.anthropicModel, error: null },
+          });
+          return { kind: "claimed", record: retried };
+        }
+
+        try {
+          // This insert is the mutex: a concurrent second request racing to explain the
+          // same not-yet-explained scan will fail on the scanId unique constraint below,
+          // rather than both calling the LLM.
+          const created = await tx.aiExplanation.create({
+            data: { scanId: lastScanId, findingId: finding.id, prompt, model: env.anthropicModel, status: "pending" },
+          });
+          return { kind: "claimed", record: created };
+        } catch (err: any) {
+          if (err?.code === "P2002") {
+            const race = await tx.aiExplanation.findUniqueOrThrow({ where: { scanId: lastScanId } });
+            return { kind: "cached", record: race };
+          }
+          throw err;
+        }
+      });
+
+      if (claim.kind === "not_found") return reply.status(404).send({ error: "not_found" });
+      if (claim.kind === "not_yet_scanned") return reply.status(400).send({ error: "not_yet_scanned" });
+      if (claim.kind === "rate_limited") return reply.status(429).send({ error: "rate_limited" });
+      if (claim.kind === "cached") return reply.send(claim.record);
+
+      // We own this pending row -- call the LLM outside any transaction (never hold a
+      // Postgres transaction open across a slow external call, same rule every other
+      // network call in this codebase follows). This runs synchronously in the request
+      // (a deliberate deviation from this codebase's usual "slow external I/O goes in a
+      // pg-boss job" rule for discovery/recheck/alert-dispatch): it's user-initiated,
+      // there's no way to make "click generate" not involve waiting, and latency here is
+      // normally 1-3s -- well inside a normal HTTP timeout. Revisit only if real usage
+      // shows p95 latency creeping past ~8-10s.
+      try {
+        const response = await generateExplanation(claim.record.prompt);
+        const updated = await withTenant(orgId, (tx) =>
+          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "succeeded", response } })
+        );
+        return reply.send(updated);
+      } catch (err: any) {
+        const updated = await withTenant(orgId, (tx) =>
+          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "failed", error: String(err?.message ?? err) } })
+        );
+        return reply.send(updated);
+      }
+    }
+  );
 
   app.patch(
     "/api/findings/:id",

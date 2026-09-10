@@ -85,6 +85,13 @@ background:
   as that exact page — WHOIS/DNS/favicon checks are skipped for it since domain-registration
   facts about someone else's platform say nothing about one fake profile hosted there — but
   it still stays enrolled in the normal recheck cadence, not just scored once.
+- **AI explanation**: a "Generate AI explanation" button on a finding's detail page asks
+  Claude to narrate its deterministic score/evidence in plain English — the score itself is
+  never set or influenced by the model, only explained after the fact (see `ARCHITECTURE.md`
+  §9). Explanations are cached per scan (never regenerated for an unchanged scan) and
+  rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) since each call spends
+  real Anthropic budget. Requires `ANTHROPIC_API_KEY` in `.env` — the button surfaces a clear
+  error if it's missing/invalid rather than failing silently.
 
 ## What to expect
 

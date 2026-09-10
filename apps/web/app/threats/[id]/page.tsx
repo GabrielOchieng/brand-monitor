@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { apiFetch, API_URL } from "../../../lib/api";
 import { SeverityBadge } from "../../../components/SeverityBadge";
 import { FindingLifecycle } from "../../../components/FindingLifecycle";
+import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
 
 interface FindingDetail {
   id: string;
@@ -31,6 +32,13 @@ interface FindingDetail {
   } | null;
   evidence: Array<{ id: string; description: string }>;
   scoreEvents: Array<{ id: string; delta: number; reason: string; ruleCode: string }>;
+  aiExplanation: {
+    status: "pending" | "succeeded" | "failed";
+    response: string | null;
+    error: string | null;
+    model: string;
+    createdAt: string;
+  } | null;
 }
 
 export default async function ThreatDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -70,6 +78,8 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
           ))}
         </ul>
       </section>
+
+      <AiExplanationPanel findingId={finding.id} initialExplanation={finding.aiExplanation} />
 
       {finding.websiteIntel?.screenshotPath && (
         <section className="mt-8">

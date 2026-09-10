@@ -9,6 +9,15 @@ export async function apiFetch<T>(path: string, token: string | null, init?: Req
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      if (body?.error) detail = `: ${body.error}`;
+    } catch {
+      // non-JSON error body -- fall back to just the status
+    }
+    throw new Error(`API ${path} failed: ${res.status}${detail}`);
+  }
   return res.json();
 }
