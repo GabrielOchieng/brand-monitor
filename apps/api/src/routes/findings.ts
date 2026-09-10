@@ -7,6 +7,7 @@ import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
 import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
+import { TakedownStatusSchema } from "@brand-monitor/shared";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -22,6 +23,20 @@ const PatchFindingSchema = z.object({
 
 const AddNoteSchema = z.object({
   body: z.string().min(1),
+});
+
+const CreateTakedownSchema = z.object({
+  provider: z.string().min(1).max(200),
+  reference: z.string().max(200).optional(),
+  notes: z.string().max(5000).optional(),
+});
+
+const TERMINAL_TAKEDOWN_STATUSES = new Set(["completed", "rejected"]);
+
+const PatchTakedownSchema = z.object({
+  status: TakedownStatusSchema.optional(),
+  reference: z.string().max(200).optional(),
+  notes: z.string().max(5000).optional(),
 });
 
 // Loopback/private/link-local/metadata hostnames rejected here as a fast, string-only
@@ -280,6 +295,83 @@ export async function findingsRoutes(app: FastifyInstance) {
       });
       if (!note) return reply.status(404).send({ error: "not_found" });
       return reply.status(201).send(note);
+    }
+  );
+
+  app.get("/api/findings/:id/takedowns", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const takedowns = await withTenant(request.auth!.orgId, (tx) =>
+      tx.takedown.findMany({ where: { findingId: id }, orderBy: { createdAt: "asc" } })
+    );
+    return reply.send(takedowns);
+  });
+
+  app.post(
+    "/api/findings/:id/takedowns",
+    { preHandler: [authenticate, requireRole("owner", "admin", "analyst")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = CreateTakedownSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const orgId = request.auth!.orgId;
+      // requestedById is always the caller's own id, never accepted from the request
+      // body -- same rule as FindingNote.authorId, and for the same reason.
+      const requestedById = request.auth!.userId;
+
+      const takedown = await withTenant(orgId, async (tx) => {
+        const finding = await tx.finding.findUnique({ where: { id } });
+        if (!finding) return null;
+        return tx.takedown.create({
+          data: { findingId: id, requestedById, ...parsed.data },
+        });
+      });
+      if (!takedown) return reply.status(404).send({ error: "not_found" });
+      return reply.status(201).send(takedown);
+    }
+  );
+
+  app.patch(
+    "/api/findings/:id/takedowns/:takedownId",
+    { preHandler: [authenticate, requireRole("owner", "admin", "analyst")] },
+    async (request, reply) => {
+      const { id, takedownId } = request.params as { id: string; takedownId: string };
+      const parsed = PatchTakedownSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const { status, reference, notes } = parsed.data;
+      const orgId = request.auth!.orgId;
+
+      const updated = await withTenant(orgId, async (tx) => {
+        // One compound where enforces "this takedown belongs to this finding" as part of
+        // the write itself -- no separate fetch-then-verify round trip, and no window
+        // between a check and an update. A takedownId belonging to a different finding
+        // (same org or cross-tenant) 404s exactly like a nonexistent id, same ambiguity
+        // this file already preserves elsewhere to avoid leaking existence.
+        const result = await tx.takedown.updateMany({
+          where: { id: takedownId, findingId: id },
+          data: {
+            ...(status !== undefined ? { status } : {}),
+            ...(reference !== undefined ? { reference } : {}),
+            ...(notes !== undefined ? { notes } : {}),
+          },
+        });
+        if (result.count === 0) return null;
+
+        // resolvedAt is a first-ever-resolved fact -- set once, on the transition into a
+        // terminal status, and never overwritten by a later correction. The `resolvedAt:
+        // null` guard in the where clause makes this a no-op if it's already set, rather
+        // than a second round trip needing its own read-then-write.
+        if (status && TERMINAL_TAKEDOWN_STATUSES.has(status)) {
+          await tx.takedown.updateMany({
+            where: { id: takedownId, findingId: id, resolvedAt: null },
+            data: { resolvedAt: new Date() },
+          });
+        }
+
+        return tx.takedown.findUniqueOrThrow({ where: { id: takedownId } });
+      });
+
+      if (!updated) return reply.status(404).send({ error: "not_found" });
+      return reply.send(updated);
     }
   );
 

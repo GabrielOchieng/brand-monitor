@@ -3,6 +3,7 @@ import { apiFetch, API_URL } from "../../../lib/api";
 import { SeverityBadge } from "../../../components/SeverityBadge";
 import { FindingLifecycle } from "../../../components/FindingLifecycle";
 import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
+import { TakedownTracker } from "../../../components/TakedownTracker";
 
 interface FindingDetail {
   id: string;
@@ -124,6 +125,8 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
           {finding.evidence.length === 0 && <li className="text-gray-500">No evidence recorded.</li>}
         </ul>
       </section>
+
+      <TakedownTracker findingId={finding.id} />
     </div>
   );
 }

@@ -132,6 +132,7 @@ model Finding {
   scans          Scan[]
   notes          FindingNote[]
   aiExplanations AiExplanation[]
+  takedowns      Takedown[]
 
   @@unique([brandId, identifier])
   @@map("findings")
@@ -146,6 +147,30 @@ model FindingNote {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("finding_notes")
+}
+
+// Pure manual record-keeping -- no code here ever calls a registrar/hosting-provider API
+// (that's Phase 3, out of MVP scope per ARCHITECTURE.md). One-to-many from Finding: a
+// registrar report and a hosting-provider report are independent efforts with their own
+// tickets/timelines, tracked as separate rows rather than fields on Finding.
+model Takedown {
+  id            String    @id @default(cuid())
+  findingId     String    @map("finding_id")
+  finding       Finding   @relation(fields: [findingId], references: [id])
+  provider      String // free text, e.g. "registrar" / "GoDaddy" / "hosting provider"
+  reference     String? // their ticket/case number
+  status        String    @default("requested") // requested | acknowledged | completed | rejected
+  notes         String?
+  requestedById String    @map("requested_by_id") // always server-set from the caller's token
+  requestedAt   DateTime  @default(now()) @map("requested_at")
+  // First-ever transition into completed/rejected -- set once, never overwritten by a
+  // later correction (mirrors firstDetectedAt vs. lastScannedAt's "first fact vs. latest
+  // fact" split above). A status correction after the fact belongs in `notes`, not here.
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("takedown_requests")
 }
 
 // One row per discovery/recheck execution against a finding. Score events/evidence are

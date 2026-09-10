@@ -92,6 +92,11 @@ background:
   rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) since each call spends
   real Anthropic budget. Requires `ANTHROPIC_API_KEY` in `.env` — the button surfaces a clear
   error if it's missing/invalid rather than failing silently.
+- **Takedown tracking**: a finding's detail page lets you log takedown requests (provider —
+  e.g. registrar/hosting provider, an optional ticket reference, notes) and track each one's
+  status (`requested → acknowledged → completed/rejected`) independently — a finding can have
+  several in flight at once. Pure record-keeping: nothing here ever calls a registrar/hosting
+  provider's actual API.
 
 ## What to expect
 

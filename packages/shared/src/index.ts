@@ -12,6 +12,9 @@ export const FindingStatusSchema = z.enum([
 ]);
 export type FindingStatus = z.infer<typeof FindingStatusSchema>;
 
+export const TakedownStatusSchema = z.enum(["requested", "acknowledged", "completed", "rejected"]);
+export type TakedownStatus = z.infer<typeof TakedownStatusSchema>;
+
 export const ScoreEventSchema = z.object({
   id: z.string(),
   delta: z.number(),
