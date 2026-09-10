@@ -20,6 +20,15 @@ const PARKING_KEYWORDS = [
   "this domain may be for sale",
   "parked free",
   "domain parking",
+  // Hosting-platform "nothing deployed here yet" placeholders -- deliberately narrow,
+  // distinctive phrases, not generic ones like bare "page not found"/"app not found"
+  // (those appear on real, actively-harmful custom error sub-pages too, and a false
+  // positive here doesn't just cost a scoring point -- it permanently suppresses the
+  // "just went live" alert for the finding that needs it most).
+  "isn't live yet",
+  "no such app",
+  "deployment not found",
+  "app not deployed",
 ];
 
 const app = Fastify({ logger: true });
@@ -84,7 +93,14 @@ app.post("/scan", async (request, reply) => {
       .count()
       .then((c) => c > 0);
 
-    const looksParked = PARKING_KEYWORDS.some((k) => lowerText.includes(k)) || lowerText.trim().length < 40;
+    // Fold the title in too, not just body text -- a hosting platform's "not deployed
+    // yet" placeholder (e.g. Google Cloud Run/App Engine's default page) often carries
+    // its only meaningful text in the title, with the body being pure decorative
+    // logo/ASCII-art content that never matches any keyword and is long enough to dodge
+    // the short-body fallback below. Confirmed directly against a real case where this
+    // mattered: "This app isn't live yet" existed only in the title, never the body.
+    const lowerTitleAndText = `${title ?? ""} ${extractedText ?? ""}`.toLowerCase();
+    const looksParked = PARKING_KEYWORDS.some((k) => lowerTitleAndText.includes(k)) || lowerText.trim().length < 40;
 
     const screenshotBuffer = await page.screenshot({ fullPage: false }).catch(() => null);
 

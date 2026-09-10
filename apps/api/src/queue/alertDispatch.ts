@@ -18,6 +18,11 @@ export interface AlertDispatchJobData {
   newScore: number;
   newSeverity: string;
   isFirstScan: boolean;
+  // True when this scan found real, non-parked website content where the previous
+  // scan (or the total absence of one) did not -- see recheckJob.ts. Raw fact, not
+  // pre-filtered for isFirstScan; ruleMatches applies that guard itself, same as
+  // score_increase does.
+  justActivated: boolean;
 }
 
 interface RuleLike {
@@ -45,6 +50,14 @@ function ruleMatches(rule: RuleLike, data: AlertDispatchJobData): boolean {
       if (!data.isFirstScan) return false;
       const minRank = rank(rule.config?.minSeverity ?? "medium");
       return rank(data.newSeverity) >= minRank;
+    }
+    case "website_activated": {
+      // Excludes isFirstScan: a domain that's live from day one isn't a "dormant ->
+      // active" transition, it's just the first observation -- that's new_finding's
+      // job. Without this guard, a live-from-day-one finding would fire both rules for
+      // the same event (two separate alerts for one fact).
+      if (data.isFirstScan) return false;
+      return data.justActivated;
     }
     default:
       return false;

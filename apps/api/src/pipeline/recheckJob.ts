@@ -110,6 +110,18 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // code path that might touch riskScore/severity outside this job.
     const previous = await tx.finding.findUniqueOrThrow({ where: { id: findingId } });
 
+    // Read BEFORE the upsert below overwrites it, and unconditionally (not just when
+    // websiteResult exists) -- needed on every round, including a skipped one, so a
+    // dormant -> skipped -> skipped -> active sequence still compares against the real
+    // dormant baseline from before the skip streak, not something poisoned in between.
+    const previousWebsiteIntel = await tx.websiteIntel.findUnique({ where: { findingId } });
+    const previouslyActive = previousWebsiteIntel !== null && !previousWebsiteIntel.looksParked;
+    const currentlyActive = Boolean(websiteResult && !websiteResult.skipped && !websiteResult.looksParked);
+    // Dormant = not currently showing real, non-parked content -- keeps getting rechecked
+    // on the aggressive cadence (see cadence.ts) until it does, rather than backing off
+    // with age like an already-resolved-one-way-or-the-other finding would.
+    const isDormant = !currentlyActive;
+
     const scan = await tx.scan.create({
       data: { findingId, kind: "recheck", triggeredBy, score: scoring.score, severity: scoring.severity, finishedAt: new Date() },
     });
@@ -187,7 +199,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
         severity: scoring.severity,
         lastScannedAt: new Date(),
         lastScanId: scan.id,
-        nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date()),
+        nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date(), isDormant),
       },
     });
 
@@ -200,6 +212,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       newScore: scoring.score,
       newSeverity: scoring.severity,
       isFirstScan: previous.lastScanId === null,
+      justActivated: !previouslyActive && currentlyActive,
     };
     await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });

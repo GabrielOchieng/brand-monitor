@@ -61,6 +61,17 @@ export async function webhookRoutes(app: FastifyInstance) {
             },
             update: {},
           });
+          await adminPrisma.alertRule.upsert({
+            where: { id: `default-website-activated-${id}` },
+            create: {
+              id: `default-website-activated-${id}`,
+              organizationId: id,
+              kind: "website_activated",
+              config: {},
+              channels: ["email", "in_app"],
+            },
+            update: {},
+          });
           break;
         }
         case "user.created":
