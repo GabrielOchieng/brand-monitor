@@ -11,6 +11,14 @@ const NAV_TIMEOUT_MS = 15_000;
 const ScanRequestSchema = z.object({
   url: z.string().url(),
   userAgent: z.string().min(1),
+  // Extra settle time before the screenshot, on top of domcontentloaded -- for a
+  // candidate/phishing-kit page 0 (the default) is fine, but a real production site
+  // (lazy-loaded hero images, web fonts, a carousel) can still be visibly mid-render at
+  // that exact moment. Used only when capturing a brand's own reference screenshot
+  // (enrichmentShared.ts's ensureBrandScreenshotHash), since that capture gets cached and
+  // reused indefinitely -- one unlucky candidate scan is just one recheck, but one
+  // unlucky reference capture becomes a permanently-wrong baseline.
+  settleMs: z.number().min(0).max(10_000).optional(),
 });
 
 const PAYMENT_KEYWORDS = ["card number", "cvv", "expiry", "payment", "m-pesa", "mpesa", "pay now"];
@@ -38,7 +46,7 @@ app.post("/scan", async (request, reply) => {
   if (!parsed.success) {
     return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
   }
-  const { url, userAgent } = parsed.data;
+  const { url, userAgent, settleMs } = parsed.data;
   const target = new URL(url);
   const origin = target.origin;
 
@@ -73,6 +81,7 @@ app.post("/scan", async (request, reply) => {
     });
 
     await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
+    if (settleMs) await page.waitForTimeout(settleMs);
 
     const title = await page.title().catch(() => null);
     const metaDescription = await page

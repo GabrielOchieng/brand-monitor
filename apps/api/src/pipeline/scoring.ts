@@ -14,6 +14,7 @@ export interface ScoringInput {
   isHomoglyph: boolean;
   registeredAt: Date | null;
   faviconMatch: boolean;
+  visualSimilarity: boolean;
   hasLoginForm: boolean;
   hasPaymentForm: boolean;
   looksParked: boolean;
@@ -65,6 +66,16 @@ export function computeScore(input: ScoringInput): ScoringResult {
 
   if (input.faviconMatch) {
     events.push({ delta: 15, reason: "Website favicon matches the protected brand's favicon", ruleCode: "FAVICON_MATCH" });
+  }
+
+  // Coarse, noisy heuristic (regional average-hash over a page screenshot, see
+  // lib/visualSimilarity.ts) -- catches an exact/near-exact page clone, not a
+  // redesigned-but-similar page. Weighted lower than FAVICON_MATCH on purpose: a cheap
+  // perceptual hash over a full page has a meaningfully higher false-positive/negative
+  // rate than one over a small static icon, so it's corroborating evidence, not a
+  // confirmed-clone gate.
+  if (input.visualSimilarity) {
+    events.push({ delta: 10, reason: "Website visually resembles the protected brand's real site", ruleCode: "VISUAL_SIMILARITY_MATCH" });
   }
 
   if (input.hasLoginForm) {

@@ -5,10 +5,11 @@ import { checkDnsExistence } from "../lib/dnsCheck";
 import { lookupRdap } from "../lib/rdap";
 import { lookupWhois } from "../lib/whois";
 import { fetchFaviconHash, hammingDistance, FAVICON_MATCH_THRESHOLD } from "../lib/favicon";
+import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch } from "../lib/visualSimilarity";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
 import { computeNextScanAt } from "./cadence";
-import { ensureBrandFaviconHash, saveScreenshot } from "./enrichmentShared";
+import { ensureBrandFaviconHash, ensureBrandScreenshotHash, saveScreenshot } from "./enrichmentShared";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
 import type { AlertDispatchJobData } from "../queue/alertDispatch";
 
@@ -64,9 +65,30 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   }
 
   let faviconMatch = false;
+  let candidateFaviconHash: string | null = null;
   if (brandFaviconHash) {
-    const candidateHash = await fetchFaviconHash(hostname, SCANNER_USER_AGENT);
-    if (candidateHash) faviconMatch = hammingDistance(candidateHash, brandFaviconHash) <= FAVICON_MATCH_THRESHOLD;
+    candidateFaviconHash = await fetchFaviconHash(hostname, SCANNER_USER_AGENT);
+    if (candidateFaviconHash) faviconMatch = hammingDistance(candidateFaviconHash, brandFaviconHash) <= FAVICON_MATCH_THRESHOLD;
+  }
+
+  // Unlike favicon/DNS/WHOIS (domain-level concepts skipped entirely for a non-domain
+  // finding, since they'd describe a third-party platform, not the specific fake
+  // content), visual similarity is about the PAGE ITSELF -- a fake social-media profile
+  // cloning the brand's login page is exactly as comparable as a cloned domain would be.
+  // Computed for every finding type when a screenshot exists. ensureBrandScreenshotHash
+  // is cheap to call every recheck -- it's cached (BrandAsset + TTL), so this is a cheap
+  // DB read on every call after the first real capture per brand.
+  const brandScreenshotHashes = await ensureBrandScreenshotHash(organizationId, brand.id, brand.primaryDomain);
+  let visualSimilarity = false;
+  let candidateScreenshotHashSerialized: string | null = null;
+  if (websiteResult?.screenshotBase64) {
+    const candidateRegionalHashes = await computeRegionalHashes(Buffer.from(websiteResult.screenshotBase64, "base64"));
+    if (candidateRegionalHashes) {
+      candidateScreenshotHashSerialized = candidateRegionalHashes.join("|");
+      if (brandScreenshotHashes) {
+        visualSimilarity = regionalHashesMatch(candidateRegionalHashes, deserializeRegionalHashes(brandScreenshotHashes));
+      }
+    }
   }
 
   // Homoglyph credit is a discovery-time-only concept (from permutations.ts's candidate
@@ -79,6 +101,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     isHomoglyph: false,
     registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
     faviconMatch,
+    visualSimilarity,
     hasLoginForm: Boolean(websiteResult?.hasLoginForm),
     hasPaymentForm: Boolean(websiteResult?.hasPaymentForm),
     looksParked: Boolean(websiteResult?.looksParked),
@@ -179,8 +202,13 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           hasLoginForm: Boolean(websiteResult.hasLoginForm),
           hasPaymentForm: Boolean(websiteResult.hasPaymentForm),
           looksParked: Boolean(websiteResult.looksParked),
-          faviconHash: null,
+          // Was hardcoded to null despite candidateFaviconHash already being computed
+          // above for the match check -- a real, pre-existing, unrelated bug fixed here
+          // since the value was sitting right there and just never got persisted.
+          faviconHash: candidateFaviconHash,
           redirectChain: websiteResult.redirectChain ?? [],
+          screenshotHash: candidateScreenshotHashSerialized,
+          visualSimilarityMatch: visualSimilarity,
         },
         update: {
           screenshotPath: screenshotPath ?? undefined,
@@ -190,6 +218,9 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           hasLoginForm: Boolean(websiteResult.hasLoginForm),
           hasPaymentForm: Boolean(websiteResult.hasPaymentForm),
           looksParked: Boolean(websiteResult.looksParked),
+          faviconHash: candidateFaviconHash,
+          screenshotHash: candidateScreenshotHashSerialized,
+          visualSimilarityMatch: visualSimilarity,
           scannedAt: new Date(),
         },
       });

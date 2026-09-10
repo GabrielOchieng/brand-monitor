@@ -263,6 +263,13 @@ model WebsiteIntel {
   faviconHash     String?  @map("favicon_hash")
   redirectChain   String[] @map("redirect_chain")
   scannedAt       DateTime @default(now()) @map("scanned_at")
+  // Regional average-hashes (lib/visualSimilarity.ts) of this scan's screenshot,
+  // "|"-joined -- a different length/meaning than faviconHash, so it's its own column
+  // rather than repurposing that one. Null until a brand reference screenshot exists to
+  // compare against (see BrandAsset type:"screenshot") -- see visualSimilarityMatch for
+  // whether this scan matched it.
+  screenshotHash       String?  @map("screenshot_hash")
+  visualSimilarityMatch Boolean @default(false) @map("visual_similarity_match")
 
   @@map("website_intel")
 }

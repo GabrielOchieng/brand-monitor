@@ -8,6 +8,7 @@ import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
 import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
 import { TakedownStatusSchema } from "@brand-monitor/shared";
+import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -122,6 +123,76 @@ export async function findingsRoutes(app: FastifyInstance) {
       : null;
 
     return reply.send({ ...finding, evidence, scoreEvents, aiExplanation });
+  });
+
+  // Deliberately conservative v1: registrar + tight registration-time window is the only
+  // trigger-worthy signal. Nameserver matching is dropped entirely -- several of our own
+  // real findings share nameservers purely because they use the same cheap registrar's
+  // generic default DNS (e.g. NameCheap's dns1/dns2.registrar-servers.com), not because of
+  // any coordinated campaign; a naive "same nameservers" rule would constantly cluster
+  // unrelated squatters together. IP match is included only as supporting context on an
+  // already-matched pair, never a standalone trigger (shared hosting is too common alone).
+  // No persisted "Campaign" entity, no background job -- this is a live, on-demand query,
+  // cheap because a finding only gets a populated DomainIntel.registrar after its first
+  // completed recheck, so the real per-brand working set is far smaller than the full
+  // candidate count. `matchedOn` is returned explicitly (not just a bare array) so a future
+  // persisted/graph-clustered version (ARCHITECTURE.md's later-phase Campaign model) can
+  // swap in behind the same response shape without a frontend rewrite.
+  app.get("/api/findings/:id/related", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const orgId = request.auth!.orgId;
+
+    const result = await withTenant(orgId, async (tx) => {
+      const finding = await tx.finding.findUnique({ where: { id }, include: { domainIntel: true } });
+      if (!finding) return null;
+      if (!finding.domainIntel?.registrar || !finding.domainIntel?.registeredAt) {
+        return { relatedFindings: [], matchedOn: null, uncheckableCount: 0 };
+      }
+
+      const normalizedTarget = normalizeRegistrar(finding.domainIntel.registrar);
+      const windowMs = CORRELATION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+      const targetRegisteredAt = finding.domainIntel.registeredAt.getTime();
+
+      // One query for every other finding under this SAME brand (explicit brandId scoping,
+      // not just RLS -- RLS scopes by organization, not by brand, and an org can have
+      // multiple brands; without this a finding under Brand A could match one under Brand
+      // B purely because they share a cheap registrar the same week, a worse false
+      // positive than the nameserver one since it's not even the same target). Filtering
+      // and the window comparison happen in application code rather than a Prisma relation
+      // filter on the optional 1:1 DomainIntel relation, whose "no row at all" vs.
+      // "row exists with a null field" semantics aren't worth relying on here -- this is
+      // cheap at the real per-brand working-set size (tens to low hundreds).
+      const others = await tx.finding.findMany({
+        where: { brandId: finding.brandId, id: { not: id } },
+        include: { domainIntel: true },
+      });
+
+      const uncheckableCount = others.filter((f) => !f.domainIntel?.registeredAt).length;
+
+      const relatedFindings = others
+        .filter((f) => {
+          if (!f.domainIntel?.registrar || !f.domainIntel?.registeredAt) return false;
+          if (normalizeRegistrar(f.domainIntel.registrar) !== normalizedTarget) return false;
+          return Math.abs(f.domainIntel.registeredAt.getTime() - targetRegisteredAt) <= windowMs;
+        })
+        .map((f) => ({
+          id: f.id,
+          identifier: f.identifier,
+          riskScore: f.riskScore,
+          severity: f.severity,
+          registeredAt: f.domainIntel!.registeredAt,
+          sharedIp: Boolean(f.domainIntel!.ip && finding.domainIntel!.ip && f.domainIntel!.ip === finding.domainIntel!.ip),
+        }));
+
+      return {
+        relatedFindings,
+        matchedOn: { registrar: finding.domainIntel.registrar, windowDays: CORRELATION_WINDOW_DAYS },
+        uncheckableCount,
+      };
+    });
+
+    if (!result) return reply.status(404).send({ error: "not_found" });
+    return reply.send(result);
   });
 
   app.post(
@@ -444,8 +515,14 @@ export async function findingsRoutes(app: FastifyInstance) {
         orderBy: { startedAt: "desc" },
       });
 
+      // Whether a visual-similarity reference screenshot has ever been captured for this
+      // brand -- lets the dashboard link to it (served via the existing /screenshots/
+      // static route, saved as brand-${brandId}.png) so a human can sanity-check it
+      // rather than trusting a cached hash blindly.
+      const visualBaseline = await tx.brandAsset.findFirst({ where: { brandId: brand.id, type: "screenshot" } });
+
       return {
-        brand: { id: brand.id, name: brand.name, primaryDomain: brand.primaryDomain },
+        brand: { id: brand.id, name: brand.name, primaryDomain: brand.primaryDomain, hasVisualBaseline: Boolean(visualBaseline) },
         totalFindings: findings.length,
         bySeverity,
         lastRun,

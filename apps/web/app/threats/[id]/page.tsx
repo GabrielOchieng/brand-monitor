@@ -4,6 +4,7 @@ import { SeverityBadge } from "../../../components/SeverityBadge";
 import { FindingLifecycle } from "../../../components/FindingLifecycle";
 import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
 import { TakedownTracker } from "../../../components/TakedownTracker";
+import { RelatedFindingsPanel } from "../../../components/RelatedFindingsPanel";
 
 interface FindingDetail {
   id: string;
@@ -32,6 +33,7 @@ interface FindingDetail {
     hasLoginForm: boolean;
     hasPaymentForm: boolean;
     looksParked: boolean;
+    visualSimilarityMatch: boolean;
   } | null;
   evidence: Array<{ id: string; description: string }>;
   scoreEvents: Array<{ id: string; delta: number; reason: string; ruleCode: string }>;
@@ -92,6 +94,8 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
 
       <AiExplanationPanel findingId={finding.id} initialExplanation={finding.aiExplanation} />
 
+      <RelatedFindingsPanel findingId={finding.id} />
+
       {finding.websiteIntel?.screenshotPath && (
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Screenshot</h2>
@@ -123,6 +127,10 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
             <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
             <Row label="Payment form" value={finding.websiteIntel?.hasPaymentForm ? "Detected" : "Not detected"} />
             <Row label="Looks parked" value={finding.websiteIntel?.looksParked ? "Yes" : "No"} />
+            <Row
+              label="Visual similarity"
+              value={finding.websiteIntel ? (finding.websiteIntel.visualSimilarityMatch ? "Resembles real site" : "No match") : undefined}
+            />
           </dl>
         </div>
       </section>

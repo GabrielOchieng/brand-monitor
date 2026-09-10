@@ -5,10 +5,13 @@ const HASH_SIZE = 8; // 8x8 -> 64-bit average hash
 // Simple perceptual "average hash": cheap, good enough to catch an exact/near-exact
 // cloned favicon (the common case for a copy-pasted phishing kit), not meant to catch
 // a redesigned or partially-modified icon -- that's full visual-similarity ML, Phase 2.
-export async function computeFaviconHash(imageBuffer: Buffer): Promise<string | null> {
+// Exported at a configurable size so lib/visualSimilarity.ts can reuse the exact same
+// technique for full-page screenshot regions, without duplicating the pixel-threshold
+// logic -- a favicon and a screenshot region are just "an image," this doesn't care which.
+export async function computeAverageHash(imageBuffer: Buffer, size: number): Promise<string | null> {
   try {
     const { data } = await sharp(imageBuffer)
-      .resize(HASH_SIZE, HASH_SIZE, { fit: "fill" })
+      .resize(size, size, { fit: "fill" })
       .grayscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -19,6 +22,10 @@ export async function computeFaviconHash(imageBuffer: Buffer): Promise<string | 
   } catch {
     return null;
   }
+}
+
+export async function computeFaviconHash(imageBuffer: Buffer): Promise<string | null> {
+  return computeAverageHash(imageBuffer, HASH_SIZE);
 }
 
 export function hammingDistance(hashA: string, hashB: string): number {

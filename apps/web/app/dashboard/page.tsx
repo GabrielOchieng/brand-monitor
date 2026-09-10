@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, API_URL } from "../../lib/api";
 
 interface Summary {
-  brand: { id: string; name: string; primaryDomain: string };
+  brand: { id: string; name: string; primaryDomain: string; hasVisualBaseline: boolean };
   totalFindings: number;
   bySeverity: Record<string, number>;
   lastRun: { id: string; status: string; candidatesTotal: number; candidatesChecked: number; findingsCreated: number } | null;
@@ -307,6 +307,16 @@ export default function DashboardPage() {
           >
             {deleting ? "Deleting…" : "Delete brand"}
           </button>
+          {summary.brand.hasVisualBaseline && (
+            <a
+              href={`${API_URL}/screenshots/brand-${summary.brand.id}.png`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-blue-400 hover:underline"
+            >
+              View visual-similarity reference
+            </a>
+          )}
         </div>
       )}
 
