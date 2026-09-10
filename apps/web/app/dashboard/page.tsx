@@ -11,6 +11,12 @@ interface Summary {
   lastRun: { id: string; status: string; candidatesTotal: number; candidatesChecked: number; findingsCreated: number } | null;
 }
 
+interface Brand {
+  id: string;
+  name: string;
+  primaryDomain: string;
+}
+
 interface RunStatus {
   id: string;
   status: "running" | "completed" | "failed";
@@ -25,6 +31,9 @@ const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
 export default function DashboardPage() {
   const { getToken, orgId, isLoaded } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+  const [showAddBrand, setShowAddBrand] = useState(false);
   const [noBrandYet, setNoBrandYet] = useState(false);
   const [run, setRun] = useState<RunStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,24 +43,52 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
-  const loadSummary = useCallback(async () => {
+  const loadBrands = useCallback(async () => {
     try {
       const token = await getToken();
-      const data = await apiFetch<Summary>("/api/dashboard/summary", token);
-      setNoBrandYet(false);
-      setSummary(data);
-    } catch (err: any) {
-      if (String(err.message).includes("404")) {
-        setNoBrandYet(true);
-      } else {
-        setError(err.message);
-      }
+      const data = await apiFetch<Brand[]>("/api/brands", token);
+      setBrands(data);
+    } catch {
+      // the brand selector is a convenience on top of the summary fetch below, which
+      // already surfaces its own errors -- a failed brand-list fetch just hides the
+      // selector rather than blocking the page.
     }
   }, [getToken]);
 
+  // brandId is explicit once known (from the selector or a just-created brand) so
+  // switching brands doesn't depend on /api/dashboard/summary's own "first brand"
+  // default, which only applies when no brandId is given.
+  const loadSummary = useCallback(
+    async (brandId?: string) => {
+      try {
+        const token = await getToken();
+        const qs = brandId ? `?brandId=${encodeURIComponent(brandId)}` : "";
+        const data = await apiFetch<Summary>(`/api/dashboard/summary${qs}`, token);
+        setNoBrandYet(false);
+        setSummary(data);
+        setSelectedBrandId(data.brand.id);
+      } catch (err: any) {
+        if (String(err.message).includes("404")) {
+          setNoBrandYet(true);
+        } else {
+          setError(err.message);
+        }
+      }
+    },
+    [getToken]
+  );
+
   useEffect(() => {
-    if (isLoaded && orgId) loadSummary();
-  }, [isLoaded, orgId, loadSummary]);
+    if (isLoaded && orgId) {
+      loadBrands();
+      loadSummary();
+    }
+  }, [isLoaded, orgId, loadBrands, loadSummary]);
+
+  async function handleSelectBrand(brandId: string) {
+    setRun(null);
+    await loadSummary(brandId);
+  }
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -68,10 +105,15 @@ export default function DashboardPage() {
   }, [run, loadSummary, getToken]);
 
   async function handleRunDiscovery() {
+    if (!selectedBrandId) return;
     setError(null);
     try {
       const token = await getToken();
-      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", token, { method: "POST" });
+      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: selectedBrandId }),
+      });
       setRun({ id: runId, status: "running", candidatesTotal: 0, candidatesChecked: 0, findingsCreated: 0, error: null });
     } catch (err: any) {
       setError(err.message);
@@ -80,7 +122,7 @@ export default function DashboardPage() {
 
   async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!summary) return;
+    if (!selectedBrandId) return;
     setSubmitting(true);
     setSubmitMessage(null);
     setError(null);
@@ -89,7 +131,7 @@ export default function DashboardPage() {
       await apiFetch("/api/findings/manual-submit", token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId: summary.brand.id, url: submitUrl }),
+        body: JSON.stringify({ brandId: selectedBrandId, url: submitUrl }),
       });
       setSubmitUrl("");
       setSubmitMessage("Submitted — it'll be scored within a few minutes. Check the Threats page.");
@@ -106,12 +148,15 @@ export default function DashboardPage() {
     setError(null);
     try {
       const token = await getToken();
-      await apiFetch("/api/brands", token, {
+      const created = await apiFetch<Brand>("/api/brands", token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name, primaryDomain: form.primaryDomain }),
       });
-      await loadSummary();
+      setForm({ name: "", primaryDomain: "" });
+      setShowAddBrand(false);
+      await loadBrands();
+      await loadSummary(created.id);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -167,9 +212,54 @@ export default function DashboardPage() {
     <div className="max-w-4xl">
       <h1 className="text-2xl font-semibold text-gray-100">Am I protected?</h1>
       {summary && (
-        <p className="mt-1 text-gray-400">
-          Monitoring <span className="text-gray-200 font-medium">{summary.brand.name}</span> ({summary.brand.primaryDomain})
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <p className="text-gray-400">
+            Monitoring <span className="text-gray-200 font-medium">{summary.brand.name}</span> ({summary.brand.primaryDomain})
+          </p>
+          {brands.length > 0 && (
+            <select
+              value={selectedBrandId ?? ""}
+              onChange={(e) => handleSelectBrand(e.target.value)}
+              className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
+              aria-label="Select brand"
+            >
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button onClick={() => setShowAddBrand((v) => !v)} className="text-xs text-blue-400 hover:underline">
+            + Add brand
+          </button>
+        </div>
+      )}
+
+      {showAddBrand && (
+        <form onSubmit={handleCreateBrand} className="mt-3 flex flex-wrap gap-2">
+          <input
+            required
+            placeholder="Brand name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+          />
+          <input
+            required
+            placeholder="Primary domain"
+            value={form.primaryDomain}
+            onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
+            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+          />
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {creating ? "Creating…" : "Create"}
+          </button>
+        </form>
       )}
 
       <div className="mt-6 flex gap-4">
