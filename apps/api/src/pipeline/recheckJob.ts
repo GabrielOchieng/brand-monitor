@@ -30,25 +30,42 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
 
   const brand = finding.brand;
   const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
-  const domain = finding.identifier;
+
+  // A "domain" finding (auto-discovered, or a manually-submitted bare domain) is a
+  // registrable name we own the full context of -- DNS/WHOIS/favicon-vs-root all make
+  // sense against it. Any other type (currently just "url", from manual submission of a
+  // path-bearing link like a social-media profile) is a specific page on infrastructure
+  // we don't control -- WHOIS/DNS/favicon data about e.g. instagram.com says nothing
+  // about one fake profile hosted there, and would be actively misleading if displayed
+  // as "domain intelligence." Skip those steps entirely for non-domain types; still scan
+  // and score the actual submitted URL, and still enroll it in the normal recheck
+  // cadence below so an active phishing page keeps getting re-checked, not just scored once.
+  const isDomainType = finding.type === "domain";
+  const hostname = isDomainType ? finding.identifier : new URL(finding.identifier).hostname;
 
   // All network I/O happens before the write transaction below -- never hold a Postgres
   // transaction open across DNS/WHOIS/website-scan calls that can take many seconds.
-  const brandFaviconHash = await ensureBrandFaviconHash(organizationId, brand.id, brand.primaryDomain);
-  const dns = await checkDnsExistence(domain);
-  const registration = dns.exists ? (await lookupRdap(domain)) ?? (await lookupWhois(domain)) : null;
+  const brandFaviconHash = isDomainType ? await ensureBrandFaviconHash(organizationId, brand.id, brand.primaryDomain) : null;
+  const dns = isDomainType ? await checkDnsExistence(hostname) : { exists: false, a: [], aaaa: [], ns: [], mx: [] };
+  const registration = isDomainType && dns.exists ? (await lookupRdap(hostname)) ?? (await lookupWhois(hostname)) : null;
 
   let websiteResult: Awaited<ReturnType<typeof scanWebsite>> | null = null;
-  if (dns.a.length > 0 || dns.aaaa.length > 0) {
-    websiteResult = await scanWebsite(`https://${domain}`, SCANNER_USER_AGENT);
-    if (websiteResult.skipped) {
-      websiteResult = await scanWebsite(`http://${domain}`, SCANNER_USER_AGENT);
+  if (isDomainType) {
+    if (dns.a.length > 0 || dns.aaaa.length > 0) {
+      websiteResult = await scanWebsite(`https://${hostname}`, SCANNER_USER_AGENT);
+      if (websiteResult.skipped) {
+        websiteResult = await scanWebsite(`http://${hostname}`, SCANNER_USER_AGENT);
+      }
     }
+  } else {
+    // Already a full, validated URL (checked at submission time) -- scan it directly,
+    // no DNS gate and no scheme guessing.
+    websiteResult = await scanWebsite(finding.identifier, SCANNER_USER_AGENT);
   }
 
   let faviconMatch = false;
   if (brandFaviconHash) {
-    const candidateHash = await fetchFaviconHash(domain, SCANNER_USER_AGENT);
+    const candidateHash = await fetchFaviconHash(hostname, SCANNER_USER_AGENT);
     if (candidateHash) faviconMatch = hammingDistance(candidateHash, brandFaviconHash) <= FAVICON_MATCH_THRESHOLD;
   }
 
@@ -57,7 +74,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   // That's fine: score events are point-in-time facts about that scan, not required to
   // replicate exactly what an earlier scan found.
   const scoring = computeScore({
-    domain,
+    domain: hostname,
     brandRoot,
     isHomoglyph: false,
     registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
@@ -97,26 +114,32 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       data: { findingId, kind: "recheck", triggeredBy, score: scoring.score, severity: scoring.severity, finishedAt: new Date() },
     });
 
-    await tx.domainIntel.upsert({
-      where: { findingId },
-      create: {
-        findingId,
-        registrar: registration?.registrar ?? null,
-        registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
-        nameservers: registration?.nameservers ?? [],
-        ip: dns.a[0] ?? dns.aaaa[0] ?? null,
-        dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
-        whoisSource: registration?.source ?? "unavailable",
-      },
-      update: {
-        registrar: registration?.registrar ?? null,
-        registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
-        nameservers: registration?.nameservers ?? [],
-        ip: dns.a[0] ?? dns.aaaa[0] ?? null,
-        dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
-        whoisSource: registration?.source ?? "unavailable",
-      },
-    });
+    // Skipped entirely for a non-domain finding -- there is no meaningful domain
+    // intelligence for a specific page on someone else's platform, and writing a row of
+    // (someone else's) WHOIS/DNS facts here would show up in the UI's "domain
+    // intelligence" panel as if it described the threat itself.
+    if (isDomainType) {
+      await tx.domainIntel.upsert({
+        where: { findingId },
+        create: {
+          findingId,
+          registrar: registration?.registrar ?? null,
+          registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
+          nameservers: registration?.nameservers ?? [],
+          ip: dns.a[0] ?? dns.aaaa[0] ?? null,
+          dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
+          whoisSource: registration?.source ?? "unavailable",
+        },
+        update: {
+          registrar: registration?.registrar ?? null,
+          registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
+          nameservers: registration?.nameservers ?? [],
+          ip: dns.a[0] ?? dns.aaaa[0] ?? null,
+          dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
+          whoisSource: registration?.source ?? "unavailable",
+        },
+      });
+    }
 
     if (websiteResult && !websiteResult.skipped) {
       await tx.websiteIntel.upsert({

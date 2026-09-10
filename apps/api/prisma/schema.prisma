@@ -27,7 +27,8 @@ model User {
   name      String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  memberships Membership[]
+  memberships      Membership[]
+  assignedFindings Finding[] @relation("FindingAssignee")
 
   @@map("users")
 }
@@ -115,6 +116,12 @@ model Finding {
   // score-event/evidence breakdown without a MAX(createdAt) aggregate, now that scans
   // are append-only (see Scan below).
   lastScanId      String?   @map("last_scan_id")
+  // Lifecycle: who's investigating (must be a member of this finding's org -- enforced
+  // in the route, not by this FK alone, since a raw User row isn't tenant-scoped) and
+  // free-form labels. Neither drives any pipeline behavior; display/filtering only.
+  assigneeId      String?   @map("assignee_id")
+  assignee        User?    @relation("FindingAssignee", fields: [assigneeId], references: [id])
+  tags            String[] @default([])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -123,9 +130,21 @@ model Finding {
   evidence     FindingEvidence[]
   scoreEvents  FindingScoreEvent[]
   scans        Scan[]
+  notes        FindingNote[]
 
   @@unique([brandId, identifier])
   @@map("findings")
+}
+
+model FindingNote {
+  id        String   @id @default(cuid())
+  findingId String   @map("finding_id")
+  finding   Finding  @relation(fields: [findingId], references: [id])
+  authorId  String   @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("finding_notes")
 }
 
 // One row per discovery/recheck execution against a finding. Score events/evidence are

@@ -1,7 +1,9 @@
+import { promises as dns } from "node:dns";
 import Fastify from "fastify";
 import { chromium } from "playwright";
 import { z } from "zod";
 import { isScanAllowed } from "./robots";
+import { isBlockedIp } from "./ssrfGuard";
 
 const PORT = Number(process.env.PORT ?? 3100);
 const NAV_TIMEOUT_MS = 15_000;
@@ -28,7 +30,21 @@ app.post("/scan", async (request, reply) => {
     return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
   }
   const { url, userAgent } = parsed.data;
-  const origin = new URL(url).origin;
+  const target = new URL(url);
+  const origin = target.origin;
+
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    return reply.send({ skipped: true, reason: "target_not_allowed" });
+  }
+
+  try {
+    const lookups = await dns.lookup(target.hostname, { all: true });
+    if (lookups.some((l) => isBlockedIp(l.address))) {
+      return reply.send({ skipped: true, reason: "target_not_allowed" });
+    }
+  } catch {
+    return reply.send({ skipped: true, reason: "dns_resolution_failed" });
+  }
 
   const allowed = await isScanAllowed(origin, userAgent);
   if (!allowed) {

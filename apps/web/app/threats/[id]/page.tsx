@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { apiFetch, API_URL } from "../../../lib/api";
 import { SeverityBadge } from "../../../components/SeverityBadge";
+import { FindingLifecycle } from "../../../components/FindingLifecycle";
 
 interface FindingDetail {
   id: string;
@@ -9,6 +10,8 @@ interface FindingDetail {
   severity: string;
   status: string;
   source: string;
+  assigneeId: string | null;
+  tags: string[];
   firstDetectedAt: string;
   lastScannedAt: string;
   domainIntel: {
@@ -43,8 +46,15 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         <SeverityBadge severity={finding.severity} />
       </div>
       <p className="mt-1 text-gray-400">
-        Risk score <span className="font-mono text-gray-200">{finding.riskScore}</span>/100 · status {finding.status} · source {finding.source}
+        Risk score <span className="font-mono text-gray-200">{finding.riskScore}</span>/100 · source {finding.source}
       </p>
+
+      <FindingLifecycle
+        findingId={finding.id}
+        initialStatus={finding.status}
+        initialAssigneeId={finding.assigneeId}
+        initialTags={finding.tags}
+      />
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Why this score — itemized breakdown</h2>

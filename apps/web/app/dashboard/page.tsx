@@ -30,6 +30,9 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", primaryDomain: "" });
+  const [submitUrl, setSubmitUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -72,6 +75,28 @@ export default function DashboardPage() {
       setRun({ id: runId, status: "running", candidatesTotal: 0, candidatesChecked: 0, findingsCreated: 0, error: null });
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleManualSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!summary) return;
+    setSubmitting(true);
+    setSubmitMessage(null);
+    setError(null);
+    try {
+      const token = await getToken();
+      await apiFetch("/api/findings/manual-submit", token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: summary.brand.id, url: submitUrl }),
+      });
+      setSubmitUrl("");
+      setSubmitMessage("Submitted — it'll be scored within a few minutes. Check the Threats page.");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -156,6 +181,25 @@ export default function DashboardPage() {
           {run?.status === "running" ? "Discovery running…" : "Run discovery"}
         </button>
       </div>
+
+      <form onSubmit={handleManualSubmit} className="mt-6 flex gap-2">
+        <input
+          required
+          type="url"
+          placeholder="Report a suspicious URL (e.g. a fake social profile)"
+          value={submitUrl}
+          onChange={(e) => setSubmitUrl(e.target.value)}
+          className="w-full max-w-md rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded border border-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+        >
+          {submitting ? "Submitting…" : "Submit"}
+        </button>
+      </form>
+      {submitMessage && <p className="mt-2 text-sm text-green-400">{submitMessage}</p>}
 
       {run && (
         <div className="mt-4 rounded border border-gray-800 p-4 text-sm text-gray-300">

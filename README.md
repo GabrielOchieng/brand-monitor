@@ -73,6 +73,18 @@ background:
   in the header), and/or a webhook if one's configured (`PUT /api/webhook-config` — no
   settings UI yet). More rule kinds (`score_increase`, `new_finding`) exist and work, just
   aren't auto-seeded; add one directly via `alert_rules` until a rules UI exists.
+- **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
+  resolved`), assignee, and tags are editable from its detail page — `resolved`/
+  `false_positive` also stop it from being picked up for further automatic rechecks. Notes
+  are a simple threaded log on the same page.
+- **Manual submission**: paste a URL on the dashboard to report a suspicious page discovery
+  can't reach on its own — most notably a fake social-media profile, since platforms like
+  Instagram/Facebook have no discovery API to search (see `ARCHITECTURE.md`). A bare domain
+  is treated like any discovered domain (full WHOIS/DNS/favicon enrichment, ongoing
+  recheck cadence); a path-bearing URL (e.g. a specific profile page) is scanned and scored
+  as that exact page — WHOIS/DNS/favicon checks are skipped for it since domain-registration
+  facts about someone else's platform say nothing about one fake profile hosted there — but
+  it still stays enrolled in the normal recheck cadence, not just scored once.
 
 ## What to expect
 
