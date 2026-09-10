@@ -19,6 +19,32 @@ function isExpired(createdAt: Date): boolean {
   return Date.now() - createdAt.getTime() > BRAND_ASSET_TTL_MS;
 }
 
+// Confirmed for real, not hypothetical: a brand's own real site can sit behind
+// bot-protection (Imperva, Cloudflare, etc.) that serves a CAPTCHA/challenge page to a
+// generic headless browser instead of the real homepage -- a plain, generic "BrandMonitorBot"
+// user-agent has no special standing with these services just because it's scanning the
+// site's own owner's brand. If that challenge page got cached as the reference, every
+// future candidate comparison would silently run against a CAPTCHA page instead of the
+// real site. Narrow, curated keyword list, same idiom as the scanner's own looksParked
+// check -- this doesn't try to evade bot-detection, it just refuses to trust a capture
+// that's obviously not the real page.
+const BOT_CHALLENGE_KEYWORDS = [
+  "hcaptcha",
+  "recaptcha",
+  "are you human",
+  "security check is required",
+  "checking your browser",
+  "just a moment", // Cloudflare's interstitial title
+  "attention required", // Cloudflare's block-page title
+  "protected by imperva",
+  "please verify you are a human",
+];
+
+function looksLikeBotChallenge(title: string | null | undefined, text: string | null | undefined): boolean {
+  const combined = `${title ?? ""} ${text ?? ""}`.toLowerCase();
+  return BOT_CHALLENGE_KEYWORDS.some((k) => combined.includes(k));
+}
+
 export async function ensureBrandFaviconHash(orgId: string, brandId: string, primaryDomain: string): Promise<string | null> {
   const existing = await withTenant(orgId, (tx) =>
     tx.brandAsset.findFirst({ where: { brandId, type: "favicon" }, orderBy: { createdAt: "desc" } })
@@ -58,6 +84,10 @@ export async function ensureBrandScreenshotHash(orgId: string, brandId: string, 
   const result = await scanWebsite(`https://${primaryDomain}`, SCANNER_USER_AGENT, 2000);
   if (result.skipped || !result.screenshotBase64) {
     console.warn(`[visual-similarity] couldn't capture a reference screenshot for brand ${brandId} (${primaryDomain}): ${result.reason ?? "no screenshot returned"}`);
+    return existing?.hash ?? null;
+  }
+  if (looksLikeBotChallenge(result.title, result.extractedText)) {
+    console.warn(`[visual-similarity] reference capture for brand ${brandId} (${primaryDomain}) looks like a bot-detection challenge page (title: "${result.title}"), not the real site -- refusing to cache it as the baseline.`);
     return existing?.hash ?? null;
   }
 
