@@ -19,5 +19,8 @@ export async function apiFetch<T>(path: string, token: string | null, init?: Req
     }
     throw new Error(`API ${path} failed: ${res.status}${detail}`);
   }
+  // 204 No Content (e.g. a successful DELETE) has no body -- res.json() would throw on
+  // an empty string, not return something falsy.
+  if (res.status === 204) return undefined as T;
   return res.json();
 }

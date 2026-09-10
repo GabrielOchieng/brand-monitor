@@ -34,11 +34,15 @@ export default function DashboardPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [showAddBrand, setShowAddBrand] = useState(false);
+  const [showEditBrand, setShowEditBrand] = useState(false);
   const [noBrandYet, setNoBrandYet] = useState(false);
   const [run, setRun] = useState<RunStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: "", primaryDomain: "" });
+  const [editForm, setEditForm] = useState({ name: "", primaryDomain: "" });
   const [submitUrl, setSubmitUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
@@ -164,6 +168,66 @@ export default function DashboardPage() {
     }
   }
 
+  function handleToggleEdit() {
+    if (!showEditBrand && summary) {
+      setEditForm({ name: summary.brand.name, primaryDomain: summary.brand.primaryDomain });
+    }
+    setShowEditBrand((v) => !v);
+  }
+
+  async function handleUpdateBrand(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedBrandId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      await apiFetch(`/api/brands/${selectedBrandId}`, token, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editForm.name, primaryDomain: editForm.primaryDomain }),
+      });
+      setShowEditBrand(false);
+      await loadBrands();
+      await loadSummary(selectedBrandId);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteBrand() {
+    if (!selectedBrandId || !summary) return;
+    const confirmed = window.confirm(
+      `Delete "${summary.brand.name}" and everything under it (all findings, scans, notes, takedowns)? This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      await apiFetch(`/api/brands/${selectedBrandId}`, token, { method: "DELETE" });
+      const remaining = await (async () => {
+        const t = await getToken();
+        return apiFetch<Brand[]>("/api/brands", t);
+      })();
+      setBrands(remaining);
+      if (remaining.length > 0) {
+        await loadSummary(remaining[0].id);
+      } else {
+        setSummary(null);
+        setSelectedBrandId(null);
+        setNoBrandYet(true);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!isLoaded) return null;
 
   if (!orgId) {
@@ -233,6 +297,16 @@ export default function DashboardPage() {
           <button onClick={() => setShowAddBrand((v) => !v)} className="text-xs text-blue-400 hover:underline">
             + Add brand
           </button>
+          <button onClick={handleToggleEdit} className="text-xs text-blue-400 hover:underline">
+            Edit
+          </button>
+          <button
+            onClick={handleDeleteBrand}
+            disabled={deleting}
+            className="text-xs text-red-400 hover:underline disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "Delete brand"}
+          </button>
         </div>
       )}
 
@@ -258,6 +332,32 @@ export default function DashboardPage() {
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
           >
             {creating ? "Creating…" : "Create"}
+          </button>
+        </form>
+      )}
+
+      {showEditBrand && (
+        <form onSubmit={handleUpdateBrand} className="mt-3 flex flex-wrap gap-2">
+          <input
+            required
+            placeholder="Brand name"
+            value={editForm.name}
+            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+          />
+          <input
+            required
+            placeholder="Primary domain"
+            value={editForm.primaryDomain}
+            onChange={(e) => setEditForm({ ...editForm, primaryDomain: e.target.value })}
+            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+          />
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
           </button>
         </form>
       )}
