@@ -236,6 +236,15 @@ model DomainIntel {
   dnsRecords   Json?     @map("dns_records")
   whoisSource  String?   @map("whois_source") // rdap | whois | unavailable
   rawData      Json?     @map("raw_data")
+  // First-ever time DNS delegation was observed for this domain -- set once, never
+  // overwritten (same "first fact, never overwritten" pattern as Finding.firstDetectedAt
+  // and Takedown.resolvedAt). Null means we've never once confirmed this domain actually
+  // resolves -- still just a candidate, not a proven registration. currentlyResolves
+  // reflects only the LATEST scan, so `firstResolvedAt != null && !currentlyResolves` is
+  // the "was registered, isn't anymore" (lapsed) case a typosquat can genuinely hit --
+  // e.g. a brief test-registration, or a hold period expiring after discovery flagged it.
+  firstResolvedAt   DateTime? @map("first_resolved_at")
+  currentlyResolves Boolean   @default(false) @map("currently_resolves")
 
   @@map("domain_intel")
 }

@@ -22,6 +22,8 @@ interface FindingDetail {
     nameservers: string[];
     ip: string | null;
     whoisSource: string | null;
+    firstResolvedAt: string | null;
+    currentlyResolves: boolean;
   } | null;
   websiteIntel: {
     screenshotPath: string | null;
@@ -53,6 +55,14 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold text-gray-100">{finding.identifier}</h1>
         <SeverityBadge severity={finding.severity} />
+        {finding.domainIntel?.firstResolvedAt && !finding.domainIntel.currentlyResolves && (
+          <span
+            title="This domain was confirmed registered/resolving at some point, but no longer resolves as of the last recheck."
+            className="rounded border border-amber-600/40 bg-amber-600/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+          >
+            No longer resolves
+          </span>
+        )}
       </div>
       <p className="mt-1 text-gray-400">
         Risk score <span className="font-mono text-gray-200">{finding.riskScore}</span>/100 · source {finding.source}
@@ -98,6 +108,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Domain intelligence</h2>
           <dl className="mt-3 space-y-1 text-sm">
+            {finding.domainIntel && <Row label="Registration status" value={resolutionStatus(finding.domainIntel)} />}
             <Row label="Registrar" value={finding.domainIntel?.registrar} />
             <Row label="Registered" value={finding.domainIntel?.registeredAt ? new Date(finding.domainIntel.registeredAt).toLocaleString() : null} />
             <Row label="IP" value={finding.domainIntel?.ip} />
@@ -129,6 +140,16 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
       <TakedownTracker findingId={finding.id} />
     </div>
   );
+}
+
+// "Lapsed" (was confirmed resolving, isn't now) is a distinct state from "never
+// confirmed" (a candidate we've never seen resolve at all, e.g. a fresh manual
+// submission) -- both currently render as empty domain-intel fields otherwise, which is
+// exactly what made a lapsed domain look identical to a currently-live one in the UI.
+function resolutionStatus(domainIntel: { firstResolvedAt: string | null; currentlyResolves: boolean }): string {
+  if (!domainIntel.firstResolvedAt) return "Never confirmed registered";
+  if (domainIntel.currentlyResolves) return "Active";
+  return `No longer resolves (first confirmed ${new Date(domainIntel.firstResolvedAt).toLocaleDateString()})`;
 }
 
 function Row({ label, value }: { label: string; value?: string | null }) {

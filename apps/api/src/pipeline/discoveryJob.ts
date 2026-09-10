@@ -51,8 +51,8 @@ export async function runDiscoveryJob(data: DiscoveryJobData): Promise<void> {
         );
         if (alreadyTracked) return; // recheck's own cadence keeps it fresh; discovery doesn't touch it
 
-        await withTenant(organizationId, (tx) =>
-          tx.finding.create({
+        await withTenant(organizationId, async (tx) => {
+          const finding = await tx.finding.create({
             data: {
               brandId,
               identifier: candidate.domain,
@@ -62,8 +62,17 @@ export async function runDiscoveryJob(data: DiscoveryJobData): Promise<void> {
               severity: "low",
               nextScanAt: new Date(),
             },
-          })
-        );
+          });
+          // Capture "confirmed resolving" right now, at the moment it's actually true --
+          // the DNS check above (dns.exists) is the only proof of that we'll ever have at
+          // this precise instant. Deferring this to the finding's first recheck (which
+          // does its own, later, independent DNS check) would miss it entirely for a
+          // domain that goes non-resolving again before that first recheck runs -- exactly
+          // the "briefly registered, then lapsed" case this field exists to capture.
+          await tx.domainIntel.create({
+            data: { findingId: finding.id, firstResolvedAt: new Date(), currentlyResolves: true },
+          });
+        });
         created += 1;
       } finally {
         checked += 1;

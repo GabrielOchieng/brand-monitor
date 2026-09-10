@@ -131,6 +131,16 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // (someone else's) WHOIS/DNS facts here would show up in the UI's "domain
     // intelligence" panel as if it described the threat itself.
     if (isDomainType) {
+      // Read BEFORE the upsert overwrites it -- firstResolvedAt is a first-ever fact
+      // (mirrors previousWebsiteIntel's "read before overwrite" just above), never
+      // clobbered by a later recheck that finds the domain no longer resolving.
+      // discoveryJob.ts already sets this at creation time for an auto-discovered
+      // finding (it only creates one after its own DNS check confirms dns.exists), so
+      // preserving it forward here is what actually makes a later "lapsed" state
+      // (dns.exists false now, but firstResolvedAt is set) detectable at all.
+      const previousDomainIntel = await tx.domainIntel.findUnique({ where: { findingId } });
+      const firstResolvedAt = dns.exists ? (previousDomainIntel?.firstResolvedAt ?? new Date()) : previousDomainIntel?.firstResolvedAt ?? null;
+
       await tx.domainIntel.upsert({
         where: { findingId },
         create: {
@@ -141,6 +151,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           ip: dns.a[0] ?? dns.aaaa[0] ?? null,
           dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
           whoisSource: registration?.source ?? "unavailable",
+          firstResolvedAt,
+          currentlyResolves: dns.exists,
         },
         update: {
           registrar: registration?.registrar ?? null,
@@ -149,6 +161,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           ip: dns.a[0] ?? dns.aaaa[0] ?? null,
           dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
           whoisSource: registration?.source ?? "unavailable",
+          firstResolvedAt,
+          currentlyResolves: dns.exists,
         },
       });
     }
