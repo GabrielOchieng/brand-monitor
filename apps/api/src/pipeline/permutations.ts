@@ -153,7 +153,11 @@ export function generateCandidates(brandRoot: string, concatKeywords: string[]):
   // Brand+keyword concatenations (e.g. jambojet-support.com) simulate the common
   // phishing-kit pattern of a support/login/refund-themed lookalike; check these across
   // the full extended TLD list since that's where such kits are actually hosted.
-  const concatPatterns = (kw: string) => [`${root}-${kw}`, `${root}${kw}`, `${kw}-${root}`];
+  // Covers both suffix forms (jambojet-support / jambojetsupport) and both prefix forms
+  // (fly-jambojet / flyjambojet) -- a no-hyphen prefix concatenation like "flyjambojet"
+  // is a real, common pattern (a generic/descriptive word glued in front of the brand
+  // name) that was missing here until confirmed against a real example.
+  const concatPatterns = (kw: string) => [`${root}-${kw}`, `${root}${kw}`, `${kw}-${root}`, `${kw}${root}`];
   for (const kw of concatKeywords) {
     for (const sld of concatPatterns(kw)) {
       if (seen.has(sld)) continue;

@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 // Concat-term keywords feed the "brand + support/login/refund/..." candidate pattern in
 // permutations.ts. Add any additional domains Jambojet legitimately owns to the
 // brand_domains allowlist below -- do not guess these, confirm with the brand owner.
-const CONCAT_KEYWORDS = ["support", "login", "secure", "verify", "refund", "promo", "booking", "pay", "flights", "ke"];
+const CONCAT_KEYWORDS = ["support", "login", "secure", "verify", "refund", "promo", "booking", "pay", "flights", "ke", "fly", "book", "my"];
 
 async function seedDemoFinding(
   brandId: string,
