@@ -49,6 +49,14 @@ const CONFUSABLE_SUBSTITUTIONS: Array<[string, string]> = [
   ["e", "е"], // Cyrillic е
   ["o", "о"], // Cyrillic о
   ["p", "р"], // Cyrillic р
+  // Leetspeak digit substitutions -- a real, common typosquat technique distinct from
+  // the visual-confusable ones above (these read as "clever," not "identical," but are
+  // still a well-established registration pattern worth checking for).
+  ["a", "4"],
+  ["e", "3"],
+  ["s", "5"],
+  ["t", "7"],
+  ["g", "9"],
 ];
 
 export interface Candidate {
@@ -116,8 +124,14 @@ function toAscii(sld: string): string {
 }
 
 const CORE_TLDS = ["com", "net", "co.ke", "xyz"];
-const EXTENDED_TLDS = ["com", "net", "org", "info", "xyz", "top", "co.ke", "africa", "online", "site", "shop"];
-const HIGH_RISK_TLDS = new Set(["xyz", "top", "online", "site", "shop", "info"]);
+// Extended list only applies to concat-keyword candidates (the smaller candidate set),
+// not the typo-technique ones (CORE_TLDS, deliberately kept small since those generate
+// far more SLD variants) -- adding TLDs here is a linear cost increase, not combinatorial.
+const EXTENDED_TLDS = [
+  "com", "net", "org", "info", "xyz", "top", "co.ke", "africa", "online", "site", "shop",
+  "club", "live", "win", "click", "cc",
+];
+const HIGH_RISK_TLDS = new Set(["xyz", "top", "online", "site", "shop", "info", "club", "live", "win", "click", "cc"]);
 
 export function isHighRiskTld(domain: string): boolean {
   const tld = EXTENDED_TLDS.find((t) => domain.endsWith(`.${t}`));

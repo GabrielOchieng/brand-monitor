@@ -6,7 +6,20 @@ const prisma = new PrismaClient();
 // Concat-term keywords feed the "brand + support/login/refund/..." candidate pattern in
 // permutations.ts. Add any additional domains Jambojet legitimately owns to the
 // brand_domains allowlist below -- do not guess these, confirm with the brand owner.
-const CONCAT_KEYWORDS = ["support", "login", "secure", "verify", "refund", "promo", "booking", "pay", "flights", "ke", "fly", "book", "my"];
+// Compound entries (e.g. "bookfly") are deliberately curated, real-world-realistic
+// two-word phrases rather than a full cross-product of every keyword pair -- a blind
+// pairwise combination of all keywords here would multiply DNS-check volume
+// combinatorially (13 keywords -> 150+ ordered pairs) for mostly nonsensical
+// combinations ("supportpay", "refundverify") that add cost without adding real
+// detection value. Each compound just rides the existing single-keyword concat logic
+// unmodified -- concatPatterns("bookfly") already produces "bookflyjambojet" etc.
+const CONCAT_KEYWORDS = [
+  "support", "login", "secure", "verify", "refund", "promo", "booking", "pay", "flights", "ke", "fly", "book", "my",
+  "bookfly", "flybook", "mybooking", "securelogin", "verifyaccount",
+  // Airline-specific terms -- generic enough to apply to any airline brand, not
+  // Jambojet-specific phrasing, so this list stays reusable for a future second brand.
+  "airways", "airlines", "checkin", "miles", "reservations", "tickets",
+];
 
 async function seedDemoFinding(
   brandId: string,
