@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { apiFetch } from "../../lib/api";
 import { SeverityBadge } from "../../components/SeverityBadge";
 
@@ -14,7 +15,9 @@ interface FindingRow {
 }
 
 export default async function ThreatsPage() {
-  const findings = await apiFetch<FindingRow[]>("/api/findings");
+  const { getToken } = await auth();
+  const token = await getToken();
+  const findings = await apiFetch<FindingRow[]>("/api/findings", token);
 
   return (
     <div>

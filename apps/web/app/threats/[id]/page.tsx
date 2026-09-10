@@ -1,3 +1,4 @@
+import { auth } from "@clerk/nextjs/server";
 import { apiFetch, API_URL } from "../../../lib/api";
 import { SeverityBadge } from "../../../components/SeverityBadge";
 
@@ -31,7 +32,9 @@ interface FindingDetail {
 
 export default async function ThreatDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const finding = await apiFetch<FindingDetail>(`/api/findings/${id}`);
+  const { getToken } = await auth();
+  const token = await getToken();
+  const finding = await apiFetch<FindingDetail>(`/api/findings/${id}`, token);
 
   return (
     <div className="max-w-3xl">

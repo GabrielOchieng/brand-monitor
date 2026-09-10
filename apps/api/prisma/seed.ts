@@ -67,16 +67,41 @@ async function seedDemoFinding(
 }
 
 async function main() {
+  // Once Clerk is configured, set SEED_ORG_ID (and optionally SEED_USER_ID/SEED_USER_EMAIL)
+  // to your real Clerk org/user id and re-run this -- a placeholder id here would never
+  // match any real session's org_id claim, so the seeded data would be unreachable
+  // through actual auth even though it's sitting in the database.
+  const orgId = process.env.SEED_ORG_ID ?? "seed-org-jambojet";
+  const userId = process.env.SEED_USER_ID;
+  const userEmail = process.env.SEED_USER_EMAIL;
+
   const org = await prisma.organization.upsert({
-    where: { id: "seed-org-jambojet" },
-    create: { id: "seed-org-jambojet", name: "Jambojet — POC" },
+    where: { id: orgId },
+    create: { id: orgId, name: "Jambojet — POC" },
     update: {},
   });
+
+  if (userId && userEmail) {
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: { id: userId, email: userEmail },
+      update: { email: userEmail },
+    });
+    await prisma.membership.upsert({
+      where: { userId_organizationId: { userId, organizationId: org.id } },
+      create: { userId, organizationId: org.id, role: "owner" },
+      update: { role: "owner" },
+    });
+  }
 
   const brand = await prisma.brand.upsert({
     where: { id: "seed-brand-jambojet" },
     create: { id: "seed-brand-jambojet", organizationId: org.id, name: "Jambojet", primaryDomain: "jambojet.com" },
-    update: {},
+    // Re-running with a different SEED_ORG_ID must actually move the brand (and via RLS,
+    // its findings) to the new org -- an empty update here silently left a stale org_id
+    // in place the first time this was exercised for real, hiding all the seeded data
+    // from the new org without any error.
+    update: { organizationId: org.id },
   });
 
   await prisma.brandDomain.upsert({

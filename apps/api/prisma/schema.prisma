@@ -12,12 +12,37 @@ datasource db {
 // not a throwaway schema.
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String   @id // Clerk organization id (org_...), not a generated cuid
   name      String
   createdAt DateTime @default(now()) @map("created_at")
-  brands    Brand[]
+  brands       Brand[]
+  memberships  Membership[]
 
   @@map("organizations")
+}
+
+model User {
+  id        String   @id // Clerk user id (user_...), not a generated cuid
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  memberships Membership[]
+
+  @@map("users")
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id])
+  organizationId String   @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           String   @default("analyst") // owner | admin | analyst | viewer
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, organizationId])
+  @@map("memberships")
 }
 
 model Brand {

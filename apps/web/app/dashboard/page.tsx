@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 
 interface Summary {
@@ -22,27 +23,38 @@ interface RunStatus {
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
 
 export default function DashboardPage() {
+  const { getToken, orgId, isLoaded } = useAuth();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [noBrandYet, setNoBrandYet] = useState(false);
   const [run, setRun] = useState<RunStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", primaryDomain: "" });
 
   const loadSummary = useCallback(async () => {
     try {
-      const data = await apiFetch<Summary>("/api/dashboard/summary");
+      const token = await getToken();
+      const data = await apiFetch<Summary>("/api/dashboard/summary", token);
+      setNoBrandYet(false);
       setSummary(data);
     } catch (err: any) {
-      setError(err.message);
+      if (String(err.message).includes("404")) {
+        setNoBrandYet(true);
+      } else {
+        setError(err.message);
+      }
     }
-  }, []);
+  }, [getToken]);
 
   useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
+    if (isLoaded && orgId) loadSummary();
+  }, [isLoaded, orgId, loadSummary]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
     const interval = setInterval(async () => {
-      const updated = await apiFetch<RunStatus>(`/api/pipeline/runs/${run.id}`);
+      const token = await getToken();
+      const updated = await apiFetch<RunStatus>(`/api/pipeline/runs/${run.id}`, token);
       setRun(updated);
       if (updated.status !== "running") {
         clearInterval(interval);
@@ -50,16 +62,80 @@ export default function DashboardPage() {
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [run, loadSummary]);
+  }, [run, loadSummary, getToken]);
 
   async function handleRunDiscovery() {
     setError(null);
     try {
-      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", { method: "POST" });
+      const token = await getToken();
+      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", token, { method: "POST" });
       setRun({ id: runId, status: "running", candidatesTotal: 0, candidatesChecked: 0, findingsCreated: 0, error: null });
     } catch (err: any) {
       setError(err.message);
     }
+  }
+
+  async function handleCreateBrand(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      await apiFetch("/api/brands", token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, primaryDomain: form.primaryDomain }),
+      });
+      await loadSummary();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  if (!isLoaded) return null;
+
+  if (!orgId) {
+    return (
+      <div className="max-w-lg">
+        <h1 className="text-2xl font-semibold text-gray-100">Select or create an organization</h1>
+        <p className="mt-2 text-gray-400">Use the organization switcher in the top bar to continue.</p>
+      </div>
+    );
+  }
+
+  if (noBrandYet) {
+    return (
+      <div className="max-w-md">
+        <h1 className="text-2xl font-semibold text-gray-100">Protect your first brand</h1>
+        <p className="mt-1 text-gray-400">Enter the brand name and its primary domain to start monitoring.</p>
+        <form onSubmit={handleCreateBrand} className="mt-6 space-y-4">
+          <input
+            required
+            placeholder="Brand name (e.g. Jambojet)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+          />
+          <input
+            required
+            placeholder="Primary domain (e.g. jambojet.com)"
+            value={form.primaryDomain}
+            onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
+            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+          />
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {creating ? "Creating…" : "Create brand"}
+          </button>
+        </form>
+        {error && <p className="mt-4 text-red-400">{error}</p>}
+      </div>
+    );
   }
 
   return (
