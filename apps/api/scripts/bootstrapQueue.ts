@@ -13,7 +13,7 @@ import { env } from "../src/env";
 async function main() {
   const boss = new PgBoss(env.databaseUrl);
   await boss.start();
-  await boss.stop({ graceful: true, destroy: true });
+  await boss.stop({ graceful: true, close: true });
 
   const prisma = new PrismaClient({ datasources: { db: { url: env.databaseUrl } } });
   try {
