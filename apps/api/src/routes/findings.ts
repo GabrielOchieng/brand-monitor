@@ -122,7 +122,20 @@ export async function findingsRoutes(app: FastifyInstance) {
       ? await withTenant(request.auth!.orgId, (tx) => tx.aiExplanation.findUnique({ where: { scanId: finding.lastScanId! } }))
       : null;
 
-    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation });
+    // Distinguishes "the most recent recheck attempt got real website content" from
+    // "it didn't" (a scan timeout, robots-disallow, or SSRF-guard rejection), without a
+    // schema change: WebsiteIntel.scannedAt only ever advances on a SUCCESSFUL scan,
+    // while Finding.lastScannedAt advances on every recheck attempt regardless of
+    // outcome. A gap between them means the latest attempt failed to get data and
+    // whatever's shown (if anything) is left over from an earlier successful scan, or
+    // there was never one at all. The 5-minute tolerance is deliberately far smaller
+    // than the minimum 20-minute recheck cadence, so it can't mistake "two attempts
+    // close together" for "this attempt succeeded."
+    const websiteDataCurrent = Boolean(
+      finding.websiteIntel && Math.abs(finding.websiteIntel.scannedAt.getTime() - finding.lastScannedAt.getTime()) < 5 * 60 * 1000
+    );
+
+    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation, websiteDataCurrent });
   });
 
   // Deliberately conservative v1: registrar + tight registration-time window is the only

@@ -35,6 +35,7 @@ interface FindingDetail {
     looksParked: boolean;
     visualSimilarityMatch: boolean;
   } | null;
+  websiteDataCurrent: boolean;
   evidence: Array<{ id: string; description: string }>;
   scoreEvents: Array<{ id: string; delta: number; reason: string; ruleCode: string }>;
   aiExplanation: {
@@ -122,6 +123,16 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         </div>
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Website intelligence</h2>
+          {!finding.websiteDataCurrent && (
+            <p
+              title="The most recent recheck couldn't successfully scan this site (timeout, network error, or it's blocking automated requests) -- the data below is from an earlier successful scan, not the latest attempt."
+              className="mt-2 rounded border border-amber-600/40 bg-amber-600/20 px-2 py-1 text-xs text-amber-300"
+            >
+              {finding.websiteIntel
+                ? "Showing data from an earlier scan -- the most recent recheck didn't succeed."
+                : "This site has never been successfully scanned yet."}
+            </p>
+          )}
           <dl className="mt-3 space-y-1 text-sm">
             <Row label="Title" value={finding.websiteIntel?.title} />
             <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
