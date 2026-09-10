@@ -17,7 +17,9 @@ try {
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),
-  scannerUrl: process.env.SCANNER_URL ?? "http://localhost:3100",
+  // 127.0.0.1, not localhost -- see .env.example: the same IPv6/::1 port-publish issue
+  // already found and fixed for DATABASE_URL applies here too.
+  scannerUrl: process.env.SCANNER_URL ?? "http://127.0.0.1:3100",
   // The running server always connects as the restricted brandmonitor_app role, never
   // the migration role in DATABASE_URL -- see apps/api/.env.example.
   databaseAppUrl: process.env.DATABASE_APP_URL ?? "",
