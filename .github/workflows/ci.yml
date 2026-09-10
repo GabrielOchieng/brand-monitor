@@ -16,6 +16,10 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
       - run: npm ci
+      # npm ci does not run `prisma generate` on its own -- without this, @prisma/client
+      # stays an uninitialized stub and every Prisma-typed result collapses to {}/unknown,
+      # which is a false-positive typecheck failure across most of the codebase.
+      - run: npx prisma generate --schema apps/api/prisma/schema.prisma
       - run: npx tsc --noEmit -p apps/api
       - run: npx tsc --noEmit -p apps/scanner
       - run: npm run build -w @brand-monitor/web
@@ -49,6 +53,10 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
       - run: npm ci
+      # npm ci does not run `prisma generate` on its own -- bootstrapQueue.ts and the
+      # test suite both construct a real PrismaClient, which throws immediately
+      # ("did not initialize yet") without this.
+      - run: npx prisma generate --schema apps/api/prisma/schema.prisma
       # Provisions the brandmonitor_app role + grants + every table's RLS policy from
       # scratch -- the 20260910000000_multi_tenancy_rls migration's hand-added SQL does
       # all of this, keyed to a database literally named "brandmonitor" (matching
