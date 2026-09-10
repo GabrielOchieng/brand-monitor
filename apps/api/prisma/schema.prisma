@@ -108,6 +108,13 @@ model Finding {
   status          String   @default("new")
   firstDetectedAt DateTime @default(now()) @map("first_detected_at")
   lastScannedAt   DateTime @default(now()) @map("last_scanned_at")
+  // Drives the recheck dispatcher (apps/api/src/queue/dispatch.ts) -- null means never
+  // enrolled for recheck (shouldn't happen once discovery sets it at creation).
+  nextScanAt      DateTime? @map("next_scan_at")
+  // Points at this finding's most recent Scan -- the O(1) way to fetch "current"
+  // score-event/evidence breakdown without a MAX(createdAt) aggregate, now that scans
+  // are append-only (see Scan below).
+  lastScanId      String?   @map("last_scan_id")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -115,9 +122,36 @@ model Finding {
   websiteIntel WebsiteIntel?
   evidence     FindingEvidence[]
   scoreEvents  FindingScoreEvent[]
+  scans        Scan[]
 
   @@unique([brandId, identifier])
   @@map("findings")
+}
+
+// One row per discovery/recheck execution against a finding. Score events/evidence are
+// append-only and tagged with the scan that produced them (see FindingScoreEvent/
+// FindingEvidence below) -- this is what makes "show only the current breakdown" and "show
+// full history over time" both possible from the same append-only data, instead of having
+// to choose one. A scan's score/severity are an absolute recomputation each time
+// (computeScore in scoring.ts), never incremental -- a future timeline view must group by
+// scan, never flatten FindingScoreEvent rows across scans (that would double-count a rule
+// like a homoglyph match that's still true on every recheck).
+model Scan {
+  id          String    @id @default(cuid())
+  findingId   String    @map("finding_id")
+  finding     Finding   @relation(fields: [findingId], references: [id])
+  kind        String // discovery | recheck
+  triggeredBy String    @map("triggered_by") // manual | scheduled
+  score       Int?
+  severity    String?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  error       String?
+
+  scoreEvents FindingScoreEvent[]
+  evidence    FindingEvidence[]
+
+  @@map("scans")
 }
 
 model DomainIntel {
@@ -157,6 +191,8 @@ model FindingEvidence {
   id          String   @id @default(cuid())
   findingId   String   @map("finding_id")
   finding     Finding  @relation(fields: [findingId], references: [id])
+  scanId      String   @map("scan_id")
+  scan        Scan     @relation(fields: [scanId], references: [id])
   description String
   data        Json?
   createdAt   DateTime @default(now()) @map("created_at")
@@ -168,6 +204,8 @@ model FindingScoreEvent {
   id        String   @id @default(cuid())
   findingId String   @map("finding_id")
   finding   Finding  @relation(fields: [findingId], references: [id])
+  scanId    String   @map("scan_id")
+  scan      Scan     @relation(fields: [scanId], references: [id])
   delta     Int
   reason    String
   ruleCode  String   @map("rule_code")

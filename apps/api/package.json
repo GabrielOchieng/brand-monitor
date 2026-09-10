@@ -7,7 +7,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "queue:bootstrap": "tsx scripts/bootstrapQueue.ts"
   },
   "dependencies": {
     "@brand-monitor/shared": "*",
@@ -18,6 +19,7 @@
     "@fastify/cors": "^10.0.0",
     "@fastify/static": "^8.0.0",
     "fastify-raw-body": "^5.0.0",
+    "pg-boss": "^12.30.0",
     "sharp": "^0.33.5",
     "whoiser": "^1.18.0",
     "zod": "^3.23.8"

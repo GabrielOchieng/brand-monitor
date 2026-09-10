@@ -31,18 +31,28 @@ export async function findingsRoutes(app: FastifyInstance) {
     const finding = await withTenant(request.auth!.orgId, (tx) =>
       tx.finding.findUnique({
         where: { id },
-        include: {
-          domainIntel: true,
-          websiteIntel: true,
-          evidence: { orderBy: { createdAt: "asc" } },
-          scoreEvents: { orderBy: { createdAt: "asc" } },
-        },
+        include: { domainIntel: true, websiteIntel: true },
       })
     );
     // RLS means a cross-tenant id simply doesn't come back, same as a bad id -- both
     // correctly 404, never a distinguishable "forbidden" that would leak existence.
     if (!finding) return reply.status(404).send({ error: "not_found" });
-    return reply.send(finding);
+
+    // Evidence/score events are append-only across every scan ever run (see the Scan
+    // model) -- fetch only the LATEST scan's rows here, not the finding's full history,
+    // or "why this score" would show every reason from every recheck ever run rather
+    // than just the current one. A finding with no scan yet (freshly discovered, not
+    // enriched) correctly comes back with empty arrays until its first recheck runs.
+    const [evidence, scoreEvents] = finding.lastScanId
+      ? await withTenant(request.auth!.orgId, (tx) =>
+          Promise.all([
+            tx.findingEvidence.findMany({ where: { scanId: finding.lastScanId! }, orderBy: { createdAt: "asc" } }),
+            tx.findingScoreEvent.findMany({ where: { scanId: finding.lastScanId! }, orderBy: { createdAt: "asc" } }),
+          ])
+        )
+      : [[], []];
+
+    return reply.send({ ...finding, evidence, scoreEvents });
   });
 
   app.get("/api/dashboard/summary", { preHandler: authenticate }, async (request, reply) => {

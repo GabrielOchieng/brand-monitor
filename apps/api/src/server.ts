@@ -8,6 +8,8 @@ import { pipelineRoutes } from "./routes/pipeline";
 import { findingsRoutes } from "./routes/findings";
 import { brandRoutes } from "./routes/brands";
 import { webhookRoutes } from "./routes/webhooks";
+import { boss, ensureQueues } from "./queue/boss";
+import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -27,6 +29,14 @@ async function main() {
   await app.register(findingsRoutes);
 
   app.get("/health", async () => ({ ok: true }));
+
+  // Requires `npm run queue:bootstrap` to have already granted brandmonitor_app access
+  // to the pgboss schema -- see scripts/bootstrapQueue.ts.
+  await boss.start();
+  await ensureQueues();
+  await registerQueueWorkers();
+  await scheduleDispatchers();
+  app.log.info("Queue started: workers registered, dispatchers scheduled.");
 
   await app.listen({ port: env.port, host: "0.0.0.0" });
 }

@@ -52,18 +52,28 @@ async function seedDemoFinding(
     update: {},
   });
 
-  await prisma.findingScoreEvent.deleteMany({ where: { findingId: finding.id } });
-  await prisma.findingScoreEvent.createMany({
-    data: events.map((e) => ({ findingId: finding.id, delta: e.delta, reason: e.reason, ruleCode: e.ruleCode })),
+  const scan = await prisma.scan.create({
+    data: { findingId: finding.id, kind: "recheck", triggeredBy: "manual", score, severity, finishedAt: new Date() },
   });
 
-  await prisma.findingEvidence.deleteMany({ where: { findingId: finding.id } });
+  await prisma.findingScoreEvent.createMany({
+    data: events.map((e) => ({ findingId: finding.id, scanId: scan.id, delta: e.delta, reason: e.reason, ruleCode: e.ruleCode })),
+  });
+
   const positive = events.filter((e) => e.delta > 0);
   if (positive.length > 0) {
     await prisma.findingEvidence.createMany({
-      data: positive.map((e) => ({ findingId: finding.id, description: e.reason })),
+      data: positive.map((e) => ({ findingId: finding.id, scanId: scan.id, description: e.reason })),
     });
   }
+
+  // Guaranteed worked examples don't need real ongoing recheck scheduling, but every
+  // finding needs *some* nextScanAt for the dispatcher's query to be well-defined, and
+  // lastScanId is what makes the detail page's "current breakdown" query find this scan.
+  await prisma.finding.update({
+    where: { id: finding.id },
+    data: { lastScanId: scan.id, nextScanAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+  });
 }
 
 async function main() {
