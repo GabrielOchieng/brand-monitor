@@ -228,3 +228,57 @@ model PipelineRun {
 
   @@map("pipeline_runs")
 }
+
+model AlertRule {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  kind           String // severity_threshold | score_increase | new_finding
+  config         Json // e.g. {minSeverity:"high"} | {minDelta:20} | {minSeverity:"medium"}
+  channels       String[] // email | in_app | webhook
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  deliveries AlertDelivery[]
+
+  @@map("alert_rules")
+}
+
+// findingId/scanId are not FKs to Finding/Scan on purpose: a finding can in principle be
+// deleted (a future lifecycle/cleanup action) while its delivery audit trail should
+// still explain what was sent and why, same reasoning as an audit_log never cascading.
+model AlertDelivery {
+  id          String   @id @default(cuid())
+  alertRuleId String   @map("alert_rule_id")
+  alertRule   AlertRule @relation(fields: [alertRuleId], references: [id])
+  findingId   String   @map("finding_id")
+  scanId      String   @map("scan_id")
+  channel     String // email | in_app | webhook
+  status      String // pending | sent | failed
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([alertRuleId, findingId, scanId, channel])
+  @@map("alert_deliveries")
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  findingId      String    @map("finding_id")
+  scanId         String    @map("scan_id")
+  message        String
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
+model WebhookConfig {
+  id             String  @id @default(cuid())
+  organizationId String  @unique @map("organization_id")
+  url            String
+  secret         String
+  enabled        Boolean @default(true)
+
+  @@map("webhook_configs")
+}

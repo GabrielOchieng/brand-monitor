@@ -10,6 +10,7 @@ export const QUEUE_DISCOVERY = "discovery";
 export const QUEUE_RECHECK = "recheck";
 export const QUEUE_DISPATCH_DISCOVERY = "dispatch-discovery";
 export const QUEUE_DISPATCH_RECHECK = "dispatch-recheck";
+export const QUEUE_ALERT_DISPATCH = "alert-dispatch";
 
 // Queues must exist (createQueue) before send()/work() -- this is idempotent, safe to
 // call every boot.
@@ -38,4 +39,8 @@ export async function ensureQueues(): Promise<void> {
   await ensureExclusiveQueue(QUEUE_RECHECK, { expireInSeconds: 300, retryLimit: 1 });
   await boss.createQueue(QUEUE_DISPATCH_DISCOVERY);
   await boss.createQueue(QUEUE_DISPATCH_RECHECK);
+  // Standard policy (no exclusivity needed): dedup for alerts happens at the
+  // AlertDelivery-row level (see queue/alertDispatch.ts), not the job-queue level --
+  // concurrent alert-dispatch jobs for different findings should run freely.
+  await boss.createQueue(QUEUE_ALERT_DISPATCH, { retryLimit: 1 });
 }

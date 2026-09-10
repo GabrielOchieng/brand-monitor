@@ -27,4 +27,10 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   clerkSecretKey: process.env.CLERK_SECRET_KEY ?? "",
   clerkWebhookSigningSecret: process.env.CLERK_WEBHOOK_SIGNING_SECRET ?? "",
+  smtpHost: process.env.SMTP_HOST ?? "smtp.gmail.com",
+  smtpPort: Number(process.env.SMTP_PORT ?? 465),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  smtpFrom: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
+  webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
 };

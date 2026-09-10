@@ -47,6 +47,20 @@ export async function webhookRoutes(app: FastifyInstance) {
             create: { id, name },
             update: { name },
           });
+          // Default alerting so a new org isn't silently unmonitored -- pre-existing
+          // orgs (from before this shipped) are backfilled directly in the migration
+          // that introduced alert_rules, not here.
+          await adminPrisma.alertRule.upsert({
+            where: { id: `default-severity-high-${id}` },
+            create: {
+              id: `default-severity-high-${id}`,
+              organizationId: id,
+              kind: "severity_threshold",
+              config: { minSeverity: "high" },
+              channels: ["email", "in_app"],
+            },
+            update: {},
+          });
           break;
         }
         case "user.created":

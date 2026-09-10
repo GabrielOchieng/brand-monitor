@@ -67,6 +67,12 @@ background:
   WHOIS, website scan, favicon match, scoring — for one finding at a time, on a cadence that
   starts aggressive (every ~20min in a finding's first 72h) and backs off with age. A
   brand-new finding typically gets its first real score within minutes, not immediately.
+- **Alerting**: every org gets a default rule (alert on severity crossing into "high") the
+  moment it's created (or, for orgs from before this shipped, backfilled by the alerting
+  migration). Fires by email (SMTP — see `.env.example`), an in-app notification (bell icon
+  in the header), and/or a webhook if one's configured (`PUT /api/webhook-config` — no
+  settings UI yet). More rule kinds (`score_increase`, `new_finding`) exist and work, just
+  aren't auto-seeded; add one directly via `alert_rules` until a rules UI exists.
 
 ## What to expect
 

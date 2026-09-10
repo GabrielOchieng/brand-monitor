@@ -8,8 +8,11 @@ import { pipelineRoutes } from "./routes/pipeline";
 import { findingsRoutes } from "./routes/findings";
 import { brandRoutes } from "./routes/brands";
 import { webhookRoutes } from "./routes/webhooks";
+import { notificationsRoutes } from "./routes/notifications";
+import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
+import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -27,6 +30,8 @@ async function main() {
   await app.register(brandRoutes);
   await app.register(pipelineRoutes);
   await app.register(findingsRoutes);
+  await app.register(notificationsRoutes);
+  await app.register(webhookConfigRoutes);
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -35,6 +40,7 @@ async function main() {
   await boss.start();
   await ensureQueues();
   await registerQueueWorkers();
+  await registerAlertDispatchWorker();
   await scheduleDispatchers();
   app.log.info("Queue started: workers registered, dispatchers scheduled.");
 

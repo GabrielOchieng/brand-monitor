@@ -1,3 +1,4 @@
+import { fromPrisma } from "pg-boss";
 import { SCANNER_USER_AGENT } from "@brand-monitor/shared";
 import { withTenant } from "../lib/tenant";
 import { checkDnsExistence } from "../lib/dnsCheck";
@@ -8,6 +9,8 @@ import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
 import { computeNextScanAt } from "./cadence";
 import { ensureBrandFaviconHash, saveScreenshot } from "./enrichmentShared";
+import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
+import type { AlertDispatchJobData } from "../queue/alertDispatch";
 
 export interface RecheckJobData {
   findingId: string;
@@ -74,8 +77,22 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   // first, and the Finding's pointer fields (riskScore/severity/lastScanId/nextScanAt)
   // are flipped last, in the same transaction -- a crash or error anywhere in here rolls
   // back entirely, leaving the finding showing its previous, still-self-consistent scan
-  // rather than a half-updated one.
+  // rather than a half-updated one. The alert-dispatch job is enqueued inside this same
+  // transaction (via fromPrisma(tx)) for the same reason: the recheck queue has
+  // retryLimit=1, and if anything AFTER this transaction threw, pg-boss would retry this
+  // entire expensive job -- redoing all the network I/O above and creating a SECOND
+  // duplicate Scan for what should be one logical check, while corrupting the "previous
+  // score" baseline the retry would compute. Keeping the enqueue inside the transaction
+  // means it either commits atomically with the scan or the whole thing rolls back
+  // cleanly, so a pg-boss retry is always safe (nothing was partially committed).
   await withTenant(organizationId, async (tx) => {
+    // Re-read fresh rather than reusing the `finding` fetched at the top of this
+    // function (minutes ago, before all the network I/O) -- not needed for correctness
+    // today (the recheck queue's "exclusive" policy already prevents a concurrent writer
+    // for this finding), but makes "previous score" correct independent of any future
+    // code path that might touch riskScore/severity outside this job.
+    const previous = await tx.finding.findUniqueOrThrow({ where: { id: findingId } });
+
     const scan = await tx.scan.create({
       data: { findingId, kind: "recheck", triggeredBy, score: scoring.score, severity: scoring.severity, finishedAt: new Date() },
     });
@@ -147,8 +164,20 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
         severity: scoring.severity,
         lastScannedAt: new Date(),
         lastScanId: scan.id,
-        nextScanAt: computeNextScanAt(finding.firstDetectedAt, new Date()),
+        nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date()),
       },
     });
+
+    const alertData: AlertDispatchJobData = {
+      findingId,
+      scanId: scan.id,
+      organizationId,
+      previousScore: previous.riskScore,
+      previousSeverity: previous.severity,
+      newScore: scoring.score,
+      newSeverity: scoring.severity,
+      isFirstScan: previous.lastScanId === null,
+    };
+    await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });
 }

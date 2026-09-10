@@ -10,6 +10,7 @@ import {
   OrganizationSwitcher,
 } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
+import { NotificationBell } from "../components/NotificationBell";
 
 export const metadata = { title: "Brand Monitor" };
 
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 <Link href="/dashboard" className="text-sm text-gray-400 hover:text-gray-100">Dashboard</Link>
                 <Link href="/threats" className="text-sm text-gray-400 hover:text-gray-100">Threats</Link>
                 <div className="ml-auto flex items-center gap-4">
+                  <NotificationBell />
                   <OrganizationSwitcher
                     hidePersonal
                     appearance={{ baseTheme: dark }}
