@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+*.log
+.env
+.env.local
+apps/api/generated/
+apps/api/screenshots/
+apps/api/.env
+apps/web/.env.local
+*.tsbuildinfo

@@ -1,0 +1,23 @@
+{
+  "name": "brand-monitor",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @brand-monitor/api",
+    "dev:web": "npm run dev -w @brand-monitor/web",
+    "prisma:migrate": "npm run prisma:migrate -w @brand-monitor/api",
+    "prisma:seed": "npm run prisma:seed -w @brand-monitor/api",
+    "prisma:studio": "npm run prisma:studio -w @brand-monitor/api"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@5.22.0": true,
+    "sharp@0.35.4": true,
+    "sharp@0.33.5": true
+  }
+}

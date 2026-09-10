@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// POC v0 note: no organization_id RLS enforcement yet (single seeded tenant, no auth).
+// Table/field names match ARCHITECTURE.md §7 so this is a forward-compatible subset,
+// not a throwaway schema.
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  brands    Brand[]
+
+  @@map("organizations")
+}
+
+model Brand {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  primaryDomain  String   @map("primary_domain")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  domains      BrandDomain[]
+  keywords     BrandKeyword[]
+  assets       BrandAsset[]
+  findings     Finding[]
+  pipelineRuns PipelineRun[]
+
+  @@map("brands")
+}
+
+model BrandDomain {
+  id      String @id @default(cuid())
+  brandId String @map("brand_id")
+  brand   Brand  @relation(fields: [brandId], references: [id])
+  domain  String
+  type    String @default("primary") // primary | secondary | allowlist
+
+  @@unique([brandId, domain])
+  @@map("brand_domains")
+}
+
+model BrandKeyword {
+  id      String @id @default(cuid())
+  brandId String @map("brand_id")
+  brand   Brand  @relation(fields: [brandId], references: [id])
+  keyword String
+  type    String @default("name") // name | concat_term
+
+  @@unique([brandId, keyword])
+  @@map("brand_keywords")
+}
+
+model BrandAsset {
+  id        String   @id @default(cuid())
+  brandId   String   @map("brand_id")
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  type      String // favicon
+  sourceUrl String   @map("source_url")
+  hash      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("brand_assets")
+}
+
+model Finding {
+  id              String   @id @default(cuid())
+  brandId         String   @map("brand_id")
+  brand           Brand    @relation(fields: [brandId], references: [id])
+  type            String   @default("domain")
+  source          String   @default("pipeline") // pipeline | seed_demo
+  identifier      String // the candidate domain
+  riskScore       Int      @default(0) @map("risk_score")
+  severity        String   @default("low")
+  status          String   @default("new")
+  firstDetectedAt DateTime @default(now()) @map("first_detected_at")
+  lastScannedAt   DateTime @default(now()) @map("last_scanned_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  domainIntel  DomainIntel?
+  websiteIntel WebsiteIntel?
+  evidence     FindingEvidence[]
+  scoreEvents  FindingScoreEvent[]
+
+  @@unique([brandId, identifier])
+  @@map("findings")
+}
+
+model DomainIntel {
+  id           String    @id @default(cuid())
+  findingId    String    @unique @map("finding_id")
+  finding      Finding   @relation(fields: [findingId], references: [id])
+  registrar    String?
+  registeredAt DateTime? @map("registered_at")
+  nameservers  String[]
+  ip           String?
+  dnsRecords   Json?     @map("dns_records")
+  whoisSource  String?   @map("whois_source") // rdap | whois | unavailable
+  rawData      Json?     @map("raw_data")
+
+  @@map("domain_intel")
+}
+
+model WebsiteIntel {
+  id              String   @id @default(cuid())
+  findingId       String   @unique @map("finding_id")
+  finding         Finding  @relation(fields: [findingId], references: [id])
+  screenshotPath  String?  @map("screenshot_path")
+  title           String?
+  metaDescription String?  @map("meta_description")
+  extractedText   String?  @map("extracted_text")
+  hasLoginForm    Boolean  @default(false) @map("has_login_form")
+  hasPaymentForm  Boolean  @default(false) @map("has_payment_form")
+  looksParked     Boolean  @default(false) @map("looks_parked")
+  faviconHash     String?  @map("favicon_hash")
+  redirectChain   String[] @map("redirect_chain")
+  scannedAt       DateTime @default(now()) @map("scanned_at")
+
+  @@map("website_intel")
+}
+
+model FindingEvidence {
+  id          String   @id @default(cuid())
+  findingId   String   @map("finding_id")
+  finding     Finding  @relation(fields: [findingId], references: [id])
+  description String
+  data        Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("finding_evidence")
+}
+
+model FindingScoreEvent {
+  id        String   @id @default(cuid())
+  findingId String   @map("finding_id")
+  finding   Finding  @relation(fields: [findingId], references: [id])
+  delta     Int
+  reason    String
+  ruleCode  String   @map("rule_code")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("finding_score_events")
+}
+
+model PipelineRun {
+  id                String    @id @default(cuid())
+  brandId           String    @map("brand_id")
+  brand             Brand     @relation(fields: [brandId], references: [id])
+  status            String    @default("running") // running | completed | failed
+  candidatesTotal   Int       @default(0) @map("candidates_total")
+  candidatesChecked Int       @default(0) @map("candidates_checked")
+  findingsCreated   Int       @default(0) @map("findings_created")
+  error             String?
+  startedAt         DateTime  @default(now()) @map("started_at")
+  finishedAt        DateTime? @map("finished_at")
+
+  @@map("pipeline_runs")
+}
