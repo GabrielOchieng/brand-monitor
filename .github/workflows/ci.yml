@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      - run: npx tsc --noEmit -p apps/api
+      - run: npx tsc --noEmit -p apps/scanner
+      - run: npm run build -w @brand-monitor/web
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: brandmonitor
+          POSTGRES_PASSWORD: brandmonitor
+          POSTGRES_DB: brandmonitor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Non-secret dev-only placeholders already committed in apps/api/.env.example --
+      # this container is fresh, ephemeral, and network-isolated, destroyed at job end.
+      DATABASE_URL: "postgresql://brandmonitor:brandmonitor@127.0.0.1:5432/brandmonitor?connection_limit=5"
+      DATABASE_APP_URL: "postgresql://brandmonitor_app:brandmonitor_app_dev_password@127.0.0.1:5432/brandmonitor?connection_limit=5"
+      ALLOW_DB_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - run: npm ci
+      # Provisions the brandmonitor_app role + grants + every table's RLS policy from
+      # scratch -- the 20260910000000_multi_tenancy_rls migration's hand-added SQL does
+      # all of this, keyed to a database literally named "brandmonitor" (matching
+      # POSTGRES_DB above), identical to how the real dev environment was bootstrapped.
+      - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+      - run: npm run queue:bootstrap -w @brand-monitor/api
+      - run: npm test

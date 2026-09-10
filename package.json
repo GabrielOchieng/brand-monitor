@@ -10,15 +10,19 @@
     "dev:web": "npm run dev -w @brand-monitor/web",
     "prisma:migrate": "npm run prisma:migrate -w @brand-monitor/api",
     "prisma:seed": "npm run prisma:seed -w @brand-monitor/api",
-    "prisma:studio": "npm run prisma:studio -w @brand-monitor/api"
+    "prisma:studio": "npm run prisma:studio -w @brand-monitor/api",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
     "@prisma/engines@5.22.0": true,
-    "esbuild@0.28.2": true,
     "prisma@5.22.0": true,
     "sharp@0.35.4": true,
     "sharp@0.33.5": true,
-    "@clerk/shared@3.47.8": true
+    "@clerk/shared@3.47.8": true,
+    "esbuild@0.21.5": true
   }
 }
