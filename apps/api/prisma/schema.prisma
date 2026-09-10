@@ -135,6 +135,13 @@ model Finding {
   takedowns      Takedown[]
 
   @@unique([brandId, identifier])
+  // brandId-leading composites, not standalone single-column indexes -- the RLS policy on
+  // this table always carries an implicit brand_id IN (...) predicate, so these match how
+  // the threat-feed filters/sorts are actually queried (see routes/findings.ts).
+  @@index([brandId, status])
+  @@index([brandId, severity])
+  @@index([brandId, assigneeId])
+  @@index([brandId, riskScore])
   @@map("findings")
 }
 

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { fromPrisma } from "pg-boss";
 import { authenticate, requireRole } from "../lib/auth";
@@ -7,7 +8,7 @@ import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
 import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
-import { TakedownStatusSchema } from "@brand-monitor/shared";
+import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
@@ -21,6 +22,30 @@ const PatchFindingSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
 });
+
+const FindingsQuerySchema = z.object({
+  status: FindingStatusSchema.optional(),
+  severity: SeveritySchema.optional(),
+  assigneeId: z.string().min(1).optional(), // the literal "unassigned" means assigneeId: null
+  brandId: z.string().min(1).optional(),
+  q: z.string().trim().max(200).optional(), // identifier search -- Prisma parameterizes `contains`, no injection risk
+  sortBy: z.enum(["riskScore", "firstDetectedAt", "lastScannedAt"]).default("riskScore"),
+  sortDir: z.enum(["asc", "desc"]).default("desc"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+// Rejects an empty-effect request (neither field present) that would otherwise still
+// "succeed" and still bump every matched row's updatedAt for zero reason.
+const BulkPatchFindingSchema = z
+  .object({
+    ids: z.array(z.string().min(1)).min(1).max(500),
+    status: FindingStatusSchema.optional(),
+    assigneeId: z.string().nullable().optional(),
+  })
+  .refine((v) => v.status !== undefined || v.assigneeId !== undefined, {
+    message: "must provide at least one of status or assigneeId",
+  });
 
 const AddNoteSchema = z.object({
   body: z.string().min(1),
@@ -65,14 +90,38 @@ class InvalidAssigneeError extends Error {}
 
 export async function findingsRoutes(app: FastifyInstance) {
   app.get("/api/findings", { preHandler: authenticate }, async (request, reply) => {
-    const findings = await withTenant(request.auth!.orgId, (tx) =>
-      tx.finding.findMany({
-        orderBy: { riskScore: "desc" },
-        include: { brand: { select: { name: true } } },
-      })
+    const parsed = FindingsQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+    const q = parsed.data;
+    const orgId = request.auth!.orgId;
+
+    // Default (no status/severity filter) shows everything -- don't silently hide real
+    // production data the first time filtering ships. assigneeId/brandId need no extra
+    // tenant validation beyond what RLS already provides: a garbage or foreign-org id in
+    // either just yields zero rows via the brand_id IN (...) policy join, never a leak.
+    const where: Prisma.FindingWhereInput = {
+      ...(q.status ? { status: q.status } : {}),
+      ...(q.severity ? { severity: q.severity } : {}),
+      ...(q.brandId ? { brandId: q.brandId } : {}),
+      ...(q.assigneeId ? { assigneeId: q.assigneeId === "unassigned" ? null : q.assigneeId } : {}),
+      ...(q.q ? { identifier: { contains: q.q, mode: "insensitive" } } : {}),
+    };
+
+    const [findings, total] = await withTenant(orgId, (tx) =>
+      Promise.all([
+        tx.finding.findMany({
+          where,
+          orderBy: { [q.sortBy]: q.sortDir },
+          skip: (q.page - 1) * q.pageSize,
+          take: q.pageSize,
+          include: { brand: { select: { name: true } } },
+        }),
+        tx.finding.count({ where }),
+      ])
     );
-    return reply.send(
-      findings.map((f) => ({
+
+    return reply.send({
+      findings: findings.map((f) => ({
         id: f.id,
         identifier: f.identifier,
         type: f.type,
@@ -85,9 +134,50 @@ export async function findingsRoutes(app: FastifyInstance) {
         assigneeId: f.assigneeId,
         tags: f.tags,
         brandName: f.brand.name,
-      }))
-    );
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    });
   });
+
+  app.patch(
+    "/api/findings/bulk",
+    { preHandler: [authenticate, requireRole("owner", "admin", "analyst")] },
+    async (request, reply) => {
+      const parsed = BulkPatchFindingSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const { ids, status, assigneeId } = parsed.data;
+      const orgId = request.auth!.orgId;
+
+      try {
+        const result = await withTenant(orgId, async (tx) => {
+          // Same tenant-scoped membership check as the single-row PATCH below, done once
+          // for the whole batch rather than per-id.
+          if (assigneeId) {
+            const membership = await tx.membership.findFirst({ where: { userId: assigneeId, organizationId: orgId } });
+            if (!membership) throw new InvalidAssigneeError();
+          }
+          // RLS silently excludes any cross-tenant ids from this UPDATE ... WHERE id IN
+          // (...) match rather than erroring -- updatedCount vs. requestedCount lets the
+          // UI show "12 of 15 updated" without identifying *which* ids failed or why,
+          // which would leak cross-tenant existence (same principle as the single-row
+          // PATCH's P2025-as-404 below).
+          return tx.finding.updateMany({
+            where: { id: { in: ids } },
+            data: {
+              ...(status !== undefined ? { status } : {}),
+              ...(assigneeId !== undefined ? { assigneeId } : {}),
+            },
+          });
+        });
+        return reply.send({ updatedCount: result.count, requestedCount: ids.length });
+      } catch (err: any) {
+        if (err instanceof InvalidAssigneeError) return reply.status(400).send({ error: "invalid_assignee" });
+        throw err;
+      }
+    }
+  );
 
   app.get("/api/findings/:id", { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
