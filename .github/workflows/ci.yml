@@ -22,7 +22,17 @@ jobs:
       - run: npx prisma generate --schema apps/api/prisma/schema.prisma
       - run: npx tsc --noEmit -p apps/api
       - run: npx tsc --noEmit -p apps/scanner
+      # `next build` prerenders every route during its static-generation pass, and
+      # ClerkProvider throws immediately if no publishable key is present at all --
+      # confirmed locally by temporarily removing apps/web/.env.local and reproducing
+      # this exact failure. These are syntactically-valid-looking placeholders only
+      # (Clerk just checks presence/format at build time, never calls out to a real
+      # Clerk backend during `next build`) -- not real credentials, and no real
+      # authentication ever happens during this step.
       - run: npm run build -w @brand-monitor/web
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk"
+          CLERK_SECRET_KEY: "sk_test_ci_build_time_placeholder_not_a_real_key"
 
   test:
     runs-on: ubuntu-latest
