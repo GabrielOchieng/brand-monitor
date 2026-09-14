@@ -29,10 +29,16 @@ export async function runDiscoveryJob(data: DiscoveryJobData): Promise<void> {
     );
 
     const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
-    const concatKeywords = brand.keywords.filter((k) => k.type === "concat_term").map((k) => k.keyword.toLowerCase());
+    // A "core" keyword is also a regular concat term (still gets the single-keyword
+    // root+kw patterns below) but additionally gets paired with every other core keyword
+    // -- see the bounded-pairing comment in permutations.ts.
+    const concatKeywords = brand.keywords
+      .filter((k) => k.type === "concat_term" || k.type === "concat_term_core")
+      .map((k) => k.keyword.toLowerCase());
+    const coreKeywords = brand.keywords.filter((k) => k.type === "concat_term_core").map((k) => k.keyword.toLowerCase());
     const allowlist = new Set(brand.domains.map((d) => d.domain.toLowerCase()));
 
-    const allCandidates = generateCandidates(brandRoot, concatKeywords).filter((c) => !allowlist.has(c.domain));
+    const allCandidates = generateCandidates(brandRoot, concatKeywords, coreKeywords).filter((c) => !allowlist.has(c.domain));
 
     await withTenant(organizationId, (tx) =>
       tx.pipelineRun.update({ where: { id: runId }, data: { candidatesTotal: allCandidates.length } })

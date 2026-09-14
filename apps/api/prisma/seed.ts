@@ -21,6 +21,15 @@ const CONCAT_KEYWORDS = [
   "airways", "airlines", "checkin", "miles", "reservations", "tickets",
 ];
 
+// A small, curated subset of CONCAT_KEYWORDS also gets automatically paired with itself
+// (permutations.ts's bounded 2-way combination) -- short, generic, high-signal
+// booking/account action-words most plausible as a genuine two-word attacker compound,
+// matching the real "book"+"fly" pattern seen this session. Deliberately excludes
+// already-long or already-compound entries (reservations, verifyaccount, securelogin,
+// booking) -- pairing those further produces unrealistic triple-length strings, not more
+// realistic ones. A starting curation, adjustable the same way CONCAT_KEYWORDS is.
+const CORE_CONCAT_KEYWORDS = new Set(["fly", "book", "checkin", "login", "verify", "pay"]);
+
 async function seedDemoFinding(
   brandId: string,
   identifier: string,
@@ -144,10 +153,14 @@ async function main() {
     update: {},
   });
   for (const kw of CONCAT_KEYWORDS) {
+    const type = CORE_CONCAT_KEYWORDS.has(kw) ? "concat_term_core" : "concat_term";
     await prisma.brandKeyword.upsert({
       where: { brandId_keyword: { brandId: brand.id, keyword: kw } },
-      create: { brandId: brand.id, keyword: kw, type: "concat_term" },
-      update: {},
+      create: { brandId: brand.id, keyword: kw, type },
+      // Was `update: {}` -- a no-op on conflict meant a `type` correction here (e.g. this
+      // one, promoting existing keywords to concat_term_core) would never retroactively
+      // apply to an already-seeded row on re-run.
+      update: { type },
     });
   }
 

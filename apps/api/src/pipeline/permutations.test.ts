@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { generateCandidates, isHighRiskTld } from "./permutations";
 
 describe("generateCandidates", () => {
-  const domains = (brandRoot: string, keywords: string[] = []) =>
-    new Set(generateCandidates(brandRoot, keywords).map((c) => c.domain));
+  const domains = (brandRoot: string, keywords: string[] = [], coreKeywords: string[] = []) =>
+    new Set(generateCandidates(brandRoot, keywords, coreKeywords).map((c) => c.domain));
 
   it("generates the real jarnbojet homoglyph example (m -> rn)", () => {
     expect(domains("jambojet")).toContain("jarnbojet.com");
@@ -45,6 +45,25 @@ describe("generateCandidates", () => {
     const c = generateCandidates("jambojet", []);
     const slds = c.filter((x) => x.domain.endsWith(".com")).map((x) => x.domain);
     expect(new Set(slds).size).toBe(slds.length);
+  });
+
+  it("pairs core keywords with each other in both orders, matching real attacker compounds", () => {
+    const d = domains("jambojet", ["fly", "book"], ["fly", "book"]);
+    expect(d).toContain("bookflyjambojet.site");
+    expect(d).toContain("flybookjambojet.online");
+  });
+
+  it("only checks core-keyword pairs against high-risk TLDs, not the full extended list", () => {
+    const c = generateCandidates("jambojet", ["fly", "book"], ["fly", "book"]);
+    const pairCandidates = c.filter((x) => x.technique === "brand_keyword_pair");
+    expect(pairCandidates.length).toBeGreaterThan(0);
+    expect(pairCandidates.some((x) => x.domain.endsWith(".org"))).toBe(false);
+    expect(pairCandidates.some((x) => x.domain.endsWith(".site"))).toBe(true);
+  });
+
+  it("never pairs a plain concat keyword that isn't also passed as a core keyword", () => {
+    const c = generateCandidates("jambojet", ["fly", "book", "support"], ["fly", "book"]);
+    expect(c.some((x) => x.technique === "brand_keyword_pair" && x.domain.includes("support"))).toBe(false);
   });
 });
 

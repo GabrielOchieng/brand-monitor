@@ -138,7 +138,7 @@ export function isHighRiskTld(domain: string): boolean {
   return tld ? HIGH_RISK_TLDS.has(tld) : false;
 }
 
-export function generateCandidates(brandRoot: string, concatKeywords: string[]): Candidate[] {
+export function generateCandidates(brandRoot: string, concatKeywords: string[], coreKeywords: string[] = []): Candidate[] {
   const root = brandRoot.toLowerCase();
   const seen = new Set<string>();
   const bodies: Array<{ sld: string; technique: string; isHomoglyph: boolean }> = [];
@@ -178,6 +178,31 @@ export function generateCandidates(brandRoot: string, concatKeywords: string[]):
       seen.add(sld);
       for (const tld of EXTENDED_TLDS) {
         candidates.push({ domain: `${sld}.${tld}`, technique: "brand_keyword_concat", isHomoglyph: false });
+      }
+    }
+  }
+
+  // Bounded 2-way combination: pairing every concat keyword with every other one was
+  // already considered and rejected (24 keywords -> 552 ordered pairs, mostly nonsensense
+  // like "supportpay"/"refundverify", multiplying DNS-check cost for near-zero real
+  // detection value -- see CONCAT_KEYWORDS's comment in prisma/seed.ts). Only a small,
+  // curated "core" subset (BrandKeyword.type === "concat_term_core") gets paired with
+  // itself instead, replacing the old approach of manually noticing and hand-adding one
+  // compound at a time (as "bookfly"/"flybook"/etc. were) with automatic coverage of the
+  // whole core set. Bounded on the TLD axis too: HIGH_RISK_TLDS, not the full
+  // EXTENDED_TLDS -- a specific two-word guess is a narrower bet than a single keyword,
+  // and this set already contains .site/.online, the exact TLDs real attacker examples
+  // this session used for compound lookalikes.
+  for (let i = 0; i < coreKeywords.length; i++) {
+    for (let j = 0; j < coreKeywords.length; j++) {
+      if (i === j) continue;
+      const compound = coreKeywords[i] + coreKeywords[j];
+      for (const sld of concatPatterns(compound)) {
+        if (seen.has(sld)) continue;
+        seen.add(sld);
+        for (const tld of HIGH_RISK_TLDS) {
+          candidates.push({ domain: `${sld}.${tld}`, technique: "brand_keyword_pair", isHomoglyph: false });
+        }
       }
     }
   }

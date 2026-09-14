@@ -79,7 +79,7 @@ model BrandKeyword {
   brandId String @map("brand_id")
   brand   Brand  @relation(fields: [brandId], references: [id])
   keyword String
-  type    String @default("name") // name | concat_term
+  type    String @default("name") // name | concat_term | concat_term_core
 
   @@unique([brandId, keyword])
   @@map("brand_keywords")
