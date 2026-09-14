@@ -7,5 +7,6 @@ dist/
 apps/api/generated/
 apps/api/screenshots/
 apps/api/.env
+apps/api/.env.production
 apps/web/.env.local
 *.tsbuildinfo

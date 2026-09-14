@@ -1,0 +1,5 @@
+# A CRLF shebang line ("#!/bin/sh\r\n") fails inside a Linux container with "bad
+# interpreter" -- this repo's core.autocrlf=true (confirmed on this dev machine) would
+# otherwise check shell scripts out with CRLF, which Docker COPY then bakes into the image
+# verbatim if the image is ever built from a Windows working tree.
+*.sh text eol=lf

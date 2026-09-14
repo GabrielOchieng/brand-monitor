@@ -1,0 +1,44 @@
+# Production compose for the Oracle Cloud VM -- deliberately separate from the root
+# docker-compose.yml, which stays local-dev-only (its own local Postgres container, and
+# publishes the scanner's port for local debugging). Here, Postgres is Neon (not a
+# container), and the scanner is NOT published on a host port at all -- it should only
+# ever be reachable from `api` over the compose network, never from the public internet.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - apps/api/.env.production
+    expose:
+      - "4000"
+    depends_on:
+      - scanner
+
+  scanner:
+    build:
+      context: ./apps/scanner
+    restart: unless-stopped
+    expose:
+      - "3100"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy run --config /etc/caddyfile
+    depends_on:
+      - api
+
+volumes:
+  caddy_data:
+  caddy_config:

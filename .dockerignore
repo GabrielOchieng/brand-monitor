@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+.next
+.git
+*.env
+*.env.*
+!*.env.example
+!*.env.production.example
+apps/api/screenshots
+apps/api/generated
+*.log
