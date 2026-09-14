@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
 import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, ChevronDownIcon } from "../../components/icons";
@@ -433,10 +434,14 @@ export default function DashboardPage() {
       {summary && (
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {SEVERITY_ORDER.map((sev) => (
-            <div key={sev} className={`card border-l-[3px] p-4 ${SEVERITY_STAT_STYLES[sev]}`}>
+            <Link
+              key={sev}
+              href={`/threats?severity=${sev}&brandId=${summary.brand.id}`}
+              className={`card block border-l-[3px] p-4 transition-shadow hover:shadow-md ${SEVERITY_STAT_STYLES[sev]}`}
+            >
               <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">{sev}</div>
               <div className="mt-1 text-3xl font-semibold tabular-nums text-ink">{summary.bySeverity[sev] ?? 0}</div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
