@@ -81,21 +81,21 @@ export function TakedownTracker({ findingId }: { findingId: string }) {
   }
 
   return (
-    <section className="mt-8">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Takedown Requests</h2>
+    <section className="card mt-6 p-5">
+      <h2 className="label">Takedown requests</h2>
 
       <ul className="mt-3 space-y-2">
         {takedowns.map((t) => (
-          <li key={t.id} className="rounded border border-gray-800 px-4 py-3 text-sm">
+          <li key={t.id} className="rounded-md border border-line bg-surface px-4 py-3 text-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <span className="font-medium text-gray-200">{t.provider}</span>
-                {t.reference && <span className="ml-2 text-gray-500">Ref: {t.reference}</span>}
+                <span className="font-medium text-ink">{t.provider}</span>
+                {t.reference && <span className="ml-2 text-ink-subtle">Ref: {t.reference}</span>}
               </div>
               <select
                 value={t.status}
                 onChange={(e) => handleStatusChange(t.id, t.status, e.target.value)}
-                className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
+                className="field-sm"
               >
                 {TAKEDOWN_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -104,14 +104,14 @@ export function TakedownTracker({ findingId }: { findingId: string }) {
                 ))}
               </select>
             </div>
-            {t.notes && <p className="mt-1 text-gray-400">{t.notes}</p>}
-            <div className="mt-1 text-xs text-gray-600">
+            {t.notes && <p className="mt-1 text-ink-muted">{t.notes}</p>}
+            <div className="mt-1 text-xs text-ink-faint">
               Requested {new Date(t.requestedAt).toLocaleString()}
               {t.resolvedAt && ` · Resolved ${new Date(t.resolvedAt).toLocaleString()}`}
             </div>
           </li>
         ))}
-        {takedowns.length === 0 && <li className="text-sm text-gray-500">No takedown requests logged yet.</li>}
+        {takedowns.length === 0 && <li className="text-sm text-ink-subtle">No takedown requests logged yet.</li>}
       </ul>
 
       <form onSubmit={handleCreate} className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -119,32 +119,28 @@ export function TakedownTracker({ findingId }: { findingId: string }) {
           placeholder="Provider (e.g. registrar)"
           value={form.provider}
           onChange={(e) => setForm({ ...form, provider: e.target.value })}
-          className="rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+          className="field"
         />
         <input
           placeholder="Reference / ticket # (optional)"
           value={form.reference}
           onChange={(e) => setForm({ ...form, reference: e.target.value })}
-          className="rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+          className="field"
         />
         <div className="flex gap-2">
           <input
             placeholder="Notes (optional)"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="flex-1 rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+            className="field flex-1"
           />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className="btn-primary shrink-0">
             Log
           </button>
         </div>
       </form>
 
-      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </section>
   );
 }

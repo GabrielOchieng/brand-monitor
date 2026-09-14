@@ -55,20 +55,20 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-gray-100">{finding.identifier}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="font-mono text-xl font-semibold text-ink">{finding.identifier}</h1>
         <SeverityBadge severity={finding.severity} />
         {finding.domainIntel?.firstResolvedAt && !finding.domainIntel.currentlyResolves && (
           <span
             title="This domain was confirmed registered/resolving at some point, but no longer resolves as of the last recheck."
-            className="rounded border border-amber-600/40 bg-amber-600/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+            className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
           >
             No longer resolves
           </span>
         )}
       </div>
-      <p className="mt-1 text-gray-400">
-        Risk score <span className="font-mono text-gray-200">{finding.riskScore}</span>/100 · source {finding.source}
+      <p className="mt-1 text-sm text-ink-muted">
+        Risk score <span className="font-mono font-medium text-ink">{finding.riskScore}</span>/100 · source {finding.source}
       </p>
 
       <FindingLifecycle
@@ -78,13 +78,13 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         initialTags={finding.tags}
       />
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Why this score — itemized breakdown</h2>
-        <ul className="mt-3 divide-y divide-gray-800 rounded border border-gray-800">
+      <section className="card mt-6 p-5">
+        <h2 className="label">Why this score — itemized breakdown</h2>
+        <ul className="mt-3 divide-y divide-line">
           {finding.scoreEvents.map((e) => (
-            <li key={e.id} className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="text-gray-300">{e.reason}</span>
-              <span className={`font-mono ${e.delta >= 0 ? "text-green-400" : "text-red-400"}`}>
+            <li key={e.id} className="flex items-center justify-between py-2 text-sm">
+              <span className="text-ink-muted">{e.reason}</span>
+              <span className={`font-mono font-medium ${e.delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 {e.delta >= 0 ? "+" : ""}
                 {e.delta}
               </span>
@@ -98,21 +98,21 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
       <RelatedFindingsPanel findingId={finding.id} />
 
       {finding.websiteIntel?.screenshotPath && (
-        <section className="mt-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Screenshot</h2>
+        <section className="card mt-6 p-5">
+          <h2 className="label">Screenshot</h2>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${API_URL}${finding.websiteIntel.screenshotPath}`}
             alt={`Screenshot of ${finding.identifier}`}
-            className="mt-3 max-w-full rounded border border-gray-800"
+            className="mt-3 max-w-full rounded-md border border-line"
           />
         </section>
       )}
 
-      <section className="mt-8 grid gap-6 sm:grid-cols-2">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Domain intelligence</h2>
-          <dl className="mt-3 space-y-1 text-sm">
+      <section className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="card p-5">
+          <h2 className="label">Domain intelligence</h2>
+          <dl className="mt-3 space-y-1.5 text-sm">
             {finding.domainIntel && <Row label="Registration status" value={resolutionStatus(finding.domainIntel)} />}
             <Row label="Registrar" value={finding.domainIntel?.registrar} />
             <Row label="Registered" value={finding.domainIntel?.registeredAt ? new Date(finding.domainIntel.registeredAt).toLocaleString() : null} />
@@ -121,19 +121,19 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
             <Row label="WHOIS source" value={finding.domainIntel?.whoisSource} />
           </dl>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Website intelligence</h2>
+        <div className="card p-5">
+          <h2 className="label">Website intelligence</h2>
           {!finding.websiteDataCurrent && (
             <p
               title="The most recent recheck couldn't successfully scan this site (timeout, network error, or it's blocking automated requests) -- the data below is from an earlier successful scan, not the latest attempt."
-              className="mt-2 rounded border border-amber-600/40 bg-amber-600/20 px-2 py-1 text-xs text-amber-300"
+              className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"
             >
               {finding.websiteIntel
                 ? "Showing data from an earlier scan -- the most recent recheck didn't succeed."
                 : "This site has never been successfully scanned yet."}
             </p>
           )}
-          <dl className="mt-3 space-y-1 text-sm">
+          <dl className="mt-3 space-y-1.5 text-sm">
             <Row label="Title" value={finding.websiteIntel?.title} />
             <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
             <Row label="Payment form" value={finding.websiteIntel?.hasPaymentForm ? "Detected" : "Not detected"} />
@@ -146,13 +146,13 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         </div>
       </section>
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Evidence</h2>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-300">
+      <section className="card mt-6 p-5">
+        <h2 className="label">Evidence</h2>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-ink-muted">
           {finding.evidence.map((e) => (
             <li key={e.id}>{e.description}</li>
           ))}
-          {finding.evidence.length === 0 && <li className="text-gray-500">No evidence recorded.</li>}
+          {finding.evidence.length === 0 && <li className="list-none text-ink-subtle">No evidence recorded.</li>}
         </ul>
       </section>
 
@@ -174,8 +174,8 @@ function resolutionStatus(domainIntel: { firstResolvedAt: string | null; current
 function Row({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-gray-500">{label}</dt>
-      <dd className="text-gray-200">{value ?? "—"}</dd>
+      <dt className="text-ink-subtle">{label}</dt>
+      <dd className="text-ink">{value ?? "—"}</dd>
     </div>
   );
 }

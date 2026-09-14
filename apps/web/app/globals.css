@@ -3,6 +3,41 @@
 @tailwind utilities;
 
 body {
-  background-color: #0b0f14;
-  color: #e5e7eb;
+  background-color: #f4f5f7;
+  color: #12141a;
+}
+
+@layer components {
+  /* One card style used everywhere instead of ad hoc "rounded border border-gray-800"
+     repeated per page -- consistent radius/border/background/shadow across the app. */
+  .card {
+    @apply rounded-lg border border-line bg-panel shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand px-3.5 py-2 text-white hover:bg-brand-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted hover:bg-elevated;
+  }
+  .btn-ghost {
+    @apply btn px-2 py-1 text-ink-subtle hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn px-2 py-1 text-red-600 hover:text-red-700;
+  }
+
+  .field {
+    @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand;
+  }
+  .field-sm {
+    @apply field px-2.5 py-1.5 text-xs;
+  }
+
+  .label {
+    @apply block text-[11px] font-semibold uppercase tracking-wide text-ink-subtle;
+  }
 }

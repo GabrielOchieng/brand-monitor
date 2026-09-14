@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
+import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, ChevronDownIcon } from "../../components/icons";
 
 interface Summary {
   brand: { id: string; name: string; primaryDomain: string; hasVisualBaseline: boolean };
@@ -27,6 +28,12 @@ interface RunStatus {
 }
 
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+const SEVERITY_STAT_STYLES: Record<string, string> = {
+  critical: "border-l-critical",
+  high: "border-l-high",
+  medium: "border-l-medium",
+  low: "border-l-low",
+};
 
 export default function DashboardPage() {
   const { getToken, orgId, isLoaded } = useAuth();
@@ -232,202 +239,210 @@ export default function DashboardPage() {
 
   if (!orgId) {
     return (
-      <div className="max-w-lg">
-        <h1 className="text-2xl font-semibold text-gray-100">Select or create an organization</h1>
-        <p className="mt-2 text-gray-400">Use the organization switcher in the top bar to continue.</p>
+      <div className="card mx-auto max-w-lg p-8 text-center">
+        <h1 className="text-xl font-semibold text-ink">Select or create an organization</h1>
+        <p className="mt-2 text-sm text-ink-muted">Use the organization switcher in the top bar to continue.</p>
       </div>
     );
   }
 
   if (noBrandYet) {
     return (
-      <div className="max-w-md">
-        <h1 className="text-2xl font-semibold text-gray-100">Protect your first brand</h1>
-        <p className="mt-1 text-gray-400">Enter the brand name and its primary domain to start monitoring.</p>
-        <form onSubmit={handleCreateBrand} className="mt-6 space-y-4">
+      <div className="card mx-auto max-w-md p-8">
+        <h1 className="text-xl font-semibold text-ink">Protect your first brand</h1>
+        <p className="mt-1 text-sm text-ink-muted">Enter the brand name and its primary domain to start monitoring.</p>
+        <form onSubmit={handleCreateBrand} className="mt-6 space-y-3">
           <input
             required
             placeholder="Brand name (e.g. Jambojet)"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+            className="field w-full"
           />
           <input
             required
             placeholder="Primary domain (e.g. jambojet.com)"
             value={form.primaryDomain}
             onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
+            className="field w-full"
           />
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={creating} className="btn-primary w-full">
             {creating ? "Creating…" : "Create brand"}
           </button>
         </form>
-        {error && <p className="mt-4 text-red-400">{error}</p>}
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-gray-100">Am I protected?</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Am I protected?</h1>
+
       {summary && (
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <p className="text-gray-400">
-            Monitoring <span className="text-gray-200 font-medium">{summary.brand.name}</span> ({summary.brand.primaryDomain})
-          </p>
-          {brands.length > 0 && (
-            <select
-              value={selectedBrandId ?? ""}
-              onChange={(e) => handleSelectBrand(e.target.value)}
-              className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-              aria-label="Select brand"
-            >
-              {brands.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <button onClick={() => setShowAddBrand((v) => !v)} className="text-xs text-blue-400 hover:underline">
-            + Add brand
-          </button>
-          <button onClick={handleToggleEdit} className="text-xs text-blue-400 hover:underline">
-            Edit
-          </button>
-          <button
-            onClick={handleDeleteBrand}
-            disabled={deleting}
-            className="text-xs text-red-400 hover:underline disabled:opacity-50"
-          >
-            {deleting ? "Deleting…" : "Delete brand"}
-          </button>
-          {summary.brand.hasVisualBaseline && (
-            <a
-              href={`${API_URL}/screenshots/brand-${summary.brand.id}.png`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-blue-400 hover:underline"
-            >
-              View visual-similarity reference
-            </a>
-          )}
+        <div className="card mt-4 flex flex-wrap items-center gap-4 p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-ink-muted">Monitoring</span>
+            <div className="relative">
+              <select
+                value={selectedBrandId ?? ""}
+                onChange={(e) => handleSelectBrand(e.target.value)}
+                className="field-sm appearance-none py-1.5 pr-7 font-medium text-ink"
+                aria-label="Select brand"
+              >
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+            </div>
+            <span className="text-sm text-ink-subtle">({summary.brand.primaryDomain})</span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
+            <button onClick={() => setShowAddBrand((v) => !v)} className="btn-ghost">
+              <PlusIcon className="h-3.5 w-3.5" /> Add brand
+            </button>
+            <button onClick={handleToggleEdit} className="btn-ghost">
+              <PencilIcon className="h-3.5 w-3.5" /> Edit
+            </button>
+            {summary.brand.hasVisualBaseline && (
+              <a
+                href={`${API_URL}/screenshots/brand-${summary.brand.id}.png`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-ghost"
+              >
+                <ImageIcon className="h-3.5 w-3.5" /> Visual reference
+              </a>
+            )}
+            <button onClick={handleDeleteBrand} disabled={deleting} className="btn-danger">
+              <TrashIcon className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
         </div>
       )}
 
       {showAddBrand && (
-        <form onSubmit={handleCreateBrand} className="mt-3 flex flex-wrap gap-2">
+        <form onSubmit={handleCreateBrand} className="card mt-3 flex flex-wrap gap-2 p-4">
           <input
             required
             placeholder="Brand name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+            className="field"
           />
           <input
             required
             placeholder="Primary domain"
             value={form.primaryDomain}
             onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
-            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+            className="field"
           />
-          <button
-            type="submit"
-            disabled={creating}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={creating} className="btn-primary">
             {creating ? "Creating…" : "Create"}
           </button>
         </form>
       )}
 
       {showEditBrand && (
-        <form onSubmit={handleUpdateBrand} className="mt-3 flex flex-wrap gap-2">
+        <form onSubmit={handleUpdateBrand} className="card mt-3 flex flex-wrap gap-2 p-4">
           <input
             required
             placeholder="Brand name"
             value={editForm.name}
             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+            className="field"
           />
           <input
             required
             placeholder="Primary domain"
             value={editForm.primaryDomain}
             onChange={(e) => setEditForm({ ...editForm, primaryDomain: e.target.value })}
-            className="rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-100"
+            className="field"
           />
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={saving} className="btn-primary">
             {saving ? "Saving…" : "Save"}
           </button>
         </form>
       )}
 
-      <div className="mt-6 flex gap-4">
-        <button
-          onClick={handleRunDiscovery}
-          disabled={run?.status === "running"}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-        >
-          {run?.status === "running" ? "Discovery running…" : "Run discovery"}
-        </button>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="card flex flex-col justify-between p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/15 text-brand">
+              <RadarIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <div className="text-sm font-medium text-ink">Discovery scan</div>
+              <p className="mt-0.5 text-xs text-ink-subtle">Generate and check lookalike domains for this brand.</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRunDiscovery}
+            disabled={run?.status === "running"}
+            className="btn-primary mt-4 self-start"
+          >
+            {run?.status === "running" ? "Discovery running…" : "Run discovery"}
+          </button>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/15 text-brand">
+              <FlagIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <div className="text-sm font-medium text-ink">Report a suspicious URL</div>
+              <p className="mt-0.5 text-xs text-ink-subtle">A fake social profile or any other page discovery can't reach.</p>
+            </div>
+          </div>
+          <form onSubmit={handleManualSubmit} className="mt-4 flex gap-2">
+            <input
+              required
+              type="url"
+              placeholder="https://…"
+              value={submitUrl}
+              onChange={(e) => setSubmitUrl(e.target.value)}
+              className="field flex-1"
+            />
+            <button type="submit" disabled={submitting} className="btn-secondary shrink-0">
+              {submitting ? "Submitting…" : "Submit"}
+            </button>
+          </form>
+          {submitMessage && <p className="mt-2 text-xs text-emerald-600">{submitMessage}</p>}
+        </div>
       </div>
 
-      <form onSubmit={handleManualSubmit} className="mt-6 flex gap-2">
-        <input
-          required
-          type="url"
-          placeholder="Report a suspicious URL (e.g. a fake social profile)"
-          value={submitUrl}
-          onChange={(e) => setSubmitUrl(e.target.value)}
-          className="w-full max-w-md rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-        />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded border border-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-        >
-          {submitting ? "Submitting…" : "Submit"}
-        </button>
-      </form>
-      {submitMessage && <p className="mt-2 text-sm text-green-400">{submitMessage}</p>}
-
       {run && (
-        <div className="mt-4 rounded border border-gray-800 p-4 text-sm text-gray-300">
-          <div>Status: <span className="font-medium">{run.status}</span></div>
+        <div className="card mt-4 p-4 text-sm text-ink-muted">
+          <div>Status: <span className="font-medium text-ink">{run.status}</span></div>
           {run.candidatesTotal > 0 && (
-            <div className="mt-1">
+            <div className="mt-1 text-ink-muted">
               Checked {run.candidatesChecked} / {run.candidatesTotal} candidate domains — {run.findingsCreated} findings so far
             </div>
           )}
-          {run.error && <div className="mt-1 text-red-400">{run.error}</div>}
+          {run.error && <div className="mt-1 text-red-600">{run.error}</div>}
         </div>
       )}
 
-      {error && <p className="mt-4 text-red-400">{error}</p>}
+      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {summary && (
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {SEVERITY_ORDER.map((sev) => (
-            <div key={sev} className="rounded border border-gray-800 p-4">
-              <div className="text-xs uppercase tracking-wide text-gray-500">{sev}</div>
-              <div className="mt-1 text-3xl font-semibold text-gray-100">{summary.bySeverity[sev] ?? 0}</div>
+            <div key={sev} className={`card border-l-[3px] p-4 ${SEVERITY_STAT_STYLES[sev]}`}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">{sev}</div>
+              <div className="mt-1 text-3xl font-semibold tabular-nums text-ink">{summary.bySeverity[sev] ?? 0}</div>
             </div>
           ))}
         </div>
       )}
 
       {summary && summary.totalFindings === 0 && (
-        <p className="mt-6 text-gray-500">No findings yet — click "Run discovery" to scan for lookalike domains.</p>
+        <p className="mt-6 text-sm text-ink-subtle">No findings yet — click "Run discovery" to scan for lookalike domains.</p>
       )}
     </div>
   );

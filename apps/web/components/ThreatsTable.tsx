@@ -6,9 +6,18 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { SeverityBadge } from "./SeverityBadge";
+import { ChevronDownIcon } from "./icons";
 import type { FindingRow } from "../app/threats/page";
 
 const STATUSES = ["new", "investigating", "confirmed", "false_positive", "resolved"] as const;
+
+const STATUS_STYLES: Record<string, string> = {
+  new: "text-ink-muted",
+  investigating: "text-brand",
+  confirmed: "text-amber-700",
+  false_positive: "text-ink-subtle line-through decoration-gray-400",
+  resolved: "text-emerald-600",
+};
 
 interface Member {
   userId: string;
@@ -97,16 +106,26 @@ export function ThreatsTable({
 
   const allSelected = findings.length > 0 && selectedIds.size === findings.length;
 
+  function SortHeader({ column, children }: { column: keyof typeof sortLinks; children: React.ReactNode }) {
+    const active = currentSort.sortBy === column;
+    return (
+      <Link href={sortLinks[column]} className={`inline-flex items-center gap-1 hover:text-ink-muted ${active ? "text-ink-muted" : ""}`}>
+        {children}
+        <ChevronDownIcon className={`h-3 w-3 transition-transform ${active && currentSort.sortDir === "asc" ? "rotate-180" : ""} ${active ? "opacity-100" : "opacity-0"}`} />
+      </Link>
+    );
+  }
+
   return (
     <div className="mt-6">
       {selectedIds.size > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-blue-600/40 bg-blue-600/10 px-4 py-2 text-sm">
-          <span className="text-gray-200">{selectedIds.size} selected</span>
+        <div className="card mb-3 flex flex-wrap items-center gap-3 border-brand/40 bg-brand/10 px-4 py-2.5 text-sm">
+          <span className="font-medium text-ink">{selectedIds.size} selected</span>
           <select
             value={bulkStatus}
             onChange={(e) => setBulkStatus(e.target.value)}
             disabled={applying}
-            className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
+            className="field-sm"
           >
             <option value="">Set status…</option>
             {STATUSES.map((s) => (
@@ -119,7 +138,7 @@ export function ThreatsTable({
             value={bulkAssigneeId}
             onChange={(e) => setBulkAssigneeId(e.target.value)}
             disabled={applying}
-            className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
+            className="field-sm"
           >
             <option value="">Assign to…</option>
             <option value="unassigned">Unassigned</option>
@@ -132,71 +151,71 @@ export function ThreatsTable({
           <button
             onClick={applyBulkAction}
             disabled={applying || (!bulkStatus && !bulkAssigneeId)}
-            className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+            className="btn-primary px-3 py-1.5 text-xs"
           >
             {applying ? "Applying…" : "Apply"}
           </button>
-          {error && <span className="text-red-400">{error}</span>}
+          {error && <span className="text-red-600">{error}</span>}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded border border-gray-800">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-900/50 text-left text-xs uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="w-8 px-4 py-3">
+          <thead className="text-left text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+            <tr className="border-b border-line">
+              <th className="w-10 px-4 py-3">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={(e) => toggleAll(e.target.checked)}
                   aria-label="Select all"
+                  className="accent-brand"
                 />
               </th>
               <th className="px-4 py-3">Domain</th>
               <th className="px-4 py-3">Severity</th>
               <th className="px-4 py-3">
-                <Link href={sortLinks.riskScore} className="hover:text-gray-300">
-                  Score{currentSort.sortBy === "riskScore" ? (currentSort.sortDir === "asc" ? " ↑" : " ↓") : ""}
-                </Link>
+                <SortHeader column="riskScore">Score</SortHeader>
               </th>
               <th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">
-                <Link href={sortLinks.firstDetectedAt} className="hover:text-gray-300">
-                  First detected{currentSort.sortBy === "firstDetectedAt" ? (currentSort.sortDir === "asc" ? " ↑" : " ↓") : ""}
-                </Link>
+                <SortHeader column="firstDetectedAt">First detected</SortHeader>
               </th>
             </tr>
           </thead>
           <tbody>
             {findings.map((f) => (
-              <tr key={f.id} className="border-t border-gray-800 hover:bg-gray-900/40">
+              <tr key={f.id} className="border-b border-line/60 last:border-0 hover:bg-elevated/60">
                 <td className="px-4 py-3">
                   <input
                     type="checkbox"
                     checked={selectedIds.has(f.id)}
                     onChange={(e) => toggleOne(f.id, e.target.checked)}
                     aria-label={`Select ${f.identifier}`}
+                    className="accent-brand"
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <Link href={`/threats/${f.id}`} className="text-blue-400 hover:underline">
+                  <Link href={`/threats/${f.id}`} className="font-mono text-[13px] text-ink hover:text-brand-hover">
                     {f.identifier}
                   </Link>
-                  {f.brandName && <span className="ml-2 text-xs text-gray-500">({f.brandName})</span>}
+                  {f.brandName && <span className="ml-2 text-xs text-ink-subtle">({f.brandName})</span>}
                 </td>
                 <td className="px-4 py-3">
                   <SeverityBadge severity={f.severity} />
                 </td>
-                <td className="px-4 py-3 font-mono text-gray-200">{f.riskScore}</td>
-                <td className="px-4 py-3 text-gray-400">{f.source}</td>
-                <td className="px-4 py-3 text-gray-400">{f.status}</td>
-                <td className="px-4 py-3 text-gray-400">{new Date(f.firstDetectedAt).toLocaleString()}</td>
+                <td className="px-4 py-3 font-mono tabular-nums text-ink">{f.riskScore}</td>
+                <td className="px-4 py-3 text-ink-subtle">{f.source}</td>
+                <td className={`px-4 py-3 font-medium capitalize ${STATUS_STYLES[f.status] ?? "text-ink-muted"}`}>
+                  {f.status.replace("_", " ")}
+                </td>
+                <td className="px-4 py-3 text-ink-subtle">{new Date(f.firstDetectedAt).toLocaleString()}</td>
               </tr>
             ))}
             {findings.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-ink-subtle">
                   No findings match these filters.
                 </td>
               </tr>

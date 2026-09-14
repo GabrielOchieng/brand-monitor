@@ -44,32 +44,32 @@ export default function NotificationsPage() {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-100">Notifications</h1>
-        <button onClick={markAllRead} className="text-sm text-blue-400 hover:underline">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Notifications</h1>
+        <button onClick={markAllRead} className="btn-ghost text-xs">
           Mark all read
         </button>
       </div>
 
-      {loading && <p className="mt-4 text-gray-500">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-ink-subtle">Loading…</p>}
 
-      <div className="mt-6 divide-y divide-gray-800 rounded border border-gray-800">
+      <div className="card mt-6 divide-y divide-line">
         {notifications.map((n) => (
-          <div key={n.id} className={`flex items-center justify-between px-4 py-3 ${n.readAt ? "opacity-60" : ""}`}>
+          <div key={n.id} className={`flex items-center justify-between px-4 py-3 ${n.readAt ? "opacity-50" : ""}`}>
             <div>
-              <Link href={`/threats/${n.findingId}`} className="text-sm text-gray-200 hover:underline">
+              <Link href={`/threats/${n.findingId}`} className="text-sm text-ink hover:text-brand-hover">
                 {n.message}
               </Link>
-              <div className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</div>
+              <div className="text-xs text-ink-subtle">{new Date(n.createdAt).toLocaleString()}</div>
             </div>
             {!n.readAt && (
-              <button onClick={() => markRead(n.id)} className="text-xs text-blue-400 hover:underline">
+              <button onClick={() => markRead(n.id)} className="btn-ghost shrink-0 text-xs">
                 Mark read
               </button>
             )}
           </div>
         ))}
         {!loading && notifications.length === 0 && (
-          <div className="px-4 py-8 text-center text-gray-500">No notifications yet.</div>
+          <div className="px-4 py-10 text-center text-sm text-ink-subtle">No notifications yet.</div>
         )}
       </div>
     </div>

@@ -116,15 +116,15 @@ export function FindingLifecycle({
   }
 
   return (
-    <section className="mt-6 rounded border border-gray-800 p-4">
+    <section className="card mt-6 p-5">
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</label>
+          <label className="label">Status</label>
           <select
             value={status}
             onChange={(e) => handleStatusChange(e.target.value)}
             disabled={saving}
-            className="mt-1 w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+            className="field mt-1 w-full"
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -134,12 +134,12 @@ export function FindingLifecycle({
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Assignee</label>
+          <label className="label">Assignee</label>
           <select
             value={assigneeId}
             onChange={(e) => handleAssigneeChange(e.target.value)}
             disabled={saving}
-            className="mt-1 w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+            className="field mt-1 w-full"
           >
             <option value="">Unassigned</option>
             {members.map((m) => (
@@ -150,43 +150,39 @@ export function FindingLifecycle({
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Tags</label>
+          <label className="label">Tags</label>
           <input
             value={tagsInput}
             onChange={(e) => setTagsInput(e.target.value)}
             onBlur={handleTagsBlur}
             placeholder="comma, separated, tags"
             disabled={saving}
-            className="mt-1 w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+            className="field mt-1 w-full"
           />
         </div>
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       <div className="mt-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Notes</h3>
+        <h3 className="label">Notes</h3>
         <ul className="mt-2 space-y-2">
           {notes.map((n) => (
-            <li key={n.id} className="rounded border border-gray-800 px-3 py-2 text-sm text-gray-300">
+            <li key={n.id} className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
               <div>{n.body}</div>
-              <div className="mt-1 text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</div>
+              <div className="mt-1 text-xs text-ink-subtle">{new Date(n.createdAt).toLocaleString()}</div>
             </li>
           ))}
-          {notes.length === 0 && <li className="text-sm text-gray-500">No notes yet.</li>}
+          {notes.length === 0 && <li className="text-sm text-ink-subtle">No notes yet.</li>}
         </ul>
         <form onSubmit={handleAddNote} className="mt-3 flex gap-2">
           <input
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             placeholder="Add a note…"
-            className="flex-1 rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-sm text-gray-100"
+            className="field flex-1"
           />
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={saving} className="btn-primary">
             Add
           </button>
         </form>

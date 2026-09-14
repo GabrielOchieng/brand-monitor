@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { apiFetch } from "../../lib/api";
 import { ThreatsTable } from "../../components/ThreatsTable";
+import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
 
 export interface FindingRow {
   id: string;
@@ -93,21 +94,21 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
     return hrefWith({ sortBy: column, sortDir: nextDir });
   }
 
+  const hasActiveFilters = Boolean(sp.status || sp.severity || sp.brandId || sp.q || sp.assigneeId);
+
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-100">Threat feed</h1>
-      <p className="mt-1 text-gray-400">
-        {data.total} finding{data.total === 1 ? "" : "s"}, page {data.page} of {totalPages}.
-      </p>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Threat feed</h1>
+        <p className="text-sm text-ink-subtle">
+          {data.total} finding{data.total === 1 ? "" : "s"} · page {data.page} of {totalPages}
+        </p>
+      </div>
 
-      <form method="GET" className="mt-4 flex flex-wrap items-end gap-3">
+      <form method="GET" className="card mt-4 flex flex-wrap items-end gap-3 p-4">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Status</label>
-          <select
-            name="status"
-            defaultValue={sp.status ?? ""}
-            className="mt-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-          >
+          <label className="label">Status</label>
+          <select name="status" defaultValue={sp.status ?? ""} className="field-sm mt-1">
             <option value="">All statuses</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -117,12 +118,8 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
           </select>
         </div>
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Severity</label>
-          <select
-            name="severity"
-            defaultValue={sp.severity ?? ""}
-            className="mt-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-          >
+          <label className="label">Severity</label>
+          <select name="severity" defaultValue={sp.severity ?? ""} className="field-sm mt-1">
             <option value="">All severities</option>
             {SEVERITIES.map((s) => (
               <option key={s} value={s}>
@@ -133,12 +130,8 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
         </div>
         {brands.length > 1 && (
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Brand</label>
-            <select
-              name="brandId"
-              defaultValue={sp.brandId ?? ""}
-              className="mt-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-            >
+            <label className="label">Brand</label>
+            <select name="brandId" defaultValue={sp.brandId ?? ""} className="field-sm mt-1">
               <option value="">All brands</option>
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -149,12 +142,8 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
           </div>
         )}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Assignee</label>
-          <select
-            name="assigneeId"
-            defaultValue={sp.assigneeId ?? ""}
-            className="mt-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-          >
+          <label className="label">Assignee</label>
+          <select name="assigneeId" defaultValue={sp.assigneeId ?? ""} className="field-sm mt-1">
             <option value="">Anyone</option>
             <option value="unassigned">Unassigned</option>
             {members.map((m) => (
@@ -164,23 +153,18 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
             ))}
           </select>
         </div>
-        <div className="flex-1 min-w-[160px]">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">Search</label>
-          <input
-            name="q"
-            defaultValue={sp.q ?? ""}
-            placeholder="Domain contains…"
-            className="mt-1 w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-100"
-          />
+        <div className="min-w-[160px] flex-1">
+          <label className="label">Search</label>
+          <div className="relative mt-1">
+            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+            <input name="q" defaultValue={sp.q ?? ""} placeholder="Domain contains…" className="field-sm w-full pl-8" />
+          </div>
         </div>
-        <button
-          type="submit"
-          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
-        >
+        <button type="submit" className="btn-primary px-3.5 py-1.5 text-xs">
           Apply filters
         </button>
-        {(sp.status || sp.severity || sp.brandId || sp.q || sp.assigneeId) && (
-          <Link href="/threats" className="text-xs text-gray-400 hover:underline">
+        {hasActiveFilters && (
+          <Link href="/threats" className="btn-ghost text-xs">
             Clear filters
           </Link>
         )}
@@ -192,23 +176,23 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
         currentSort={{ sortBy: sp.sortBy ?? "riskScore", sortDir: sp.sortDir ?? "desc" }}
       />
 
-      <div className="mt-4 flex items-center justify-between text-sm text-gray-400">
+      <div className="mt-4 flex items-center justify-between text-sm">
         <Link
           href={hrefWith({ page: String(Math.max(1, data.page - 1)) })}
           aria-disabled={data.page <= 1}
-          className={data.page <= 1 ? "pointer-events-none opacity-40" : "hover:underline"}
+          className={`btn-secondary px-3 py-1.5 text-xs ${data.page <= 1 ? "pointer-events-none opacity-40" : ""}`}
         >
-          ← Previous
+          <ChevronLeftIcon className="h-3.5 w-3.5" /> Previous
         </Link>
-        <span>
+        <span className="text-ink-subtle">
           Page {data.page} of {totalPages}
         </span>
         <Link
           href={hrefWith({ page: String(Math.min(totalPages, data.page + 1)) })}
           aria-disabled={data.page >= totalPages}
-          className={data.page >= totalPages ? "pointer-events-none opacity-40" : "hover:underline"}
+          className={`btn-secondary px-3 py-1.5 text-xs ${data.page >= totalPages ? "pointer-events-none opacity-40" : ""}`}
         >
-          Next →
+          Next <ChevronRightIcon className="h-3.5 w-3.5" />
         </Link>
       </div>
     </div>
