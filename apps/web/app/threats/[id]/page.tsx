@@ -54,7 +54,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
   const finding = await apiFetch<FindingDetail>(`/api/findings/${id}`, token);
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-mono text-xl font-semibold text-ink">{finding.identifier}</h1>
         <SeverityBadge severity={finding.severity} />

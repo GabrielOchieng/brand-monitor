@@ -277,7 +277,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <h1 className="text-2xl font-semibold tracking-tight text-ink">Am I protected?</h1>
 
       {summary && (

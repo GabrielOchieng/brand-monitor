@@ -42,7 +42,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Notifications</h1>
         <button onClick={markAllRead} className="btn-ghost text-xs">
