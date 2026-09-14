@@ -282,7 +282,7 @@ export default function DashboardPage() {
 
       {summary && (
         <div className="card mt-4 flex flex-wrap items-center gap-4 p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-ink-muted">Monitoring</span>
             <div className="relative">
               <select
@@ -302,11 +302,11 @@ export default function DashboardPage() {
             <span className="text-sm text-ink-subtle">({summary.brand.primaryDomain})</span>
           </div>
 
-          <div className="ml-auto flex items-center gap-1">
-            <button onClick={() => setShowAddBrand((v) => !v)} className="btn-ghost">
+          <div className="ml-auto flex flex-wrap items-center gap-1">
+            <button onClick={() => setShowAddBrand((v) => !v)} className="btn-ghost whitespace-nowrap">
               <PlusIcon className="h-3.5 w-3.5" /> Add brand
             </button>
-            <button onClick={handleToggleEdit} className="btn-ghost">
+            <button onClick={handleToggleEdit} className="btn-ghost whitespace-nowrap">
               <PencilIcon className="h-3.5 w-3.5" /> Edit
             </button>
             {summary.brand.hasVisualBaseline && (
@@ -314,12 +314,12 @@ export default function DashboardPage() {
                 href={`${API_URL}/screenshots/brand-${summary.brand.id}.png`}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-ghost"
+                className="btn-ghost whitespace-nowrap"
               >
                 <ImageIcon className="h-3.5 w-3.5" /> Visual reference
               </a>
             )}
-            <button onClick={handleDeleteBrand} disabled={deleting} className="btn-danger">
+            <button onClick={handleDeleteBrand} disabled={deleting} className="btn-danger whitespace-nowrap">
               <TrashIcon className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : "Delete"}
             </button>
           </div>
