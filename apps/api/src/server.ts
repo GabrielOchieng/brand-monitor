@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
@@ -19,8 +20,14 @@ async function main() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, { origin: true });
+  // @fastify/static needs its root to exist at registration time, not just by the time a
+  // screenshot is first saved (saveScreenshot/ensureBrandScreenshotHash both mkdir lazily,
+  // on demand) -- confirmed real: a genuinely fresh container/checkout with zero
+  // screenshots saved yet fails this registration outright ("root path ... must exist").
+  const screenshotDir = path.join(process.cwd(), "screenshots");
+  fs.mkdirSync(screenshotDir, { recursive: true });
   await app.register(fastifyStatic, {
-    root: path.join(process.cwd(), "screenshots"),
+    root: screenshotDir,
     prefix: "/screenshots/",
   });
   // Scoped to just the webhook route (global: false) -- Clerk's svix signature is

@@ -1,4 +1,5 @@
 import { fromPrisma } from "pg-boss";
+import { env } from "../env";
 import { adminPrisma } from "../adminDb";
 import { withTenant } from "../lib/tenant";
 import { boss, QUEUE_DISCOVERY, QUEUE_RECHECK, QUEUE_DISPATCH_DISCOVERY, QUEUE_DISPATCH_RECHECK } from "./boss";
@@ -45,8 +46,9 @@ export async function registerQueueWorkers(): Promise<void> {
 
   // localConcurrency caps how many recheck jobs run at once (per node) -- deliberately
   // small since WHOIS servers rate-limit aggressively per source IP, and many parallel
-  // per-finding rechecks would otherwise hammer them.
-  await boss.work<RecheckJobData>(QUEUE_RECHECK, { localConcurrency: 3 }, async ([job]) => {
+  // per-finding rechecks would otherwise hammer them. Also the only concurrency knob that
+  // triggers Chromium launches (via scanWebsite in each recheck job) -- see env.ts.
+  await boss.work<RecheckJobData>(QUEUE_RECHECK, { localConcurrency: env.recheckConcurrency }, async ([job]) => {
     await runRecheckJob(job.data);
   });
 

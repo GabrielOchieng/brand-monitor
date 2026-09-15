@@ -68,7 +68,10 @@ app.post("/scan", async (request, reply) => {
     return reply.send({ skipped: true, reason: "robots_disallowed" });
   }
 
-  const browser = await chromium.launch({ headless: true });
+  // --disable-dev-shm-usage: Docker's default /dev/shm is tiny (64MB) and Chromium uses
+  // shared memory heavily -- a well-established, independent crash cause in containers
+  // regardless of total RAM, not specific to any one deployment target.
+  const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
   try {
     const context = await browser.newContext({ userAgent, viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();

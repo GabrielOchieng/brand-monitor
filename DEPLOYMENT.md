@@ -1,29 +1,34 @@
 # Deploying Brand Monitor for free
 
-Three services, three providers, all free tier as of September 2026 (free tiers change —
-re-check before relying on this months later):
+Three services, three providers, all genuinely free tier as of September 2026 — no card
+required anywhere in this setup (free tiers change — re-check before relying on this
+months later):
 
 | Piece | Where | Why |
 |---|---|---|
-| `apps/web` (Next.js) | Vercel | first-party Next.js hosting, generous free tier |
+| `apps/web` (Next.js) | Vercel | first-party Next.js hosting, generous free tier, no card |
 | Postgres | Neon | free tier's default role has `CREATEROLE`, which the RLS migration needs |
-| `apps/api` + `apps/scanner` | Oracle Cloud Always Free VM | needs to be always-on (pg-boss queue worker, RLS session vars) and have enough RAM for headless Chromium — no serverless/free-tier PaaS fits both, self-hosting on a real always-free VM does |
+| `apps/api` + `apps/scanner` (one container) | Render | free Web Service needs no card at all — the only provider found that doesn't, after Oracle Cloud outright rejected Kenya as a billing country and Google Cloud required a $50 authorization hold |
 
-The API **must** be served over real HTTPS, not just HTTP on a port — `apps/web`'s client
-components call the API directly from the browser (see `apiFetch` usage in
-`app/dashboard/page.tsx`), and a browser on `https://*.vercel.app` will block a plain-HTTP
-API origin as mixed content. That's why Caddy (automatic Let's Encrypt) is part of this
-setup rather than optional polish.
+`apps/api` and `apps/scanner` run as **two processes in one container** on Render, not two
+separate services — Render's free tier is 750 instance-hours/month shared across the whole
+workspace, enough for one always-on service (~730 hrs) but not two (~1460 combined). See
+`apps/api/Dockerfile` and `docker-entrypoint.sh` for how both processes start together;
+`apps/scanner`'s own standalone `Dockerfile` and the root `docker-compose.yml` are
+unaffected by this — local dev still runs the two as separate containers exactly as before.
 
-**Domain**: no separate account/signup needed for this. [sslip.io](https://sslip.io) is a
-free, zero-signup wildcard DNS service — a hostname like `140.238.12.34.sslip.io`
-automatically resolves to that exact IP (computed on the fly, no account, nothing to
-expire or reconfirm). It works with Caddy's automatic HTTPS exactly like a normal domain
-would — Let's Encrypt just sees a normal DNS A-record lookup. The Oracle VM step below
-derives this once the VM's public IP is known. (If you'd rather have a memorable name
-instead of an IP-encoded one, [DuckDNS](https://duckdns.org) is the standard free
-alternative — needs a quick GitHub/Google-login signup, but the resulting hostname stays
-fixed even if you ever change VMs/IPs, unlike an sslip.io one.)
+**RAM is tight**: Render's free tier is only 512MB total, shared between the Fastify/pg-
+boss process and however many headless-Chromium instances the scanner has running at once
+in the same container. `RECHECK_CONCURRENCY=1` (see `.env.production.example`) caps that
+at one concurrent scan — more than one risks OOM-killing the whole container, not just the
+scan. This is a real reliability trade-off versus a bigger machine, accepted deliberately
+to stay at $0.
+
+The API is served over real HTTPS automatically — Render gives every Web Service a real
+TLS certificate on its own `*.onrender.com` subdomain, no domain purchase, no DNS, no
+Caddy/Let's Encrypt setup needed (this is also why `apps/web`'s browser-side calls to the
+API — see `apiFetch` usage in `app/dashboard/page.tsx` — won't get blocked as mixed
+content: both ends are HTTPS by default).
 
 ## 1. Neon (Postgres)
 
@@ -32,55 +37,50 @@ fixed even if you ever change VMs/IPs, unlike an sslip.io one.)
    app is a long-running server managing its own Prisma pool, not a serverless function
    making many short-lived connections, so the pooler (built for the latter) just adds a
    variable worth avoiding.
-3. That's it for now — the `brandmonitor_app` role gets created automatically when the
-   RLS migration runs in step 5.
+3. That's it for now — the `brandmonitor_app` role gets created automatically when the RLS
+   migration runs in step 3 below.
 
-## 2. Oracle Cloud (VM for `apps/api` + `apps/scanner`)
+## 2. Render (`apps/api` + `apps/scanner`)
 
-1. Create an **Always Free Ampere A1** VM instance (Compute → Create Instance → Ampere;
-   pick the Always Free shape). If you hit "out of host capacity", try a different
-   availability domain or region — this is a known, common, and usually transient issue
-   for this specific free shape, not a real quota problem.
-2. While creating it (or after, via the instance's attached VNIC), assign a **Reserved
-   Public IP**, not an ephemeral one — both are free on Always Free, but an ephemeral IP
-   can change if the instance is ever stopped/restarted, which would silently break the
-   sslip.io hostname below (it has the IP baked in). A reserved IP stays fixed.
-3. Once you have that IP (e.g. `140.238.12.34`), your API domain is simply
-   `140-238-12-34.sslip.io` (dashes, not dots — sslip.io accepts either, dashes avoid any
-   ambiguity with the rest of the hostname) — no signup, nothing to configure, it resolves
-   immediately.
-4. In the VM's attached Virtual Cloud Network security list (or the VM's own iptables if
-   you're using Oracle's newer VCN-native firewall), open inbound TCP **80** and **443**.
-   Leave everything else closed — `apps/api` and `apps/scanner`'s own ports are never
-   published to the host at all (see `docker-compose.prod.yml`), so nothing else needs a
-   hole punched for them.
-5. SSH in, install Docker + the Compose plugin (`curl -fsSL https://get.docker.com | sh`,
-   then `apt-get install docker-compose-plugin` or follow Docker's current install docs —
-   commands drift, check docker.com for the current one-liner).
-6. `git clone` this repo onto the VM.
-7. `cp apps/api/.env.production.example apps/api/.env.production` and fill in every value
-   — Neon's connection strings from step 1 (pick a real password for `brandmonitor_app`,
-   not the dev default), your Clerk **production** instance keys (see step 4 below), SMTP,
-   Anthropic key, and `WEB_APP_URL` set to your eventual Vercel URL.
-8. Create a root `.env` file (next to `docker-compose.prod.yml`, gitignored) containing
-   `API_DOMAIN=140-238-12-34.sslip.io` (your actual reserved IP, sslip.io-ified) — Compose
-   reads this automatically to fill in the Caddyfile's `{$API_DOMAIN}`.
-9. `docker compose -f docker-compose.prod.yml up -d --build`. The `api` container's
-   entrypoint runs `prisma migrate deploy`, syncs `brandmonitor_app`'s password with
-   `DATABASE_APP_URL`, then bootstraps the pg-boss grants — all automatically, on every
-   start, no separate manual step on this or any future deploy.
-10. Confirm `https://140-238-12-34.sslip.io/health` returns `{"ok":true}` (may take a
-    minute the first time while Caddy provisions its certificate).
+1. Create a free account at [render.com](https://render.com) — no card required for the
+   free tier.
+2. **New → Web Service**, connect this repo.
+3. Set **Dockerfile Path** to `apps/api/Dockerfile` and leave the **Docker Build Context
+   Directory** as the repo root (`.`) — this exactly matches `docker build -f
+   apps/api/Dockerfile .`, already verified working locally.
+4. Pick the **Free** instance type.
+5. Set **Health Check Path** to `/health` (the existing route needs no changes).
+6. Add environment variables from `apps/api/.env.production` (create it from
+   `apps/api/.env.production.example` first if you haven't) — Neon's connection strings
+   from step 1 (pick a real password for `brandmonitor_app`, not the dev default), your
+   Clerk **production** instance keys (see step 3 below), SMTP, Anthropic key,
+   `RECHECK_CONCURRENCY=1`, and `WEB_APP_URL` set to your eventual Vercel URL. Do **not**
+   set `PORT` — Render injects its own.
+7. Deploy. The container's entrypoint runs `prisma migrate deploy`, syncs
+   `brandmonitor_app`'s password with `DATABASE_APP_URL`, bootstraps the pg-boss grants,
+   then starts both the scanner and api processes — all automatically, on every deploy,
+   no separate manual step.
+8. Confirm `https://<your-service-name>.onrender.com/health` returns `{"ok":true}`.
+
+**Keep it from sleeping**: Render's free Web Service sleeps after 15 minutes with no
+*inbound HTTP* traffic. This matters more than it sounds like it should — pg-boss's own
+background polling loop runs continuously inside the same process, but that's internal
+activity, not inbound HTTP traffic, so it does **not** by itself keep Render from sleeping
+the container. Without a fix, the queue would silently stop making progress for long
+stretches whenever nothing happens to hit the API externally. Fix: a free, no-card external
+uptime pinger — [UptimeRobot](https://uptimerobot.com) is the standard choice — hitting
+`https://<your-service-name>.onrender.com/health` every 5 minutes. That's enough inbound
+traffic to keep the container from ever sleeping in practice.
 
 ## 3. Clerk (switch from dev instance to production)
 
 The instance used during local development (`exotic-gnat-47.accounts.dev` or similar) is a
 **dev instance** — it has restrictions not meant for a real deployed domain. In the Clerk
-dashboard: create a **Production** instance, add your Vercel domain and `API_DOMAIN` to
-its allowed origins, and point its webhook to
-`https://140-238-12-34.sslip.io/api/webhooks/clerk` (your real API domain, the route
+dashboard: create a **Production** instance, add your Vercel domain and your Render
+`*.onrender.com` domain to its allowed origins, and point its webhook to
+`https://<your-service-name>.onrender.com/api/webhooks/clerk` (the route
 `apps/api/src/routes/webhooks.ts` already implements it). Use the production instance's
-keys in both `apps/api/.env.production` (step 2.7) and Vercel's env vars (step 4.3) — not
+keys in both `apps/api/.env.production` (step 2.6) and Vercel's env vars (step 4.3) — not
 the dev keys.
 
 ## 4. Vercel (`apps/web`)
@@ -89,8 +89,8 @@ the dev keys.
 2. Set **Root Directory** to `apps/web` in the project settings. Vercel auto-detects the
    npm-workspaces monorepo from the root `package.json` and runs `npm install` from the
    repo root itself — no `vercel.json` needed.
-3. Set environment variables: `NEXT_PUBLIC_API_URL=https://140-238-12-34.sslip.io` (your
-   real API domain), plus the Clerk **production** publishable/secret keys from step 3.
+3. Set environment variables: `NEXT_PUBLIC_API_URL=https://<your-service-name>.onrender.com`,
+   plus the Clerk **production** publishable/secret keys from step 3.
 4. Deploy. Once it's live, go back to Clerk and add the final `*.vercel.app` (or custom)
    domain to the production instance's allowed origins if you didn't already.
 
@@ -98,4 +98,5 @@ the dev keys.
 
 Open the deployed Vercel URL, sign in, confirm the dashboard loads real data (proves the
 browser → Vercel → API-over-HTTPS → Neon path works end to end), then run a discovery scan
-(proves `api` → `scanner` over the internal Docker network works).
+(proves `api` → `scanner` inside the same Render container works, and is a real test of the
+512MB RAM ceiling under actual load).

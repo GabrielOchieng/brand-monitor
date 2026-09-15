@@ -41,4 +41,10 @@ export const env = {
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   // Per-org cost guardrail for Stage E's AI explanations -- see routes/findings.ts.
   aiExplanationDailyLimit: Number(process.env.AI_EXPLANATION_DAILY_LIMIT ?? 100),
+  // How many recheck jobs (each launching a Chromium instance via the scanner) run at
+  // once -- see queue/dispatch.ts. Default of 3 is unchanged local/CI behavior; a
+  // RAM-constrained deployment (e.g. Render's free 512MB, shared with api+scanner in one
+  // container) overrides this down to 1, since more than one concurrent Chromium instance
+  // there risks taking down the whole container, not just the scan.
+  recheckConcurrency: Number(process.env.RECHECK_CONCURRENCY ?? 3),
 };
