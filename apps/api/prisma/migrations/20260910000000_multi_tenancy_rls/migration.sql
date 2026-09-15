@@ -45,7 +45,16 @@ BEGIN
 END
 $$;
 
-GRANT CONNECT ON DATABASE brandmonitor TO brandmonitor_app;
+-- Dynamic, not a hardcoded "brandmonitor" literal -- that only ever worked because the
+-- local dev database happens to be named that; it fails outright against any other
+-- database name (confirmed: Neon's default database is "neondb", not "brandmonitor").
+-- GRANT CONNECT ON DATABASE takes an identifier, not a bind parameter, so this needs
+-- dynamic SQL to stay portable across environments.
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO brandmonitor_app', current_database());
+END
+$$;
 GRANT USAGE ON SCHEMA public TO brandmonitor_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO brandmonitor_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO brandmonitor_app;

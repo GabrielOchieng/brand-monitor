@@ -9,7 +9,8 @@
     "prisma:generate": "prisma generate",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "queue:bootstrap": "tsx scripts/bootstrapQueue.ts"
+    "queue:bootstrap": "tsx scripts/bootstrapQueue.ts",
+    "db:sync-app-role-password": "tsx scripts/syncAppRolePassword.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
