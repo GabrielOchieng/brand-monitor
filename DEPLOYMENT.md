@@ -15,9 +15,15 @@ components call the API directly from the browser (see `apiFetch` usage in
 API origin as mixed content. That's why Caddy (automatic Let's Encrypt) is part of this
 setup rather than optional polish.
 
-**Prerequisite you need to bring yourself**: a domain or subdomain you control, with the
-ability to add a DNS A record. Caddy needs this to provision a certificate — there's no
-way around it for real HTTPS.
+**Domain**: no separate account/signup needed for this. [sslip.io](https://sslip.io) is a
+free, zero-signup wildcard DNS service — a hostname like `140.238.12.34.sslip.io`
+automatically resolves to that exact IP (computed on the fly, no account, nothing to
+expire or reconfirm). It works with Caddy's automatic HTTPS exactly like a normal domain
+would — Let's Encrypt just sees a normal DNS A-record lookup. The Oracle VM step below
+derives this once the VM's public IP is known. (If you'd rather have a memorable name
+instead of an IP-encoded one, [DuckDNS](https://duckdns.org) is the standard free
+alternative — needs a quick GitHub/Google-login signup, but the resulting hostname stays
+fixed even if you ever change VMs/IPs, unlike an sslip.io one.)
 
 ## 1. Neon (Postgres)
 
@@ -35,28 +41,36 @@ way around it for real HTTPS.
    pick the Always Free shape). If you hit "out of host capacity", try a different
    availability domain or region — this is a known, common, and usually transient issue
    for this specific free shape, not a real quota problem.
-2. In the VM's attached Virtual Cloud Network security list (or the VM's own iptables if
+2. While creating it (or after, via the instance's attached VNIC), assign a **Reserved
+   Public IP**, not an ephemeral one — both are free on Always Free, but an ephemeral IP
+   can change if the instance is ever stopped/restarted, which would silently break the
+   sslip.io hostname below (it has the IP baked in). A reserved IP stays fixed.
+3. Once you have that IP (e.g. `140.238.12.34`), your API domain is simply
+   `140-238-12-34.sslip.io` (dashes, not dots — sslip.io accepts either, dashes avoid any
+   ambiguity with the rest of the hostname) — no signup, nothing to configure, it resolves
+   immediately.
+4. In the VM's attached Virtual Cloud Network security list (or the VM's own iptables if
    you're using Oracle's newer VCN-native firewall), open inbound TCP **80** and **443**.
    Leave everything else closed — `apps/api` and `apps/scanner`'s own ports are never
    published to the host at all (see `docker-compose.prod.yml`), so nothing else needs a
    hole punched for them.
-3. SSH in, install Docker + the Compose plugin (`curl -fsSL https://get.docker.com | sh`,
+5. SSH in, install Docker + the Compose plugin (`curl -fsSL https://get.docker.com | sh`,
    then `apt-get install docker-compose-plugin` or follow Docker's current install docs —
    commands drift, check docker.com for the current one-liner).
-4. `git clone` this repo onto the VM.
-5. `cp apps/api/.env.production.example apps/api/.env.production` and fill in every value
+6. `git clone` this repo onto the VM.
+7. `cp apps/api/.env.production.example apps/api/.env.production` and fill in every value
    — Neon's connection strings from step 1 (pick a real password for `brandmonitor_app`,
    not the dev default), your Clerk **production** instance keys (see step 4 below), SMTP,
    Anthropic key, and `WEB_APP_URL` set to your eventual Vercel URL.
-6. Create a root `.env` file (next to `docker-compose.prod.yml`, gitignored) containing
-   `API_DOMAIN=api.yourdomain.com` — Compose reads this automatically to fill in the
-   Caddyfile's `{$API_DOMAIN}`.
-7. Point that domain's DNS A record at the VM's public IP.
-8. `docker compose -f docker-compose.prod.yml up -d --build`. The `api` container's
-   entrypoint runs `prisma migrate deploy` then the pg-boss grant bootstrap automatically
-   on every start — no separate manual migration step, on this or any future deploy.
-9. Confirm `https://api.yourdomain.com/health` returns `{"ok":true}` (may take a minute
-   the first time while Caddy provisions its certificate).
+8. Create a root `.env` file (next to `docker-compose.prod.yml`, gitignored) containing
+   `API_DOMAIN=140-238-12-34.sslip.io` (your actual reserved IP, sslip.io-ified) — Compose
+   reads this automatically to fill in the Caddyfile's `{$API_DOMAIN}`.
+9. `docker compose -f docker-compose.prod.yml up -d --build`. The `api` container's
+   entrypoint runs `prisma migrate deploy`, syncs `brandmonitor_app`'s password with
+   `DATABASE_APP_URL`, then bootstraps the pg-boss grants — all automatically, on every
+   start, no separate manual step on this or any future deploy.
+10. Confirm `https://140-238-12-34.sslip.io/health` returns `{"ok":true}` (may take a
+    minute the first time while Caddy provisions its certificate).
 
 ## 3. Clerk (switch from dev instance to production)
 
@@ -64,9 +78,10 @@ The instance used during local development (`exotic-gnat-47.accounts.dev` or sim
 **dev instance** — it has restrictions not meant for a real deployed domain. In the Clerk
 dashboard: create a **Production** instance, add your Vercel domain and `API_DOMAIN` to
 its allowed origins, and point its webhook to
-`https://api.yourdomain.com/api/webhooks/clerk` (the route `apps/api/src/routes/webhooks.ts`
-already implements). Use the production instance's keys in both `apps/api/.env.production`
-(step 2.5) and Vercel's env vars (step 4.3) — not the dev keys.
+`https://140-238-12-34.sslip.io/api/webhooks/clerk` (your real API domain, the route
+`apps/api/src/routes/webhooks.ts` already implements it). Use the production instance's
+keys in both `apps/api/.env.production` (step 2.7) and Vercel's env vars (step 4.3) — not
+the dev keys.
 
 ## 4. Vercel (`apps/web`)
 
@@ -74,8 +89,8 @@ already implements). Use the production instance's keys in both `apps/api/.env.p
 2. Set **Root Directory** to `apps/web` in the project settings. Vercel auto-detects the
    npm-workspaces monorepo from the root `package.json` and runs `npm install` from the
    repo root itself — no `vercel.json` needed.
-3. Set environment variables: `NEXT_PUBLIC_API_URL=https://api.yourdomain.com`, plus the
-   Clerk **production** publishable/secret keys from step 3.
+3. Set environment variables: `NEXT_PUBLIC_API_URL=https://140-238-12-34.sslip.io` (your
+   real API domain), plus the Clerk **production** publishable/secret keys from step 3.
 4. Deploy. Once it's live, go back to Clerk and add the final `*.vercel.app` (or custom)
    domain to the production instance's allowed origins if you didn't already.
 

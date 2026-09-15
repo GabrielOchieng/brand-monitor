@@ -1,6 +1,7 @@
-# {$API_DOMAIN} must be a real domain/subdomain with its DNS A record pointed at this VM's
-# public IP -- Caddy uses it both to know what to serve and to automatically request/renew
-# a Let's Encrypt certificate for it. No manual cert handling needed.
+# {$API_DOMAIN} must resolve to this VM's public IP -- Caddy uses it both to know what to
+# serve and to automatically request/renew a Let's Encrypt certificate for it. No manual
+# cert handling needed. See DEPLOYMENT.md: a free sslip.io hostname (e.g.
+# "140-238-12-34.sslip.io") works here exactly like a real registered domain would.
 {$API_DOMAIN} {
 	reverse_proxy api:4000
 }
