@@ -19,7 +19,24 @@ import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 async function main() {
   const app = Fastify({ logger: true });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      // No Origin header at all -- not a browser CORS request (curl, health checks,
+      // UptimeRobot, server-to-server calls) -- always safe to allow.
+      if (!origin) return cb(null, true);
+      if (origin === env.webAppUrl) return cb(null, true);
+      // Local dev flexibility: any localhost/127.0.0.1 port, regardless of environment,
+      // so a local frontend on a non-default port (or hitting a deployed API for quick
+      // manual testing) is never blocked by this.
+      if (/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return cb(null, true);
+      // cb(null, false), not cb(err, false) -- an unrecognized Origin should just get no
+      // CORS headers (letting the browser block the response from being read), not a 500.
+      // This API gets scanned/probed with arbitrary Origin headers in production; treating
+      // every one as a server error would be noisy, misleading log pollution for exactly
+      // the outcome CORS is supposed to produce.
+      cb(null, false);
+    },
+  });
   // @fastify/static needs its root to exist at registration time, not just by the time a
   // screenshot is first saved (saveScreenshot/ensureBrandScreenshotHash both mkdir lazily,
   // on demand) -- confirmed real: a genuinely fresh container/checkout with zero
