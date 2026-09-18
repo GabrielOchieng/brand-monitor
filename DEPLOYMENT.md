@@ -72,27 +72,38 @@ uptime pinger — [UptimeRobot](https://uptimerobot.com) is the standard choice 
 `https://<your-service-name>.onrender.com/health` every 5 minutes. That's enough inbound
 traffic to keep the container from ever sleeping in practice.
 
-## 3. Clerk (switch from dev instance to production)
+## 3. Clerk — deliberately staying on the dev instance
 
-The instance used during local development (`exotic-gnat-47.accounts.dev` or similar) is a
-**dev instance** — it has restrictions not meant for a real deployed domain. In the Clerk
-dashboard: create a **Production** instance, add your Vercel domain and your Render
-`*.onrender.com` domain to its allowed origins, and point its webhook to
-`https://<your-service-name>.onrender.com/api/webhooks/clerk` (the route
-`apps/api/src/routes/webhooks.ts` already implements it). Use the production instance's
-keys in both `apps/api/.env.production` (step 2.6) and Vercel's env vars (step 4.3) — not
-the dev keys.
+**Decision: this deployment runs on Clerk's free development instance permanently, not a
+production instance.** Clerk's production mode requires a real custom domain with DNS you
+control (a `*.vercel.app`/`*.onrender.com` subdomain is explicitly rejected — Clerk needs
+to verify ownership via CNAME/TXT records, and neither platform lets you manage records for
+its own shared domain). Getting a domain just for this was considered (a free `eu.org`
+registration + Cloudflare DNS was the $0-compatible option) but deliberately skipped: for a
+small internal team tool like this — not public self-serve signups — the dev instance's
+only real downsides are a cosmetic "Development mode" watermark on Clerk's UI widgets and
+using Clerk's shared OAuth app credentials instead of your own. Revisit this only if the
+app ever needs public/external sign-ups at meaningful volume.
 
-**Don't clone the dev instance's custom org roles onto production** (or don't worry if
-Clerk prompts to upgrade when you try) — Clerk only offers custom organization roles on a
-production instance behind a paid "B2B Authentication" add-on ($100/mo), free only in
-development. This app no longer needs it: role (`owner`/`admin`/`analyst`/`viewer`) is
-managed entirely in-app now, at `/team` (see `apps/api/src/lib/auth.ts`'s `VALID_ROLES`
-comment for the full story) — the org creator automatically becomes `owner`, anyone
-invited afterward starts as `viewer` and gets promoted from `/team` by an owner. **Clerk's
-own dashboard role toggle (Admin/Member) is purely cosmetic and has no effect on this
-app** — a real gotcha for a future reader who doesn't know this file's history, worth
-remembering before "fixing" someone's access from the Clerk side instead of `/team`.
+Point the webhook at the deployed API instead of localhost: in the Clerk dashboard →
+Developers → Webhooks, add an endpoint at
+`https://<your-service-name>.onrender.com/api/webhooks/clerk`, subscribed to
+`organization.created`, `organization.updated`, `user.created`, `user.updated`,
+`organizationMembership.created`, `organizationMembership.updated`,
+`organizationMembership.deleted`. Put its signing secret in
+`CLERK_WEBHOOK_SIGNING_SECRET` and the existing dev instance's secret key in
+`CLERK_SECRET_KEY` on Render (step 2.6) — the same dev keys `apps/web/.env.local` already
+uses locally, not separate production keys.
+
+**Custom org roles are also deliberately not configured on Clerk at all anymore** — even
+though the dev instance offers them for free, this app no longer reads role from Clerk.
+Role (`owner`/`admin`/`analyst`/`viewer`) is managed entirely in-app now, at `/team` (see
+`apps/api/src/lib/auth.ts`'s `VALID_ROLES` comment for the full story) — the org creator
+automatically becomes `owner`, anyone invited afterward starts as `viewer` and gets
+promoted from `/team` by an owner. **Clerk's own dashboard role toggle (Admin/Member) is
+purely cosmetic and has no effect on this app** — a real gotcha for a future reader who
+doesn't know this file's history, worth remembering before "fixing" someone's access from
+the Clerk side instead of `/team`.
 
 ## 4. Vercel (`apps/web`)
 
@@ -101,9 +112,10 @@ remembering before "fixing" someone's access from the Clerk side instead of `/te
    npm-workspaces monorepo from the root `package.json` and runs `npm install` from the
    repo root itself — no `vercel.json` needed.
 3. Set environment variables: `NEXT_PUBLIC_API_URL=https://<your-service-name>.onrender.com`,
-   plus the Clerk **production** publishable/secret keys from step 3.
-4. Deploy. Once it's live, go back to Clerk and add the final `*.vercel.app` (or custom)
-   domain to the production instance's allowed origins if you didn't already.
+   plus the same Clerk dev instance publishable/secret keys used everywhere else (step 3) —
+   there are no separate production keys, per the decision in step 3.
+4. Deploy, then go back to Render and update `WEB_APP_URL` (step 2.6) to this real Vercel
+   URL — it starts as a placeholder since the URL isn't known until this step.
 
 ## 5. Smoke test
 
