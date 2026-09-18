@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [form, setForm] = useState({ name: "", primaryDomain: "" });
+  const [form, setForm] = useState({ name: "", primaryDomain: "", concatKeywords: "" });
   const [editForm, setEditForm] = useState({ name: "", primaryDomain: "" });
   const [submitUrl, setSubmitUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -160,12 +160,16 @@ export default function DashboardPage() {
     setError(null);
     try {
       const token = await getToken();
+      const concatKeywords = form.concatKeywords
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean);
       const created = await apiFetch<Brand>("/api/brands", token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, primaryDomain: form.primaryDomain }),
+        body: JSON.stringify({ name: form.name, primaryDomain: form.primaryDomain, concatKeywords }),
       });
-      setForm({ name: "", primaryDomain: "" });
+      setForm({ name: "", primaryDomain: "", concatKeywords: "" });
       setShowAddBrand(false);
       await loadBrands();
       await loadSummary(created.id);
@@ -267,6 +271,16 @@ export default function DashboardPage() {
             onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
             className="field w-full"
           />
+          <input
+            placeholder="Keywords, comma-separated (e.g. book, checkin, login)"
+            value={form.concatKeywords}
+            onChange={(e) => setForm({ ...form, concatKeywords: e.target.value })}
+            className="field w-full"
+          />
+          <p className="text-xs text-ink-subtle">
+            Optional, but recommended — discovery combines these with the brand name to catch
+            lookalikes like "bookjambojet.com" that a bare typo-check would miss.
+          </p>
           <button type="submit" disabled={creating} className="btn-primary w-full">
             {creating ? "Creating…" : "Create brand"}
           </button>
@@ -340,6 +354,12 @@ export default function DashboardPage() {
             placeholder="Primary domain"
             value={form.primaryDomain}
             onChange={(e) => setForm({ ...form, primaryDomain: e.target.value })}
+            className="field"
+          />
+          <input
+            placeholder="Keywords, comma-separated (optional)"
+            value={form.concatKeywords}
+            onChange={(e) => setForm({ ...form, concatKeywords: e.target.value })}
             className="field"
           />
           <button type="submit" disabled={creating} className="btn-primary">
