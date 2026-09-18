@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
-import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, ChevronDownIcon } from "../../components/icons";
+import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, TagIcon, ChevronDownIcon } from "../../components/icons";
+import { BrandKeywords } from "../../components/BrandKeywords";
 
 interface Summary {
   brand: { id: string; name: string; primaryDomain: string; hasVisualBaseline: boolean };
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [showAddBrand, setShowAddBrand] = useState(false);
   const [showEditBrand, setShowEditBrand] = useState(false);
+  const [showKeywords, setShowKeywords] = useState(false);
   const [noBrandYet, setNoBrandYet] = useState(false);
   const [run, setRun] = useState<RunStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +325,9 @@ export default function DashboardPage() {
             <button onClick={handleToggleEdit} className="btn-ghost whitespace-nowrap">
               <PencilIcon className="h-3.5 w-3.5" /> Edit
             </button>
+            <button onClick={() => setShowKeywords((v) => !v)} className="btn-ghost whitespace-nowrap">
+              <TagIcon className="h-3.5 w-3.5" /> Keywords
+            </button>
             {summary.brand.hasVisualBaseline && (
               <a
                 href={`${API_URL}/screenshots/brand-${summary.brand.id}.png`}
@@ -389,6 +394,8 @@ export default function DashboardPage() {
           </button>
         </form>
       )}
+
+      {showKeywords && selectedBrandId && <BrandKeywords brandId={selectedBrandId} />}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="card flex flex-col justify-between p-5">

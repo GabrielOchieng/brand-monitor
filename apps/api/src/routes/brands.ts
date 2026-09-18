@@ -17,6 +17,8 @@ const UpdateBrandSchema = z.object({
   primaryDomain: z.string().min(1).optional(),
 });
 
+const AddKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
+
 // Minimal brand CRUD -- enough to onboard a brand per org and prove tenant isolation.
 // The full onboarding UI (domains/assets management, editing) is Stage B.
 export async function brandRoutes(app: FastifyInstance) {
@@ -91,6 +93,68 @@ export async function brandRoutes(app: FastifyInstance) {
         if (err?.code === "P2025") return reply.status(404).send({ error: "not_found" });
         throw err;
       }
+    }
+  );
+
+  // Discovery-relevant keywords only (concat_term/concat_term_core) -- the separate
+  // "name" type keywords CreateBrandSchema also accepts are a dead field today (never
+  // read by discoveryJob.ts or scoring.ts), not worth exposing here alongside these.
+  app.get("/api/brands/:id/keywords", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const orgId = request.auth!.orgId;
+    const result = await withTenant(orgId, async (tx) => {
+      const brand = await tx.brand.findUnique({ where: { id } });
+      if (!brand) return null;
+      return tx.brandKeyword.findMany({
+        where: { brandId: id, type: { in: ["concat_term", "concat_term_core"] } },
+        orderBy: { keyword: "asc" },
+      });
+    });
+    if (!result) return reply.status(404).send({ error: "not_found" });
+    return reply.send(result.map((k) => ({ id: k.id, keyword: k.keyword })));
+  });
+
+  app.post(
+    "/api/brands/:id/keywords",
+    { preHandler: [authenticate, requireRole("owner", "admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = AddKeywordSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const orgId = request.auth!.orgId;
+
+      try {
+        const result = await withTenant(orgId, async (tx) => {
+          const brand = await tx.brand.findUnique({ where: { id } });
+          if (!brand) return null;
+          return tx.brandKeyword.create({
+            data: { brandId: id, keyword: parsed.data.keyword.toLowerCase(), type: "concat_term" },
+          });
+        });
+        if (!result) return reply.status(404).send({ error: "not_found" });
+        return reply.status(201).send({ id: result.id, keyword: result.keyword });
+      } catch (err: any) {
+        // @@unique([brandId, keyword]) -- adding one already present is a no-op from the
+        // caller's perspective, not an error worth surfacing as a 500.
+        if (err?.code === "P2002") return reply.status(409).send({ error: "duplicate_keyword" });
+        throw err;
+      }
+    }
+  );
+
+  // Delete-and-re-add covers "editing" a keyword's text -- no separate rename endpoint,
+  // same simplicity cut as elsewhere in this file (e.g. no bulk keyword replace).
+  app.delete(
+    "/api/brands/:id/keywords/:keywordId",
+    { preHandler: [authenticate, requireRole("owner", "admin")] },
+    async (request, reply) => {
+      const { id, keywordId } = request.params as { id: string; keywordId: string };
+      const orgId = request.auth!.orgId;
+      const result = await withTenant(orgId, (tx) =>
+        tx.brandKeyword.deleteMany({ where: { id: keywordId, brandId: id } })
+      );
+      if (result.count === 0) return reply.status(404).send({ error: "not_found" });
+      return reply.status(204).send();
     }
   );
 
