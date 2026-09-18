@@ -11,7 +11,7 @@ import {
   OrganizationSwitcher,
 } from "@clerk/nextjs";
 import { NotificationBell } from "../components/NotificationBell";
-import { ShieldIcon, HomeIcon, ListIcon } from "../components/icons";
+import { ShieldIcon, HomeIcon, ListIcon, UsersIcon } from "../components/icons";
 
 export const metadata = { title: "Brand Monitor" };
 
@@ -53,6 +53,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <ListIcon className="h-5 w-5" />
                 </Link>
                 <Link href="/threats" className={navTextLinkClass}>Threats</Link>
+                <Link href="/team" className={navIconLinkClass} aria-label="Team">
+                  <UsersIcon className="h-5 w-5" />
+                </Link>
+                <Link href="/team" className={navTextLinkClass}>Team</Link>
                 <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-5">
                   <NotificationBell />
                   <div className="hidden h-5 w-px shrink-0 bg-line sm:block" />

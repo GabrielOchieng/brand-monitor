@@ -83,6 +83,17 @@ dashboard: create a **Production** instance, add your Vercel domain and your Ren
 keys in both `apps/api/.env.production` (step 2.6) and Vercel's env vars (step 4.3) — not
 the dev keys.
 
+**Don't clone the dev instance's custom org roles onto production** (or don't worry if
+Clerk prompts to upgrade when you try) — Clerk only offers custom organization roles on a
+production instance behind a paid "B2B Authentication" add-on ($100/mo), free only in
+development. This app no longer needs it: role (`owner`/`admin`/`analyst`/`viewer`) is
+managed entirely in-app now, at `/team` (see `apps/api/src/lib/auth.ts`'s `VALID_ROLES`
+comment for the full story) — the org creator automatically becomes `owner`, anyone
+invited afterward starts as `viewer` and gets promoted from `/team` by an owner. **Clerk's
+own dashboard role toggle (Admin/Member) is purely cosmetic and has no effect on this
+app** — a real gotcha for a future reader who doesn't know this file's history, worth
+remembering before "fixing" someone's access from the Clerk side instead of `/team`.
+
 ## 4. Vercel (`apps/web`)
 
 1. Import this repo as a new Vercel project.
