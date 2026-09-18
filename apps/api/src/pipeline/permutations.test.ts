@@ -30,9 +30,15 @@ describe("generateCandidates", () => {
     expect(c.some((x) => x.technique === "omission" && x.domain.endsWith(".site"))).toBe(false);
   });
 
-  it("never generates the exact brand root itself as a candidate", () => {
+  it("checks the exact, unmodified brand name across other TLDs (e.g. jambojet.site)", () => {
+    const c = generateCandidates("jambojet", []);
+    const altTld = c.find((x) => x.domain === "jambojet.site");
+    expect(altTld?.technique).toBe("same_name_alt_tld");
+  });
+
+  it("also generates the real primary domain's own TLD here -- exclusion is discoveryJob.ts's allowlist job, not this function's", () => {
     const c = generateCandidates("jambojet", ["fly"]);
-    expect(c.some((x) => x.domain === "jambojet.com")).toBe(false);
+    expect(c.some((x) => x.domain === "jambojet.com" && x.technique === "same_name_alt_tld")).toBe(true);
   });
 
   it("marks homoglyph candidates as isHomoglyph", () => {

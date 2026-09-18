@@ -164,6 +164,19 @@ export function generateCandidates(brandRoot: string, concatKeywords: string[], 
     }
   }
 
+  // The exact, unmodified brand name registered under a different TLD than the real
+  // primary domain (e.g. jambojet.site) -- a real, common squat technique that none of the
+  // mutation techniques above can produce, since pushBody() deliberately excludes the
+  // unmodified root (it exists to seed typo/homoglyph mutations, not to be checked
+  // verbatim itself). Checked against the extended TLD list, not just CORE_TLDS, since
+  // this is exactly the class of attack that shows up on non-mainstream TLDs. The real
+  // primary domain itself (e.g. jambojet.com) is also generated here but never becomes a
+  // finding -- discoveryJob.ts's own allowlist (built from BrandDomain rows) filters it
+  // out downstream, so no special-case exclusion is needed here.
+  for (const tld of EXTENDED_TLDS) {
+    candidates.push({ domain: `${root}.${tld}`, technique: "same_name_alt_tld", isHomoglyph: false });
+  }
+
   // Brand+keyword concatenations (e.g. jambojet-support.com) simulate the common
   // phishing-kit pattern of a support/login/refund-themed lookalike; check these across
   // the full extended TLD list since that's where such kits are actually hosted.
