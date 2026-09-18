@@ -1,3 +1,5 @@
+import { setDefaultResultOrder } from "node:dns";
+
 // Explicit, first thing in the module graph: unlike Prisma's CLI (`prisma migrate`/`db
 // seed`), which auto-loads .env itself, and unlike @prisma/client (which loads it as a
 // side effect of instantiating PrismaClient), plain `tsx watch src/server.ts` does not
@@ -14,6 +16,17 @@ try {
 } catch {
   // .env not present -- fine in environments where vars are injected another way.
 }
+
+// Confirmed real (not theoretical) via ctLog.ts's crt.sh integration: on a network with
+// broken/unreliable IPv6 routing but IPv6 DNS records still present (this dev machine's
+// VPN, and plausibly others), Node's fetch tries the AAAA address first and hangs for a
+// 10s connect timeout before ever trying the working IPv4 address -- `curl` succeeded
+// instantly against the exact same host because it doesn't have this bias. Forcing
+// IPv4-first doesn't disable IPv6 (a genuinely IPv6-only host still resolves fine, just
+// after IPv4 fails) -- it only fixes the "IPv6 route exists but is slow/dead" case, which
+// is common enough on corporate/VPN networks that this is worth setting unconditionally
+// rather than only patching the one call site that happened to surface it.
+setDefaultResultOrder("ipv4first");
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),

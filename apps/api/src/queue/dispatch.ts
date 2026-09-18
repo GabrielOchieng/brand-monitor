@@ -2,9 +2,18 @@ import { fromPrisma } from "pg-boss";
 import { env } from "../env";
 import { adminPrisma } from "../adminDb";
 import { withTenant } from "../lib/tenant";
-import { boss, QUEUE_DISCOVERY, QUEUE_RECHECK, QUEUE_DISPATCH_DISCOVERY, QUEUE_DISPATCH_RECHECK } from "./boss";
+import {
+  boss,
+  QUEUE_DISCOVERY,
+  QUEUE_RECHECK,
+  QUEUE_CT_MONITOR,
+  QUEUE_DISPATCH_DISCOVERY,
+  QUEUE_DISPATCH_RECHECK,
+  QUEUE_DISPATCH_CT_MONITOR,
+} from "./boss";
 import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob";
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
+import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
 // webhook sync. A "find everything due, across every org" query is inherently
@@ -66,11 +75,29 @@ export async function registerQueueWorkers(): Promise<void> {
       await boss.send(QUEUE_RECHECK, data, { singletonKey: findingId });
     }
   });
+
+  await boss.work<CtMonitorJobData>(QUEUE_CT_MONITOR, async ([job]) => {
+    await runCtMonitorJob(job.data);
+  });
+
+  // No PipelineRun-equivalent tracking row to make atomic with the enqueue (unlike
+  // dispatchDiscoveryForBrand) -- a plain inline loop, same shape as the recheck
+  // dispatcher above.
+  await boss.work(QUEUE_DISPATCH_CT_MONITOR, async () => {
+    const brands = await listAllBrandsForDispatch();
+    for (const { brandId, organizationId } of brands) {
+      const data: CtMonitorJobData = { brandId, organizationId };
+      await boss.send(QUEUE_CT_MONITOR, data, { singletonKey: brandId });
+    }
+  });
 }
 
 export async function scheduleDispatchers(): Promise<void> {
   await boss.schedule(QUEUE_DISPATCH_DISCOVERY, "0 */4 * * *");
   await boss.schedule(QUEUE_DISPATCH_RECHECK, "*/5 * * * *");
+  // Every 30 min, deliberately conservative -- crt.sh documents no formal rate limit, but
+  // it's a free, shared, community-run service; nothing requires hammering it either.
+  await boss.schedule(QUEUE_DISPATCH_CT_MONITOR, "*/30 * * * *");
 }
 
 export { dispatchDiscoveryForBrand };
