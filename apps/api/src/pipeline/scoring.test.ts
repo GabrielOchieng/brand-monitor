@@ -12,6 +12,7 @@ const base: ScoringInput = {
   hasPaymentForm: false,
   looksParked: false,
   isAllowlisted: false,
+  appStoreImpersonation: false,
 };
 
 function ruleCodes(input: ScoringInput): string[] {
@@ -111,6 +112,12 @@ describe("computeScore", () => {
 
     const low = computeScore({ ...base, looksParked: true, isAllowlisted: true });
     expect(low.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("fires APP_STORE_IMPERSONATION and alone reaches high severity", () => {
+    const result = computeScore({ ...base, appStoreImpersonation: true });
+    expect(result.events.map((e) => e.ruleCode)).toContain("APP_STORE_IMPERSONATION");
+    expect(result.severity).toBe("high");
   });
 
   it("maps score to severity consistently with severityForScore", () => {

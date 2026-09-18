@@ -7,13 +7,16 @@ import {
   QUEUE_DISCOVERY,
   QUEUE_RECHECK,
   QUEUE_CT_MONITOR,
+  QUEUE_APP_STORE_MONITOR,
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
   QUEUE_DISPATCH_CT_MONITOR,
+  QUEUE_DISPATCH_APP_STORE_MONITOR,
 } from "./boss";
 import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob";
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
 import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
+import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
 // webhook sync. A "find everything due, across every org" query is inherently
@@ -90,6 +93,18 @@ export async function registerQueueWorkers(): Promise<void> {
       await boss.send(QUEUE_CT_MONITOR, data, { singletonKey: brandId });
     }
   });
+
+  await boss.work<AppStoreMonitorJobData>(QUEUE_APP_STORE_MONITOR, async ([job]) => {
+    await runAppStoreMonitorJob(job.data);
+  });
+
+  await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, async () => {
+    const brands = await listAllBrandsForDispatch();
+    for (const { brandId, organizationId } of brands) {
+      const data: AppStoreMonitorJobData = { brandId, organizationId };
+      await boss.send(QUEUE_APP_STORE_MONITOR, data, { singletonKey: brandId });
+    }
+  });
 }
 
 export async function scheduleDispatchers(): Promise<void> {
@@ -98,6 +113,11 @@ export async function scheduleDispatchers(): Promise<void> {
   // Every 30 min, deliberately conservative -- crt.sh documents no formal rate limit, but
   // it's a free, shared, community-run service; nothing requires hammering it either.
   await boss.schedule(QUEUE_DISPATCH_CT_MONITOR, "*/30 * * * *");
+  // Every 4h, matching discovery's own cadence -- app store listings change far more
+  // slowly than DNS registrations (Apple's review process alone takes time), so a faster
+  // cadence has no real freshness benefit. Well within the ~20 req/min iTunes rate limit
+  // either way.
+  await boss.schedule(QUEUE_DISPATCH_APP_STORE_MONITOR, "0 */4 * * *");
 }
 
 export { dispatchDiscoveryForBrand };

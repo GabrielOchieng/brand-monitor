@@ -102,7 +102,7 @@ model Finding {
   brandId         String   @map("brand_id")
   brand           Brand    @relation(fields: [brandId], references: [id])
   type            String   @default("domain")
-  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log
+  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store
   identifier      String // the candidate domain
   riskScore       Int      @default(0) @map("risk_score")
   severity        String   @default("low")

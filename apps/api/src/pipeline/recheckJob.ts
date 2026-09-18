@@ -106,6 +106,14 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     hasPaymentForm: Boolean(websiteResult?.hasPaymentForm),
     looksParked: Boolean(websiteResult?.looksParked),
     isAllowlisted: false,
+    // Deliberate, permanent, never-re-verified credit -- unlike every other input above,
+    // which is a live signal re-derived fresh on every recheck, this trusts the
+    // classification appStoreMonitorJob.ts already made at discovery time (source is a
+    // write-once field, never mutated after creation). Accepted tradeoff: if Apple later
+    // removes/renames the offending app, score stays pinned at "high" forever -- a human
+    // resolving/false-positiving the finding already handles that the same way it does
+    // everywhere else in this app.
+    appStoreImpersonation: finding.source === "app_store",
   });
 
   let screenshotPath: string | null = null;
