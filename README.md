@@ -97,7 +97,8 @@ background:
   it still stays enrolled in the normal recheck cadence, not just scored once.
 - **Dormant-domain watch**: a registered typosquat with nothing hosted on it yet (a parked
   page, or a cloud platform's default "not deployed" placeholder) is rechecked every 20
-  minutes indefinitely — not backing off with age like a normal finding — specifically so
+  minutes for its first 3 days, then hourly indefinitely — not backing off to daily like a
+  normal finding (hourly rather than faster to fit Render's free bandwidth) — specifically so
   the moment it starts serving real content gets caught fast. A dedicated `website_activated`
   alert rule (auto-seeded per org, same as the default severity alert) fires the first time
   that happens, separately from the regular severity/score alerts.

@@ -26,9 +26,16 @@ describe("computeNextScanAt", () => {
     expect(next.getTime() - now.getTime()).toBe(DAY_MS);
   });
 
-  it("keeps a dormant finding on the aggressive 20-minute cadence regardless of age", () => {
+  it("keeps an old dormant finding on an hourly cadence instead of backing off to daily", () => {
     const now = new Date("2026-01-10T00:00:00Z");
     const firstDetectedAt = new Date(now.getTime() - 60 * DAY_MS);
+    const next = computeNextScanAt(firstDetectedAt, now, true);
+    expect(next.getTime() - now.getTime()).toBe(HOUR_MS);
+  });
+
+  it("keeps a new dormant finding on the 20-minute cadence for its first 3 days", () => {
+    const now = new Date("2026-01-10T00:00:00Z");
+    const firstDetectedAt = new Date(now.getTime() - 1 * DAY_MS);
     const next = computeNextScanAt(firstDetectedAt, now, true);
     expect(next.getTime() - now.getTime()).toBe(20 * 60 * 1000);
   });

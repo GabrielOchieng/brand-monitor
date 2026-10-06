@@ -70,7 +70,9 @@ the container. Without a fix, the queue would silently stop making progress for 
 stretches whenever nothing happens to hit the API externally. Fix: a free, no-card external
 uptime pinger — [UptimeRobot](https://uptimerobot.com) is the standard choice — hitting
 `https://<your-service-name>.onrender.com/health` every 5 minutes. That's enough inbound
-traffic to keep the container from ever sleeping in practice.
+traffic to keep the container from ever sleeping in practice. Add a **second** monitor, with
+email alerts on, at `/health/jobs`: it returns 503 once the scheduled jobs have stalled for 15
+minutes (`apps/api/src/queue/health.ts`), which plain `/health` can't detect.
 
 ## 3. Clerk — deliberately staying on the dev instance
 
@@ -135,11 +137,26 @@ uses it for email links *and* as the CORS allowlist (`apps/api/src/server.ts`; `
 frontend request with a CORS error. It also needs setting in Clerk → Developers → Paths →
 *Fallback development host*, or invitation emails link to `localhost:3000`.
 
-**The free instance sleeps** after 15 minutes without inbound HTTP. pg-boss's internal polling
-doesn't count, so while it sleeps *no scheduled job runs at all* (discovery, recheck, CT monitor,
-App Store monitor, alerts). The UptimeRobot monitor on `/health` is the only thing preventing this.
-It silently stopped working on 2026-09-25 and nothing ran until 2026-10-06 — check the monitor's
-status in UptimeRobot first if jobs seem dead. A cold start takes ~35–50s.
+**Bandwidth is the binding limit: 5 GB/month of outbound traffic per free workspace.** Past that,
+with no card on file, Render suspends every service until the 1st of the next month. That is what
+stopped production from 2026-09-25 to 2026-10-06 (Render emailed "Workspace suspended — free
+bandwidth limit reached"). It counts traffic our container *initiates* — Neon queries, headless
+Chromium page loads, WHOIS/RDAP, crt.sh — not just responses to users ([Render docs](https://render.com/docs/outbound-bandwidth)).
+The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / container net I/O):
+
+- pg-boss idle polling with its defaults: ~400 MB/day sent to Postgres, on its own over budget.
+  Now tuned to ~30 MB/day — see the comment in `apps/api/src/queue/boss.ts` before changing any
+  interval there (raising `cronMonitorIntervalSeconds` silently stops all cron jobs).
+- A scan of a live site: ~1–1.6 MB received, ~0.1 MB sent; a parked page ~40 KB. Fonts/media are
+  blocked in the scanner, and dormant findings are rechecked hourly (20 min only in their first 3 days).
+
+Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
+If jobs seem dead, check your email for a suspension notice before anything else.
+
+**The free instance also sleeps** after 15 minutes without inbound HTTP. pg-boss's internal polling
+doesn't count, so while it sleeps *no scheduled job runs at all*. The UptimeRobot monitor on
+`/health` prevents this; the `/health/jobs` monitor alerts when jobs stall for any reason. A cold
+start takes ~35–50s.
 
 **Outbound SMTP is blocked on Render's free tier** (ports 25/465/587; rollout completed by
 2026-09-26). The `SMTP_*` env vars therefore cannot work there: every email delivery fails with
@@ -155,9 +172,11 @@ nothing on a normal run). Query pg-boss directly against the production DB:
 - Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
   (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
   `dispatch-app-store-monitor` (`0 */4 * * *`).
+- Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503.
 - Recent activity: `SELECT name, state, count(*), max(completed_on) FROM pgboss.job WHERE
-  created_on > now() - interval '24 hours' GROUP BY name, state;` — empty means the service has
-  been asleep. Zero findings from `ct_log` / `app_store` is normal: it means nothing was found.
+  created_on > now() - interval '24 hours' GROUP BY name, state;` — empty means nothing ran.
+  pg-boss v12 deletes completed jobs (no archive table), so for history use the app's own
+  tables: `SELECT date_trunc('day', started_at), count(*) FROM scans GROUP BY 1 ORDER BY 1;`. Zero findings from `ct_log` / `app_store` is normal: it means nothing was found.
 - Email health: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
 
 **Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and

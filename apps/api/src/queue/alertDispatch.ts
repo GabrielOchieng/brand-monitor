@@ -1,7 +1,7 @@
 import { withTenant } from "../lib/tenant";
 import { sendAlertEmail } from "../lib/email";
 import { sendWebhook } from "../lib/webhookDelivery";
-import { boss, QUEUE_ALERT_DISPATCH } from "./boss";
+import { boss, QUEUE_ALERT_DISPATCH, WORKER_POLLING } from "./boss";
 
 const SEVERITY_RANK = ["low", "medium", "high", "critical"];
 function rank(severity: string): number {
@@ -162,7 +162,7 @@ export async function runAlertDispatchJob(data: AlertDispatchJobData): Promise<v
 }
 
 export async function registerAlertDispatchWorker(): Promise<void> {
-  await boss.work<AlertDispatchJobData>(QUEUE_ALERT_DISPATCH, { localConcurrency: 5 }, async ([job]) => {
+  await boss.work<AlertDispatchJobData>(QUEUE_ALERT_DISPATCH, { ...WORKER_POLLING, localConcurrency: 5 }, async ([job]) => {
     await runAlertDispatchJob(job.data);
   });
 }

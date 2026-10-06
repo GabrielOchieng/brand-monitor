@@ -4,6 +4,7 @@ import { adminPrisma } from "../adminDb";
 import { withTenant } from "../lib/tenant";
 import {
   boss,
+  WORKER_POLLING,
   QUEUE_DISCOVERY,
   QUEUE_RECHECK,
   QUEUE_CT_MONITOR,
@@ -17,6 +18,7 @@ import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
 import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
+import { markRecheckDispatched } from "./health";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
 // webhook sync. A "find everything due, across every org" query is inherently
@@ -52,7 +54,7 @@ async function dispatchDiscoveryForBrand(brandId: string, organizationId: string
 }
 
 export async function registerQueueWorkers(): Promise<void> {
-  await boss.work<DiscoveryJobData>(QUEUE_DISCOVERY, async ([job]) => {
+  await boss.work<DiscoveryJobData>(QUEUE_DISCOVERY, WORKER_POLLING, async ([job]) => {
     await runDiscoveryJob(job.data);
   });
 
@@ -60,33 +62,34 @@ export async function registerQueueWorkers(): Promise<void> {
   // small since WHOIS servers rate-limit aggressively per source IP, and many parallel
   // per-finding rechecks would otherwise hammer them. Also the only concurrency knob that
   // triggers Chromium launches (via scanWebsite in each recheck job) -- see env.ts.
-  await boss.work<RecheckJobData>(QUEUE_RECHECK, { localConcurrency: env.recheckConcurrency }, async ([job]) => {
+  await boss.work<RecheckJobData>(QUEUE_RECHECK, { ...WORKER_POLLING, localConcurrency: env.recheckConcurrency }, async ([job]) => {
     await runRecheckJob(job.data);
   });
 
-  await boss.work(QUEUE_DISPATCH_DISCOVERY, async () => {
+  await boss.work(QUEUE_DISPATCH_DISCOVERY, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
       await dispatchDiscoveryForBrand(brandId, organizationId);
     }
   });
 
-  await boss.work(QUEUE_DISPATCH_RECHECK, async () => {
+  await boss.work(QUEUE_DISPATCH_RECHECK, WORKER_POLLING, async () => {
     const findings = await listDueFindingsForDispatch();
     for (const { findingId, organizationId } of findings) {
       const data: RecheckJobData = { findingId, organizationId, triggeredBy: "scheduled" };
       await boss.send(QUEUE_RECHECK, data, { singletonKey: findingId });
     }
+    markRecheckDispatched();
   });
 
-  await boss.work<CtMonitorJobData>(QUEUE_CT_MONITOR, async ([job]) => {
+  await boss.work<CtMonitorJobData>(QUEUE_CT_MONITOR, WORKER_POLLING, async ([job]) => {
     await runCtMonitorJob(job.data);
   });
 
   // No PipelineRun-equivalent tracking row to make atomic with the enqueue (unlike
   // dispatchDiscoveryForBrand) -- a plain inline loop, same shape as the recheck
   // dispatcher above.
-  await boss.work(QUEUE_DISPATCH_CT_MONITOR, async () => {
+  await boss.work(QUEUE_DISPATCH_CT_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
       const data: CtMonitorJobData = { brandId, organizationId };
@@ -94,11 +97,11 @@ export async function registerQueueWorkers(): Promise<void> {
     }
   });
 
-  await boss.work<AppStoreMonitorJobData>(QUEUE_APP_STORE_MONITOR, async ([job]) => {
+  await boss.work<AppStoreMonitorJobData>(QUEUE_APP_STORE_MONITOR, WORKER_POLLING, async ([job]) => {
     await runAppStoreMonitorJob(job.data);
   });
 
-  await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, async () => {
+  await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
       const data: AppStoreMonitorJobData = { brandId, organizationId };

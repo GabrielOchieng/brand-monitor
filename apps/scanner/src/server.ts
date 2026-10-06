@@ -39,6 +39,8 @@ const PARKING_KEYWORDS = [
   "app not deployed",
 ];
 
+const BLOCKED_RESOURCE_TYPES = new Set(["font", "media"]);
+
 const app = Fastify({ logger: true });
 
 app.post("/scan", async (request, reply) => {
@@ -75,6 +77,14 @@ app.post("/scan", async (request, reply) => {
   try {
     const context = await browser.newContext({ userAgent, viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
+
+    // Bandwidth, not speed: Render's free workspace gets 5 GB/month of outbound traffic
+    // (see apps/api/src/queue/boss.ts), and fonts/video/audio are pure weight for what we
+    // extract -- text, forms, and a viewport screenshot. Images are kept: the screenshot
+    // feeds visual similarity (lib/visualSimilarity.ts), so it has to look like the page.
+    await page.route("**/*", (route) =>
+      BLOCKED_RESOURCE_TYPES.has(route.request().resourceType()) ? route.abort() : route.continue()
+    );
 
     const redirectChain: string[] = [url];
     page.on("framenavigated", (frame) => {

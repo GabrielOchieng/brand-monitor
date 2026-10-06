@@ -4,7 +4,32 @@ import { env } from "../env";
 // Connects via the restricted brandmonitor_app role (env.databaseAppUrl) -- safe only
 // after `npm run queue:bootstrap` has created pg-boss's schema and granted this role
 // access to it (see scripts/bootstrapQueue.ts). Started once in server.ts at boot.
-export const boss = new PgBoss(env.databaseAppUrl);
+//
+// Every interval here is slowed down from pg-boss's defaults to save bandwidth, not CPU:
+// each poll is a round-trip to Neon over the public internet, and Render's free workspace
+// gets only 5 GB/month of outbound traffic, then suspends every service until the 1st
+// (that's what stopped production Sept 25 -> Oct 6). Measured through a byte-counting
+// proxy with this app's 9 queues idle: defaults sent ~400 MB/day to Postgres (the whole
+// budget is ~165 MB/day); these settings send ~30 MB/day. None of our jobs need
+// sub-minute pickup -- the fastest schedule is every 5 minutes.
+//
+// cronMonitorIntervalSeconds is deliberately LEFT at its default (30s): pg-boss only
+// treats a cron tick as due within 60s of it, and the monitor's DB-side throttle
+// rejects a timer that fires a few ms early, so 45s in practice means a check every
+// ~90s -- verified to silently skip every scheduled job. Don't raise it.
+export const boss = new PgBoss({
+  connectionString: env.databaseAppUrl,
+  cronWorkerIntervalSeconds: 30,
+  flowIntervalSeconds: 300,
+  superviseIntervalSeconds: 300,
+  monitorIntervalSeconds: 300,
+  queueCacheIntervalSeconds: 300,
+  bamIntervalSeconds: 300,
+});
+
+// Passed to every boss.work() call -- see the bandwidth note above. The default (2s)
+// is per worker, and localConcurrency multiplies it (one poller per concurrent slot).
+export const WORKER_POLLING = { pollingIntervalSeconds: 60 } as const;
 
 export const QUEUE_DISCOVERY = "discovery";
 export const QUEUE_RECHECK = "recheck";

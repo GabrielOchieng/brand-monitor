@@ -15,6 +15,7 @@ import { membersRoutes } from "./routes/members";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
+import { jobsHealth } from "./queue/health";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -60,6 +61,12 @@ async function main() {
   await app.register(membersRoutes);
 
   app.get("/health", async () => ({ ok: true }));
+  // 503 when the scheduled jobs have stalled -- see queue/health.ts. Point the alerting
+  // uptime monitor here, not at /health.
+  app.get("/health/jobs", async (_request, reply) => {
+    const health = jobsHealth();
+    return reply.status(health.ok ? 200 : 503).send(health);
+  });
 
   // Requires `npm run queue:bootstrap` to have already granted brandmonitor_app access
   // to the pgboss schema -- see scripts/bootstrapQueue.ts.

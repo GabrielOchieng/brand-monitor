@@ -23,7 +23,9 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 
 ## Deployment (auto-deploys on push to `main`)
 Vercel (web) + Render free (API and scanner in ONE container) + Neon (Postgres) + Clerk **dev**
-instance (permanent by decision) + UptimeRobot keep-alive on `/health`.
+instance (permanent by decision) + UptimeRobot keep-alive on `/health` (alerting monitor on `/health/jobs`).
+**Render's free workspace allows 5 GB/month outbound bandwidth, then suspends everything until the 1st** —
+anything that adds outbound traffic (polling, scans, external API calls) must be budgeted; see DEPLOYMENT.md §6.
 
 ## Hard constraints
 - **Everything must stay at $0** — no card, no paid tiers. The owner has said this repeatedly. Oracle
@@ -31,8 +33,9 @@ instance (permanent by decision) + UptimeRobot keep-alive on `/health`.
   terms with a web search instead of memory — they change.
 
 ## Open issues (as of 2026-10-06, priority order)
-1. Render free instance sleeps without inbound HTTP; the UptimeRobot keep-alive stopped and all jobs
-   were dead Sept 25 -> Oct 6. Needs diagnosing/replacing.
+1. Sept 25 -> Oct 6 outage was a Render bandwidth suspension (5 GB/month), not the keep-alive. Fixed
+   2026-10-06 by tuning pg-boss polling (~400 -> ~30 MB/day), hourly dormant rechecks, and blocking
+   fonts/media in the scanner; `/health/jobs` added for alerting. Watch Render's bandwidth metric.
 2. Email alerts fail on Render (free tier blocks outbound SMTP). Needs a free HTTPS-API email provider.
 3. `website_activated` re-fires repeatedly when a live site's scan flaps between active and parked.
 4. Smaller: no error tracking, no API rate limiting, no data export, ThreatsTable "Domain" header shows
