@@ -12,8 +12,13 @@ auth, pg-boss vs. Redis, the `Scan` batching model, etc.) — this file covers s
 
 - Node.js 20+ and npm
 - Docker Desktop (for Postgres and the containerized Playwright scanner)
-- A Clerk application (Organizations enabled, with custom roles `owner`/`admin`/`analyst`/`viewer`
-  added under Organizations → Roles — Clerk only ships `admin`/`member` by default)
+- A Clerk application with Organizations enabled. No custom Clerk roles are needed: roles
+  (`owner`/`admin`/`analyst`/`viewer`) live in this app's own `memberships` table — the org
+  creator becomes `owner`, invitees start as `viewer`, and an owner changes roles at `/team`.
+  Clerk's own Admin/Member role is ignored. Also add a webhook in Clerk pointing at
+  `/api/webhooks/clerk` (events: organization, user, organizationMembership) and put its signing
+  secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
+- Deployed setup (Vercel + Render + Neon, all free): see `DEPLOYMENT.md`.
 
 ## Setup
 
@@ -61,8 +66,11 @@ immediate pass, or just wait — the same detection loop also runs continuously 
 background:
 
 - **Discovery** (every 4h per brand, or on-demand via the button): generates typosquat/
-  homoglyph candidate domains, DNS-checks them, and creates a bare (unscored) finding for
-  anything newly registered.
+  homoglyph candidate domains, plus the exact brand name on other TLDs (`jambojet.site`) and
+  `brand+keyword` compounds (`bookjambojet.com`) using the keywords configured for the brand,
+  DNS-checks them, and creates a bare (unscored) finding for anything newly registered. A brand
+  created with no keywords only gets the typo/homoglyph/alternate-TLD candidates — add keywords
+  via the dashboard's **Keywords** button (or the field on the create-brand form).
 - **Recheck** (every 5 minutes, picks up anything due): does the actual enrichment — RDAP/
   WHOIS, website scan, favicon match, scoring — for one finding at a time, on a cadence that
   starts aggressive (every ~20min in a finding's first 72h) and backs off with age. A
@@ -73,6 +81,8 @@ background:
   in the header), and/or a webhook if one's configured (`PUT /api/webhook-config` — no
   settings UI yet). More rule kinds (`score_increase`, `new_finding`) exist and work, just
   aren't auto-seeded; add one directly via `alert_rules` until a rules UI exists.
+  **Caveat:** email uses plain SMTP, which Render's free tier blocks — it works locally but
+  fails in the deployed app (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
 - **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
   resolved`), assignee, and tags are editable from its detail page — `resolved`/
   `false_positive` also stop it from being picked up for further automatic rechecks. Notes
@@ -103,6 +113,18 @@ background:
   status (`requested → acknowledged → completed/rejected`) independently — a finding can have
   several in flight at once. Pure record-keeping: nothing here ever calls a registrar/hosting
   provider's actual API.
+- **Certificate Transparency monitoring** (every 30 min per brand): searches crt.sh for any
+  logged TLS certificate whose hostname contains the brand name, so it catches squats that no
+  generated pattern would (`secure-jambojet-portal.xyz`). The brand's own domains/subdomains are
+  excluded; anything else becomes a finding with source `ct_log` even if DNS doesn't resolve yet.
+  Finding nothing is normal — it means no external certificate matches.
+- **App Store monitoring** (every 4h per brand): searches Apple's iTunes Search API and flags
+  apps whose title or publisher contains the brand name. Source `app_store`, scored `high` on its
+  own via the `APP_STORE_IMPERSONATION` rule. There's no "known official app" allowlist yet — if a
+  brand publishes its own real app, mark that first finding `false_positive` once. iOS only:
+  Google Play has no official search API.
+- **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
+  and the last owner can't be demoted). Invite people with Clerk's organization switcher.
 
 ## What to expect
 

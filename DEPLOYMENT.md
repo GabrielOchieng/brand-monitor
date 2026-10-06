@@ -123,3 +123,42 @@ Open the deployed Vercel URL, sign in, confirm the dashboard loads real data (pr
 browser → Vercel → API-over-HTTPS → Neon path works end to end), then run a discovery scan
 (proves `api` → `scanner` inside the same Render container works, and is a real test of the
 512MB RAM ceiling under actual load).
+
+Live deployment (as of 2026-10-06): web `https://brand-monitor-web-eta.vercel.app`, API
+`https://brand-monitor-api.onrender.com`. Both Render and Vercel auto-deploy on every push to `main`.
+
+## 6. Operating it — things that bite
+
+**`WEB_APP_URL` must exactly equal the Vercel origin** (scheme + host, no trailing slash). The API
+uses it for email links *and* as the CORS allowlist (`apps/api/src/server.ts`; `localhost` /
+`127.0.0.1` on any port are always allowed for dev). Wrong value → the browser blocks every
+frontend request with a CORS error. It also needs setting in Clerk → Developers → Paths →
+*Fallback development host*, or invitation emails link to `localhost:3000`.
+
+**The free instance sleeps** after 15 minutes without inbound HTTP. pg-boss's internal polling
+doesn't count, so while it sleeps *no scheduled job runs at all* (discovery, recheck, CT monitor,
+App Store monitor, alerts). The UptimeRobot monitor on `/health` is the only thing preventing this.
+It silently stopped working on 2026-09-25 and nothing ran until 2026-10-06 — check the monitor's
+status in UptimeRobot first if jobs seem dead. A cold start takes ~35–50s.
+
+**Outbound SMTP is blocked on Render's free tier** (ports 25/465/587; rollout completed by
+2026-09-26). The `SMTP_*` env vars therefore cannot work there: every email delivery fails with
+`Connection timeout` while in-app notifications and the webhook channel still work. Fix = move to
+an HTTPS-API email provider (not done yet). Source: Render changelog, "Free web services will no
+longer allow outbound traffic to SMTP ports".
+
+**Neon auto-suspends** when idle; the first connection after a pause often fails — just retry.
+
+**How to confirm jobs are actually running** (don't trust log silence — the monitor jobs log
+nothing on a normal run). Query pg-boss directly against the production DB:
+
+- Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
+  (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
+  `dispatch-app-store-monitor` (`0 */4 * * *`).
+- Recent activity: `SELECT name, state, count(*), max(completed_on) FROM pgboss.job WHERE
+  created_on > now() - interval '24 hours' GROUP BY name, state;` — empty means the service has
+  been asleep. Zero findings from `ct_log` / `app_store` is normal: it means nothing was found.
+- Email health: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
+
+**Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and
+sends real alert emails (using the local SMTP config) to a real inbox, with links to `localhost`.

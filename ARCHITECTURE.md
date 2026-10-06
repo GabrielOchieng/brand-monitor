@@ -1,7 +1,34 @@
 # Brand Protection & Digital Threat Intelligence Platform
 ## Architecture & Product Design — v0.1 (Pre-Implementation)
 
-Status: **DESIGN ONLY — no code written.** This document is the deliverable for the architecture phase. Nothing here should be built until you explicitly approve scope.
+Status: **originally design-only; the MVP (Stages A–F) and a series of follow-ups are now built and deployed.** Everything below this status block is the original design record and has NOT been rewritten to match the build. Where the two disagree, **the "As built" section directly below wins.** See `README.md` for setup/run, `DEPLOYMENT.md` for hosting and operations, and `CLAUDE.md` for working conventions.
+
+---
+
+## As built (updated 2026-10-06)
+
+### Shipped
+- **MVP Stages A–F:** Clerk auth + Postgres RLS multi-tenancy, pg-boss job queue (scheduled discovery + recheck), alerting (email / in-app / webhook), finding lifecycle + notes + manual URL submission, AI threat explanation, manual takedown tracking.
+- **Detection beyond the original MVP:** campaign correlation (same registrar within 7 days, per brand), visual similarity (regional perceptual hash of the page screenshot vs. the brand's real site), dormant-domain-goes-live alert (`website_activated`, 20-minute recheck cadence for parked/not-yet-live domains), keyword-compound candidates (`brand+keyword` in 4 arrangements across an extended TLD list), **same-name-alternate-TLD** candidates (`jambojet.site`), **Certificate Transparency monitoring** (crt.sh polled every 30 min per brand — `lib/ctLog.ts`, `pipeline/ctMonitorJob.ts`), and **App Store impersonation monitoring** (Apple's iTunes Search API every 4h per brand — `lib/appStoreSearch.ts`, `pipeline/appStoreMonitorJob.ts`; scored by a dedicated `APP_STORE_IMPERSONATION` rule, +60, because an App Store listing has no domain of its own to score).
+- **Product surface:** threat feed with filtering/sorting/pagination/bulk actions; brand keyword management UI (dashboard → Keywords); `/team` page for member roles; CORS locked to `WEB_APP_URL` (plus localhost for dev).
+- **Quality:** unit tests (vitest) + GitHub Actions CI (typecheck, build, tests against a real Postgres service).
+
+### Where the build deliberately deviates from the design below
+| Design said | As built | Why |
+|---|---|---|
+| §10: roles come from Clerk org roles | Roles live in Postgres `Membership.role` (`owner/admin/analyst/viewer`). Initial role set from the Clerk webhook (org creator → `owner`, invitees → `viewer`); changed by an owner via `PATCH /api/organization/members/:userId` (the `/team` page). Clerk's own role is ignored. | Clerk charges ~$100/mo for custom roles on a production instance. |
+| Clerk production instance | Clerk **dev** instance, permanently | Clerk production requires a custom domain with DNS control (`*.vercel.app` / `*.onrender.com` are rejected). |
+| §12: CT feeds via vendors | crt.sh free JSON API, pull-based polling | A persistent firehose (CertStream) doesn't fit the short-lived-job architecture or the 512MB budget. |
+| §5.3: social / app-store coverage | iOS App Store only (iTunes Search API). Google Play, Instagram, Facebook, TikTok, X are **not** covered except via manual URL submission. | No legitimate free API: Google has none; Meta/TikTok gate brand-protection tools behind rights-holder verification; X is paid. |
+| §15: generic cloud stack | Vercel (web) + Render free (API + scanner in ONE container) + Neon (Postgres), strictly $0 | Hard $0 constraint; Oracle Cloud (country block) and GCP ($50 hold) were ruled out. |
+| Redis-style queue | pg-boss on Postgres | One fewer service to host. |
+
+### Known limitations / open issues (as of 2026-10-06)
+1. **Render free instance sleeps after 15 min with no inbound HTTP**, and pg-boss's internal polling doesn't count. When the keep-alive pinger (UptimeRobot → `/health`) stops, *every* job stops; this happened Sept 25 → Oct 6. Needs a more robust keep-alive.
+2. **Email alerts currently fail on Render:** the free tier blocks outbound SMTP (ports 25/465/587). Needs a switch to an HTTPS-API email provider with a free tier. In-app notifications and the webhook channel are unaffected.
+3. **`website_activated` can re-fire repeatedly** for a live site whose scan result flaps between "active" and "parked/failed" (observed on `jambojet.net`). Needs flap dampening.
+4. Scale ceiling: one 512MB container shared by the API and headless Chromium, `RECHECK_CONCURRENCY=1`.
+5. Not built: error tracking, API rate limiting, data export, Google Play / social discovery.
 
 ---
 
