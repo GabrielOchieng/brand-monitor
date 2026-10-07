@@ -123,19 +123,33 @@ function toAscii(sld: string): string {
   }
 }
 
-const CORE_TLDS = ["com", "net", "co.ke", "xyz"];
+const CORE_TLDS = ["com", "net", "co.ke", "xyz", "store"];
 // Extended list only applies to concat-keyword candidates (the smaller candidate set),
 // not the typo-technique ones (CORE_TLDS, deliberately kept small since those generate
 // far more SLD variants) -- adding TLDs here is a linear cost increase, not combinatorial.
 const EXTENDED_TLDS = [
   "com", "net", "org", "info", "xyz", "top", "co.ke", "africa", "online", "site", "shop",
-  "club", "live", "win", "click", "cc",
+  "club", "live", "win", "click", "cc", "store", "app", "co", "ke",
 ];
-const HIGH_RISK_TLDS = new Set(["xyz", "top", "online", "site", "shop", "info", "club", "live", "win", "click", "cc"]);
+// .store added after flyjambojetkenya.store (Sept 2026) -- a real impersonation site on it.
+const HIGH_RISK_TLDS = new Set(["xyz", "top", "online", "site", "shop", "info", "club", "live", "win", "click", "cc", "store"]);
 
 export function isHighRiskTld(domain: string): boolean {
   const tld = EXTENDED_TLDS.find((t) => domain.endsWith(`.${t}`));
   return tld ? HIGH_RISK_TLDS.has(tld) : false;
+}
+
+// Typo/homoglyph mutations of the brand name itself (no TLD, no keywords), ASCII only --
+// used by nrdMonitorJob.ts to substring-match a registration feed against misspellings
+// as well as the exact name. Homoglyph variants that need punycode are excluded: a
+// Cyrillic look-alike never appears as an ASCII substring of an xn-- label.
+export function typoVariants(brandRoot: string): string[] {
+  const root = brandRoot.toLowerCase();
+  const all = [
+    ...omissions(root), ...transpositions(root), ...doublings(root),
+    ...keyboardSubstitutions(root), ...hyphenations(root), ...homoglyphSubstitutions(root),
+  ];
+  return [...new Set(all)].filter((v) => v !== root && /^[a-z0-9-]+$/.test(v));
 }
 
 export function generateCandidates(brandRoot: string, concatKeywords: string[], coreKeywords: string[] = []): Candidate[] {
@@ -216,6 +230,22 @@ export function generateCandidates(brandRoot: string, concatKeywords: string[], 
         for (const tld of HIGH_RISK_TLDS) {
           candidates.push({ domain: `${sld}.${tld}`, technique: "brand_keyword_pair", isHomoglyph: false });
         }
+      }
+    }
+  }
+
+  // Keyword on both sides of the brand (flyjambojetkenya) -- the real squat that exposed
+  // this gap. Uses every concat keyword, not just core ones: production brands get their
+  // keywords from the settings UI, which only ever creates plain concat_term rows. Kept
+  // affordable by using only the no-hyphen form and HIGH_RISK_TLDS.
+  for (const pre of concatKeywords) {
+    for (const post of concatKeywords) {
+      if (pre === post) continue;
+      const sld = `${pre}${root}${post}`;
+      if (seen.has(sld)) continue;
+      seen.add(sld);
+      for (const tld of HIGH_RISK_TLDS) {
+        candidates.push({ domain: `${sld}.${tld}`, technique: "brand_keyword_sandwich", isHomoglyph: false });
       }
     }
   }

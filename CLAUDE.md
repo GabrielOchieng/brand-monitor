@@ -16,10 +16,11 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - Roles live in our own `Membership.role`, not Clerk (Clerk charges for custom roles). `authenticate()`
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
-  Extra finding sources: CT log monitor (`ct_log`), App Store monitor (`app_store`), manual submission.
+  Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
+  monitor (`app_store`), manual submission.
   `Finding.source` is a free-text string; `type` is `domain` or `url`.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
-  ct-monitor 30min, app-store-monitor 4h. Queues are declared in `queue/boss.ts`.
+  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
 Vercel (web) + Render free (API and scanner in ONE container) + Neon (Postgres) + Clerk **dev**
@@ -38,7 +39,11 @@ anything that adds outbound traffic (polling, scans, external API calls) must be
    fonts/media in the scanner; `/health/jobs` added for alerting. Watch Render's bandwidth metric.
 2. Email alerts fail on Render (free tier blocks outbound SMTP). Needs a free HTTPS-API email provider.
 3. `website_activated` re-fires repeatedly when a live site's scan flaps between active and parked.
-4. Smaller: no error tracking, no API rate limiting, no data export, ThreatsTable "Domain" header shows
+4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
+   now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
+   The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Brand-settings UI can't mark
+   keywords `concat_term_core`, so core-pair candidates never run in prod.
+5. Smaller: no error tracking, no API rate limiting, no data export, ThreatsTable "Domain" header shows
    full URLs for `url` findings.
 
 ## How to work with the owner

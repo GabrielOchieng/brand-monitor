@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateCandidates, isHighRiskTld } from "./permutations";
+import { generateCandidates, isHighRiskTld, typoVariants } from "./permutations";
 
 describe("generateCandidates", () => {
   const domains = (brandRoot: string, keywords: string[] = [], coreKeywords: string[] = []) =>
@@ -53,6 +53,13 @@ describe("generateCandidates", () => {
     expect(new Set(slds).size).toBe(slds.length);
   });
 
+  it("generates keyword-brand-keyword names from plain concat keywords (real flyjambojetkenya.store squat)", () => {
+    const c = generateCandidates("jambojet", ["fly", "kenya"]);
+    const hit = c.find((x) => x.domain === "flyjambojetkenya.store");
+    expect(hit?.technique).toBe("brand_keyword_sandwich");
+    expect(c.some((x) => x.technique === "brand_keyword_sandwich" && x.domain.endsWith(".org"))).toBe(false);
+  });
+
   it("pairs core keywords with each other in both orders, matching real attacker compounds", () => {
     const d = domains("jambojet", ["fly", "book"], ["fly", "book"]);
     expect(d).toContain("bookflyjambojet.site");
@@ -78,10 +85,22 @@ describe("isHighRiskTld", () => {
     expect(isHighRiskTld("bookflyjambojet.site")).toBe(true);
     expect(isHighRiskTld("flyjambojet.online")).toBe(true);
     expect(isHighRiskTld("bookjambojet.club")).toBe(true);
+    expect(isHighRiskTld("flyjambojetkenya.store")).toBe(true);
   });
 
   it("does not flag ordinary TLDs", () => {
     expect(isHighRiskTld("jambojet.com")).toBe(false);
     expect(isHighRiskTld("jambojet.co.ke")).toBe(false);
+    expect(isHighRiskTld("jambojet.ke")).toBe(false);
+  });
+});
+
+describe("typoVariants", () => {
+  it("returns ASCII misspellings, never the root itself or punycode-only homoglyphs", () => {
+    const v = typoVariants("jambojet");
+    expect(v).toContain("jarnbojet");
+    expect(v).toContain("jambojte");
+    expect(v).not.toContain("jambojet");
+    expect(v.every((x) => /^[a-z0-9-]+$/.test(x))).toBe(true);
   });
 });

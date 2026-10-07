@@ -1,6 +1,7 @@
 import { withTenant } from "../lib/tenant";
 import { queryCtLog } from "../lib/ctLog";
 import { checkDnsExistence } from "../lib/dnsCheck";
+import { markSourceSuccess } from "../queue/health";
 
 export interface CtMonitorJobData {
   brandId: string;
@@ -25,6 +26,7 @@ export async function runCtMonitorJob(data: CtMonitorJobData): Promise<void> {
 
   const hostnames = await queryCtLog(brandRoot);
   if (hostnames === null) return; // crt.sh unreachable this round -- next scheduled tick retries
+  markSourceSuccess("ct_log");
 
   for (const hostname of hostnames) {
     // Defensive re-check: one crt.sh row's name_value can bundle unrelated SANs alongside

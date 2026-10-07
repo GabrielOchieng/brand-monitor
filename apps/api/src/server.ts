@@ -15,7 +15,7 @@ import { membersRoutes } from "./routes/members";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
-import { jobsHealth } from "./queue/health";
+import { jobsHealth, sourcesHealth } from "./queue/health";
 
 async function main() {
   const app = Fastify({ logger: true });
@@ -62,10 +62,15 @@ async function main() {
 
   app.get("/health", async () => ({ ok: true }));
   // 503 when the scheduled jobs have stalled -- see queue/health.ts. Point the alerting
-  // uptime monitor here, not at /health.
-  app.get("/health/jobs", async (_request, reply) => {
-    const health = jobsHealth();
-    return reply.status(health.ok ? 200 : 503).send(health);
+  // uptime monitor here, not at /health. Detection-source freshness (CT log, NRD feed) is
+  // always reported, but only counts toward the status code with ?sources=1, so it can
+  // have its own, separate monitor.
+  app.get("/health/jobs", async (request, reply) => {
+    const jobs = jobsHealth();
+    const sources = sourcesHealth();
+    const strict = (request.query as { sources?: string }).sources === "1";
+    const ok = jobs.ok && (!strict || sources.ok);
+    return reply.status(ok ? 200 : 503).send({ ...jobs, ok, sources: sources.sources });
   });
 
   // Requires `npm run queue:bootstrap` to have already granted brandmonitor_app access

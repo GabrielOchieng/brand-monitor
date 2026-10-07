@@ -9,6 +9,7 @@ import {
   QUEUE_RECHECK,
   QUEUE_CT_MONITOR,
   QUEUE_APP_STORE_MONITOR,
+  QUEUE_NRD_MONITOR,
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
   QUEUE_DISPATCH_CT_MONITOR,
@@ -18,6 +19,7 @@ import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
 import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
+import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
 import { markRecheckDispatched } from "./health";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
@@ -101,6 +103,10 @@ export async function registerQueueWorkers(): Promise<void> {
     await runAppStoreMonitorJob(job.data);
   });
 
+  await boss.work(QUEUE_NRD_MONITOR, WORKER_POLLING, async () => {
+    await runNrdMonitorJob();
+  });
+
   await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
@@ -121,6 +127,9 @@ export async function scheduleDispatchers(): Promise<void> {
   // cadence has no real freshness benefit. Well within the ~20 req/min iTunes rate limit
   // either way.
   await boss.schedule(QUEUE_DISPATCH_APP_STORE_MONITOR, "0 */4 * * *");
+  // Every 6h: the daily file appears at no fixed hour. A run only downloads days it
+  // hasn't processed yet, so extra runs cost one small 404 each.
+  await boss.schedule(QUEUE_NRD_MONITOR, "15 */6 * * *");
 }
 
 export { dispatchDiscoveryForBrand };

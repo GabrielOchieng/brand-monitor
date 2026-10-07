@@ -118,12 +118,23 @@ background:
   logged TLS certificate whose hostname contains the brand name, so it catches squats that no
   generated pattern would (`secure-jambojet-portal.xyz`). The brand's own domains/subdomains are
   excluded; anything else becomes a finding with source `ct_log` even if DNS doesn't resolve yet.
-  Finding nothing is normal — it means no external certificate matches.
+  **crt.sh is often down** (502s/timeouts for days in Oct 2026; production had never produced a
+  `ct_log` finding). Failures are retried once, logged as `[ct-log] … failed`, and show up as
+  `sources.ct_log.stale` on `/health/jobs` after 24h without a successful query.
+- **Newly-registered-domain feed** (every 6h, global): downloads whoisds.com's free daily list of
+  new registrations and creates a finding (source `nrd`) for any domain containing a brand name or
+  one of its ASCII misspellings (`typoVariants`, ≥6 chars). Any TLD, any naming pattern, no cert
+  needed. **It's a sample**: the free list is capped at 70,000 domains/day, so it misses most
+  registrations (`flyjambojetkenya.store` wasn't in it). Extra coverage, not a guarantee.
 - **App Store monitoring** (every 4h per brand): searches Apple's iTunes Search API and flags
   apps whose title or publisher contains the brand name. Source `app_store`, scored `high` on its
   own via the `APP_STORE_IMPERSONATION` rule. There's no "known official app" allowlist yet — if a
   brand publishes its own real app, mark that first finding `false_positive` once. iOS only:
   Google Play has no official search API.
+- **Keyword-brand-keyword candidates**: discovery also generates `<kw1><brand><kw2>` for every pair
+  of the brand's keywords (no hyphens, high-risk TLDs only) — e.g. `flyjambojetkenya.store` once
+  `fly` and `kenya` are keywords. Each keyword adds ~2×(keywords)×12 DNS lookups per run, so
+  keep the list to words attackers actually use.
 - **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
   and the last owner can't be demoted). Invite people with Clerk's organization switcher.
 

@@ -21,3 +21,34 @@ export function jobsHealth(now: Date = new Date(), last: Date | null = lastReche
   const ok = now.getTime() - reference.getTime() < JOBS_STALE_AFTER_MS;
   return { ok, lastRecheckDispatchAt: last?.toISOString() ?? null };
 }
+
+// Per-source "last time this external feed actually answered". The CT monitor failed
+// silently from the day it shipped (crt.sh 502s/timeouts, swallowed as "skip this round")
+// and nobody knew until a real squat it should have caught was found by hand. A source
+// that hasn't succeeded within its window is reported stale -- by default only as
+// information, and as a failure on /health/jobs?sources=1 for a second uptime monitor.
+// Kept out of the main `ok` on purpose: crt.sh being down for a day shouldn't look like
+// a production outage.
+export const SOURCE_STALE_AFTER_MS: Record<string, number> = {
+  ct_log: 24 * 60 * 60 * 1000, // runs every 30 min
+  nrd: 48 * 60 * 60 * 1000, // one file a day, published at an unpredictable hour
+};
+
+const sourceLastSuccess: Record<string, Date> = {};
+
+export function markSourceSuccess(source: string, at: Date = new Date()): void {
+  sourceLastSuccess[source] = at;
+}
+
+export function sourcesHealth(
+  now: Date = new Date(),
+  last: Record<string, Date> = sourceLastSuccess,
+  startedAt: Date = processStartedAt
+) {
+  const sources: Record<string, { lastSuccessAt: string | null; stale: boolean }> = {};
+  for (const [name, window] of Object.entries(SOURCE_STALE_AFTER_MS)) {
+    const reference = last[name] ?? startedAt;
+    sources[name] = { lastSuccessAt: last[name]?.toISOString() ?? null, stale: now.getTime() - reference.getTime() >= window };
+  }
+  return { ok: Object.values(sources).every((s) => !s.stale), sources };
+}

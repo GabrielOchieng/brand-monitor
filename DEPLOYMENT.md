@@ -149,6 +149,10 @@ The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / contain
   interval there (raising `cronMonitorIntervalSeconds` silently stops all cron jobs).
 - A scan of a live site: ~1–1.6 MB received, ~0.1 MB sent; a parked page ~40 KB. Fonts/media are
   blocked in the scanner, and dormant findings are rechecked hourly (20 min only in their first 3 days).
+- Added 2026-10-07 (estimated, not measured): the NRD feed is ~0.5 MB/day (one zip; up to ~2 MB
+  after a restart, which re-downloads the last 4 days), plus one more idle pg-boss worker. Discovery
+  grew from ~770 to ~1,170 candidates per run (≈1,640 with `kenya`/`ke` keywords), each 4 small
+  DNS queries, roughly 2–4 MB/day in total.
 
 Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
 If jobs seem dead, check your email for a suspension notice before anything else.
@@ -171,12 +175,18 @@ nothing on a normal run). Query pg-boss directly against the production DB:
 
 - Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
   (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
-  `dispatch-app-store-monitor` (`0 */4 * * *`).
-- Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503.
+  `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`).
+- Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503. It also
+  reports `sources.ct_log` / `sources.nrd` (last successful query, `stale` after 24h / 48h), which
+  don't affect the status code. `GET /health/jobs?sources=1` returns 503 when a source is stale
+  too: point a **second** UptimeRobot monitor at it, so a dead feed alerts without looking like an
+  outage. Stale since the last restart just means it hasn't succeeded *since that restart*.
 - Recent activity: `SELECT name, state, count(*), max(completed_on) FROM pgboss.job WHERE
   created_on > now() - interval '24 hours' GROUP BY name, state;` — empty means nothing ran.
   pg-boss v12 deletes completed jobs (no archive table), so for history use the app's own
-  tables: `SELECT date_trunc('day', started_at), count(*) FROM scans GROUP BY 1 ORDER BY 1;`. Zero findings from `ct_log` / `app_store` is normal: it means nothing was found.
+  tables: `SELECT date_trunc('day', started_at), count(*) FROM scans GROUP BY 1 ORDER BY 1;`. Zero findings from `app_store` is normal. Zero from `ct_log` is **not** proof
+  nothing exists: crt.sh was down so often that CT monitoring never produced a finding in production.
+  Check `sources` on `/health/jobs` before trusting an empty result.
 - Email health: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
 
 **Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and
