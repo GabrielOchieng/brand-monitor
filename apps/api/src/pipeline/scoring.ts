@@ -17,6 +17,8 @@ export interface ScoringInput {
   visualSimilarity: boolean;
   hasLoginForm: boolean;
   hasPaymentForm: boolean;
+  pageTitle?: string | null;
+  pageText?: string | null;
   looksParked: boolean;
   isAllowlisted: boolean;
   appStoreImpersonation: boolean;
@@ -31,6 +33,10 @@ export interface ScoringResult {
 // Deterministic, additive, explainable -- every point traceable to a named rule.
 // Reduced ruleset vs. the full ARCHITECTURE.md §6 model to match what the POC actually
 // collects (no correlation/social signals yet).
+function mentionsBrand(text: string | null | undefined, brandRoot: string): boolean {
+  return Boolean(text) && text!.toLowerCase().replace(/[\s._-]+/g, "").includes(brandRoot);
+}
+
 export function computeScore(input: ScoringInput): ScoringResult {
   const events: ScoreEvent[] = [];
   const sld = input.domain.split(".")[0];
@@ -58,6 +64,10 @@ export function computeScore(input: ScoringInput): ScoringResult {
       events.push({ delta: 30, reason: "Domain registered less than 24 hours ago", ruleCode: "DOMAIN_AGE_LT_24H" });
     } else if (hours < 24 * 7) {
       events.push({ delta: 20, reason: "Domain registered less than 7 days ago", ruleCode: "DOMAIN_AGE_LT_7D" });
+    } else if (hours < 24 * 30) {
+      // Phishing kits often go live a week or two after registration
+      // (flyjambojetkenya.store: registered Sept 24, live clone found Oct 7).
+      events.push({ delta: 10, reason: "Domain registered less than 30 days ago", ruleCode: "DOMAIN_AGE_LT_30D" });
     }
   }
 
@@ -77,6 +87,15 @@ export function computeScore(input: ScoringInput): ScoringResult {
   // confirmed-clone gate.
   if (input.visualSimilarity) {
     events.push({ delta: 10, reason: "Website visually resembles the protected brand's real site", ruleCode: "VISUAL_SIMILARITY_MATCH" });
+  }
+
+  // A redesigned clone defeats favicon/visual matching but still has to call itself by
+  // the brand's name to fool anyone (flyjambojetkenya.store: title "Fly JamboJet").
+  // Spaces/hyphens are stripped so "Jambo Jet" and "Jambo-Jet" count too. Can fire on a
+  // legitimate page that merely mentions the brand (a travel agent, a news article) --
+  // which is why it's corroborating weight, not enough for high severity on its own.
+  if (mentionsBrand(input.pageTitle, input.brandRoot) || mentionsBrand(input.pageText, input.brandRoot)) {
+    events.push({ delta: 25, reason: "Website title or content uses the protected brand's name", ruleCode: "BRAND_NAME_ON_PAGE" });
   }
 
   if (input.hasLoginForm) {

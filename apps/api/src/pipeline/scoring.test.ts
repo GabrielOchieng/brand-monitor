@@ -133,4 +133,29 @@ describe("computeScore", () => {
     const high = computeScore({ ...base, domain: "flyjambojet.xyz", registeredAt: new Date() });
     expect(high.severity).toBe("high");
   });
+
+  it("fires BRAND_NAME_ON_PAGE when the title or text names the brand, even spaced or hyphenated", () => {
+    expect(ruleCodes({ ...base, pageTitle: "Fly JamboJet" })).toContain("BRAND_NAME_ON_PAGE");
+    expect(ruleCodes({ ...base, pageText: "Book with Jambo-Jet today" })).toContain("BRAND_NAME_ON_PAGE");
+    expect(ruleCodes({ ...base, pageTitle: "Kenya Airways", pageText: "Fly to Mombasa" })).not.toContain("BRAND_NAME_ON_PAGE");
+  });
+
+  it("gives a smaller age bonus between 7 and 30 days", () => {
+    const days = (n: number) => new Date(Date.now() - n * 86400000);
+    expect(ruleCodes({ ...base, registeredAt: days(13) })).toContain("DOMAIN_AGE_LT_30D");
+    expect(ruleCodes({ ...base, registeredAt: days(3) })).not.toContain("DOMAIN_AGE_LT_30D");
+    expect(ruleCodes({ ...base, registeredAt: days(45) })).toEqual([]);
+  });
+
+  it("scores the real flyjambojetkenya.store clone as critical", () => {
+    const r = computeScore({
+      ...base,
+      domain: "flyjambojetkenya.store",
+      registeredAt: new Date(Date.now() - 13 * 86400000),
+      hasPaymentForm: true,
+      pageTitle: "Fly JamboJet",
+    });
+    expect(r.score).toBe(90);
+    expect(r.severity).toBe("critical");
+  });
 });

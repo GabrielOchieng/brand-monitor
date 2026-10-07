@@ -104,6 +104,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     visualSimilarity,
     hasLoginForm: Boolean(websiteResult?.hasLoginForm),
     hasPaymentForm: Boolean(websiteResult?.hasPaymentForm),
+    pageTitle: websiteResult?.title,
+    pageText: websiteResult?.extractedText,
     looksParked: Boolean(websiteResult?.looksParked),
     isAllowlisted: false,
     // Deliberate, permanent, never-re-verified credit -- unlike every other input above,
