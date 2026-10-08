@@ -1,7 +1,12 @@
 import whoiser from "whoiser";
-import type { RegistrationInfo } from "./rdap";
+import { normalizeStatusCode, type RegistrationInfo } from "./rdap";
 
 const DATE_KEYS = ["Created Date", "Creation Date", "created", "Domain Registration Date"];
+const UPDATED_KEYS = ["Updated Date", "Last Updated", "last-update", "changed", "Last Modified"];
+const EXPIRY_KEYS = ["Registry Expiry Date", "Registrar Registration Expiration Date", "Expiry Date", "Expiration Date", "expires", "paid-till"];
+const STATUS_KEYS = ["Domain Status", "Status", "status"];
+const ABUSE_EMAIL_KEYS = ["Registrar Abuse Contact Email"];
+const ABUSE_PHONE_KEYS = ["Registrar Abuse Contact Phone"];
 const REGISTRAR_KEYS = ["Registrar", "registrar", "Sponsoring Registrar"];
 const NS_KEYS = ["Name Server", "Name Servers", "nameServers", "nserver"];
 
@@ -14,13 +19,19 @@ function firstMatchingValue(obj: Record<string, any>, keys: string[]): string | 
   return null;
 }
 
-function collectNameservers(obj: Record<string, any>): string[] {
-  for (const key of NS_KEYS) {
+function allMatchingValues(obj: Record<string, any>, keys: string[]): string[] {
+  for (const key of keys) {
     const value = obj[key];
     if (!value) continue;
     return Array.isArray(value) ? value.map(String) : [String(value)];
   }
   return [];
+}
+
+function toIso(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 // Fallback for TLDs with no RDAP coverage (common for African/smaller ccTLDs). whoiser
@@ -35,13 +46,18 @@ export async function lookupWhois(domain: string): Promise<RegistrationInfo | nu
 
     const registeredAt = firstMatchingValue(merged, DATE_KEYS);
     const registrar = firstMatchingValue(merged, REGISTRAR_KEYS);
-    const nameservers = collectNameservers(merged);
+    const nameservers = allMatchingValues(merged, NS_KEYS);
 
     if (!registeredAt && !registrar && nameservers.length === 0) return null;
 
     return {
       registrar,
-      registeredAt: registeredAt ? new Date(registeredAt).toISOString() : null,
+      registeredAt: toIso(registeredAt),
+      lastChangedAt: toIso(firstMatchingValue(merged, UPDATED_KEYS)),
+      expiresAt: toIso(firstMatchingValue(merged, EXPIRY_KEYS)),
+      statusCodes: [...new Set(allMatchingValues(merged, STATUS_KEYS).map(normalizeStatusCode).filter(Boolean))],
+      registrarAbuseEmail: firstMatchingValue(merged, ABUSE_EMAIL_KEYS),
+      registrarAbusePhone: firstMatchingValue(merged, ABUSE_PHONE_KEYS),
       nameservers,
       source: "whois",
       raw: result,

@@ -225,7 +225,15 @@ export async function findingsRoutes(app: FastifyInstance) {
       finding.websiteIntel && Math.abs(finding.websiteIntel.scannedAt.getTime() - finding.lastScannedAt.getTime()) < 5 * 60 * 1000
     );
 
-    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation, websiteDataCurrent });
+    const [changes, completedTakedowns] = await withTenant(request.auth!.orgId, (tx) =>
+      Promise.all([
+        tx.findingChange.findMany({ where: { findingId: id }, orderBy: { detectedAt: "desc" }, take: 50 }),
+        tx.takedown.count({ where: { findingId: id, status: "completed" } }),
+      ])
+    );
+    const underTakedownWatch = finding.status === "resolved" || completedTakedowns > 0;
+
+    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation, websiteDataCurrent, changes, underTakedownWatch });
   });
 
   // Deliberately conservative v1: registrar + tight registration-time window is the only

@@ -17,7 +17,23 @@ interface Takedown {
   resolvedAt: string | null;
 }
 
-export function TakedownTracker({ findingId }: { findingId: string }) {
+export interface TakedownContact {
+  provider: string;
+  contact: string | null;
+}
+
+export function TakedownTracker({
+  findingId,
+  contacts = [],
+  siteLive = false,
+}: {
+  findingId: string;
+  // Registrar / host abuse contacts from the domain's RDAP data, offered as one-click fills.
+  contacts?: TakedownContact[];
+  // Latest scan saw real content -- a "completed" takedown with a live site means only
+  // part of it worked, or it's back.
+  siteLive?: boolean;
+}) {
   const { getToken } = useAuth();
   const [takedowns, setTakedowns] = useState<Takedown[]>([]);
   const [form, setForm] = useState({ provider: "", reference: "", notes: "" });
@@ -84,6 +100,13 @@ export function TakedownTracker({ findingId }: { findingId: string }) {
     <section className="card mt-6 p-5">
       <h2 className="label">Takedown requests</h2>
 
+      {siteLive && takedowns.some((t) => t.status === "completed") && (
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-800">
+          A takedown is marked completed, but the latest scan still shows live content. Removing content leaves the domain
+          with the attacker. Ask the registrar to suspend the domain (clientHold) as well.
+        </p>
+      )}
+
       <ul className="mt-3 space-y-2">
         {takedowns.map((t) => (
           <li key={t.id} className="rounded-md border border-line bg-surface px-4 py-3 text-sm">
@@ -114,7 +137,23 @@ export function TakedownTracker({ findingId }: { findingId: string }) {
         {takedowns.length === 0 && <li className="text-sm text-ink-subtle">No takedown requests logged yet.</li>}
       </ul>
 
-      <form onSubmit={handleCreate} className="mt-4 grid gap-2 sm:grid-cols-3">
+      {contacts.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-ink-subtle">Fill from abuse contacts:</span>
+          {contacts.map((c) => (
+            <button
+              key={c.provider}
+              type="button"
+              onClick={() => setForm({ provider: c.provider, reference: "", notes: c.contact ? `Reported to ${c.contact}` : "" })}
+              className="rounded-md border border-line bg-surface px-2 py-1 text-ink-muted hover:bg-elevated hover:text-ink"
+            >
+              {c.provider}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleCreate} className="mt-2 grid gap-2 sm:grid-cols-3">
         <input
           placeholder="Provider (e.g. registrar)"
           value={form.provider}

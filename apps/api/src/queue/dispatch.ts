@@ -36,7 +36,9 @@ async function listDueFindingsForDispatch(): Promise<Array<{ findingId: string; 
   const findings = await adminPrisma.finding.findMany({
     where: {
       nextScanAt: { lte: new Date() },
-      status: { notIn: ["false_positive", "resolved"] },
+      // "resolved" stays in: a taken-down site coming back is exactly what needs catching
+      // (pipeline/takedownWatch.ts). Only a false positive is never worth rechecking.
+      status: { not: "false_positive" },
     },
     select: { id: true, brand: { select: { organizationId: true } } },
   });

@@ -5,11 +5,12 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 
 ---
 
-## As built (updated 2026-10-06)
+## As built (updated 2026-10-08)
 
 ### Shipped
 - **MVP Stages A–F:** Clerk auth + Postgres RLS multi-tenancy, pg-boss job queue (scheduled discovery + recheck), alerting (email / in-app / webhook), finding lifecycle + notes + manual URL submission, AI threat explanation, manual takedown tracking.
 - **Detection beyond the original MVP:** campaign correlation (same registrar within 7 days, per brand), visual similarity (regional perceptual hash of the page screenshot vs. the brand's real site), dormant-domain-goes-live alert (`website_activated`, hourly recheck cadence for parked/not-yet-live domains — 20 minutes in their first 3 days), keyword-compound candidates (`brand+keyword` in 4 arrangements across an extended TLD list), **same-name-alternate-TLD** candidates (`jambojet.site`), **Certificate Transparency monitoring** (crt.sh polled every 30 min per brand — `lib/ctLog.ts`, `pipeline/ctMonitorJob.ts`), a **newly-registered-domain feed** (whoisds.com's free 70k/day sample, every 6h, global job — `lib/nrdFeed.ts`, `pipeline/nrdMonitorJob.ts`), **keyword-brand-keyword** candidates (`flyjambojetkenya`), per-source freshness on `/health/jobs`, scoring rules `BRAND_NAME_ON_PAGE` (+25, page title/text names the brand — catches redesigned clones that defeat favicon/visual matching) and `DOMAIN_AGE_LT_30D` (+10), and **App Store impersonation monitoring** (Apple's iTunes Search API every 4h per brand — `lib/appStoreSearch.ts`, `pipeline/appStoreMonitorJob.ts`; scored by a dedicated `APP_STORE_IMPERSONATION` rule, +60, because an App Store listing has no domain of its own to score).
+- **Registration intelligence + post-takedown watch (2026-10-08):** RDAP now actually works (it needed a User-Agent); `domain_intel` stores last-changed/expiry dates, EPP status codes, registrar abuse contact, and hosting org + abuse contact from IP RDAP. Changes between scans go to `finding_changes` (`pipeline/registrationChanges.ts`) and fire `registration_changed`. Resolved findings keep being rechecked; a resolved / taken-down finding that a scan confirms down (`findings.down_since`) and later sees live fires `site_reactivated` and reopens (`pipeline/takedownWatch.ts`). Prompted by `flyjambojet.org`: taken down (content only) on 2026-09-10, WHOIS updated 2026-09-12, live again in October.
 - **Product surface:** threat feed with filtering/sorting/pagination/bulk actions; brand keyword management UI (dashboard → Keywords); `/team` page for member roles; CORS locked to `WEB_APP_URL` (plus localhost for dev).
 - **Quality:** unit tests (vitest) + GitHub Actions CI (typecheck, build, tests against a real Postgres service).
 

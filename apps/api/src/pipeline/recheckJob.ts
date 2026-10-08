@@ -2,7 +2,7 @@ import { fromPrisma } from "pg-boss";
 import { SCANNER_USER_AGENT } from "@brand-monitor/shared";
 import { withTenant } from "../lib/tenant";
 import { checkDnsExistence } from "../lib/dnsCheck";
-import { lookupRdap } from "../lib/rdap";
+import { lookupRdap, lookupIpRdap } from "../lib/rdap";
 import { lookupWhois } from "../lib/whois";
 import { fetchFaviconHash, hammingDistance, FAVICON_MATCH_THRESHOLD } from "../lib/favicon";
 import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch } from "../lib/visualSimilarity";
@@ -10,6 +10,8 @@ import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
 import { computeNextScanAt } from "./cadence";
 import { ensureBrandFaviconHash, ensureBrandScreenshotHash, saveScreenshot } from "./enrichmentShared";
+import { diffRegistration, describeChange } from "./registrationChanges";
+import { isDefinitelyDown, isGoneStatus, isLiveContent, nextTakedownWatch } from "./takedownWatch";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
 import type { AlertDispatchJobData } from "../queue/alertDispatch";
 
@@ -26,7 +28,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   const { findingId, organizationId, triggeredBy = "scheduled" } = data;
 
   const finding = await withTenant(organizationId, (tx) =>
-    tx.finding.findUniqueOrThrow({ where: { id: findingId }, include: { brand: true } })
+    tx.finding.findUniqueOrThrow({ where: { id: findingId }, include: { brand: true, domainIntel: true } })
   );
 
   const brand = finding.brand;
@@ -48,7 +50,15 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   // transaction open across DNS/WHOIS/website-scan calls that can take many seconds.
   const brandFaviconHash = isDomainType ? await ensureBrandFaviconHash(organizationId, brand.id, brand.primaryDomain) : null;
   const dns = isDomainType ? await checkDnsExistence(hostname) : { exists: false, a: [], aaaa: [], ns: [], mx: [] };
-  const registration = isDomainType && dns.exists ? (await lookupRdap(hostname)) ?? (await lookupWhois(hostname)) : null;
+  // Also looked up for a domain that used to resolve but doesn't now: a registrar
+  // suspension (clientHold) pulls the domain out of DNS, and the registry record is the only
+  // place that shows it. Never-resolved candidates are still skipped.
+  const wasEverRegistered = Boolean(finding.domainIntel?.firstResolvedAt);
+  const registration =
+    isDomainType && (dns.exists || wasEverRegistered) ? (await lookupRdap(hostname)) ?? (await lookupWhois(hostname)) : null;
+
+  const ip = dns.a[0] ?? dns.aaaa[0] ?? null;
+  const hosting = isDomainType && ip && ip !== finding.domainIntel?.hostingLookupIp ? await lookupIpRdap(ip) : null;
 
   let websiteResult: Awaited<ReturnType<typeof scanWebsite>> | null = null;
   if (isDomainType) {
@@ -148,12 +158,15 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // dormant -> skipped -> skipped -> active sequence still compares against the real
     // dormant baseline from before the skip streak, not something poisoned in between.
     const previousWebsiteIntel = await tx.websiteIntel.findUnique({ where: { findingId } });
-    const previouslyActive = previousWebsiteIntel !== null && !previousWebsiteIntel.looksParked;
-    const currentlyActive = Boolean(websiteResult && !websiteResult.skipped && !websiteResult.looksParked);
+    const previouslyActive =
+      previousWebsiteIntel !== null && !previousWebsiteIntel.looksParked && !isGoneStatus(previousWebsiteIntel.httpStatus);
+    const currentlyActive = isLiveContent(websiteResult);
     // Dormant = not currently showing real, non-parked content -- keeps getting rechecked
     // on the aggressive cadence (see cadence.ts) until it does, rather than backing off
     // with age like an already-resolved-one-way-or-the-other finding would.
     const isDormant = !currentlyActive;
+
+    let registrationChanges: ReturnType<typeof diffRegistration> = [];
 
     const scan = await tx.scan.create({
       data: { findingId, kind: "recheck", triggeredBy, score: scoring.score, severity: scoring.severity, finishedAt: new Date() },
@@ -174,31 +187,87 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       const previousDomainIntel = await tx.domainIntel.findUnique({ where: { findingId } });
       const firstResolvedAt = dns.exists ? (previousDomainIntel?.firstResolvedAt ?? new Date()) : previousDomainIntel?.firstResolvedAt ?? null;
 
+      const previousARecords = ((previousDomainIntel?.dnsRecords as { a?: string[] } | null)?.a ?? []).filter(Boolean);
+      registrationChanges = diffRegistration(
+        previousDomainIntel
+          ? {
+              registrar: previousDomainIntel.registrar,
+              nameservers: previousDomainIntel.nameservers,
+              whoisSource: previousDomainIntel.whoisSource,
+              lastChangedAt: previousDomainIntel.lastChangedAt,
+              expiresAt: previousDomainIntel.expiresAt,
+              statusCodes: previousDomainIntel.statusCodes,
+              aRecords: previousARecords,
+            }
+          : null,
+        registration,
+        dns.a
+      );
+
+      // A failed lookup keeps the previous registry facts instead of blanking them -- one
+      // WHOIS timeout used to wipe the registrar and creation date until the next scan.
+      const registrationFields = registration
+        ? {
+            registrar: registration.registrar,
+            registeredAt: registration.registeredAt ? new Date(registration.registeredAt) : null,
+            nameservers: registration.nameservers,
+            whoisSource: registration.source,
+            lastChangedAt: registration.lastChangedAt ? new Date(registration.lastChangedAt) : null,
+            expiresAt: registration.expiresAt ? new Date(registration.expiresAt) : null,
+            statusCodes: registration.statusCodes,
+            registrarAbuseEmail: registration.registrarAbuseEmail,
+            registrarAbusePhone: registration.registrarAbusePhone,
+          }
+        : {};
+      const hostingFields = hosting && ip ? { hostingOrg: hosting.org, hostingAbuseEmail: hosting.abuseEmail, hostingLookupIp: ip } : {};
+
       await tx.domainIntel.upsert({
         where: { findingId },
         create: {
           findingId,
-          registrar: registration?.registrar ?? null,
-          registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
-          nameservers: registration?.nameservers ?? [],
-          ip: dns.a[0] ?? dns.aaaa[0] ?? null,
+          nameservers: [],
+          whoisSource: "unavailable",
+          ...registrationFields,
+          ...hostingFields,
+          ip,
           dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
-          whoisSource: registration?.source ?? "unavailable",
           firstResolvedAt,
           currentlyResolves: dns.exists,
         },
         update: {
-          registrar: registration?.registrar ?? null,
-          registeredAt: registration?.registeredAt ? new Date(registration.registeredAt) : null,
-          nameservers: registration?.nameservers ?? [],
-          ip: dns.a[0] ?? dns.aaaa[0] ?? null,
+          ...registrationFields,
+          ...hostingFields,
+          ip,
           dnsRecords: { a: dns.a, aaaa: dns.aaaa, ns: dns.ns, mx: dns.mx },
-          whoisSource: registration?.source ?? "unavailable",
           firstResolvedAt,
           currentlyResolves: dns.exists,
         },
       });
     }
+
+    // Post-takedown watch -- see takedownWatch.ts. Resolved findings keep being rechecked
+    // (queue/dispatch.ts) precisely so this can catch a taken-down site coming back.
+    const completedTakedowns = await tx.takedown.count({ where: { findingId, status: "completed" } });
+    const watch = nextTakedownWatch({
+      underWatch: previous.status === "resolved" || completedTakedowns > 0,
+      downSince: previous.downSince,
+      definitelyDown: isDefinitelyDown({ isDomainType, dnsExists: dns.exists, hasAddress: ip !== null, result: websiteResult }),
+      live: currentlyActive,
+      now: new Date(),
+    });
+
+    const changeRows: Array<{ findingId: string; scanId: string; field: string; oldValue: string; newValue: string }> =
+      registrationChanges.map((c) => ({ findingId, scanId: scan.id, field: c.field, oldValue: c.oldValue, newValue: c.newValue }));
+    if (watch.reactivated) {
+      changeRows.push({
+        findingId,
+        scanId: scan.id,
+        field: "site",
+        oldValue: `down since ${previous.downSince!.toISOString()}`,
+        newValue: "live again",
+      });
+    }
+    if (changeRows.length > 0) await tx.findingChange.createMany({ data: changeRows });
 
     if (websiteResult && !websiteResult.skipped) {
       await tx.websiteIntel.upsert({
@@ -212,6 +281,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           hasLoginForm: Boolean(websiteResult.hasLoginForm),
           hasPaymentForm: Boolean(websiteResult.hasPaymentForm),
           looksParked: Boolean(websiteResult.looksParked),
+          httpStatus: websiteResult.httpStatus ?? null,
           // Was hardcoded to null despite candidateFaviconHash already being computed
           // above for the match check -- a real, pre-existing, unrelated bug fixed here
           // since the value was sitting right there and just never got persisted.
@@ -228,6 +298,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
           hasLoginForm: Boolean(websiteResult.hasLoginForm),
           hasPaymentForm: Boolean(websiteResult.hasPaymentForm),
           looksParked: Boolean(websiteResult.looksParked),
+          httpStatus: websiteResult.httpStatus ?? null,
           faviconHash: candidateFaviconHash,
           screenshotHash: candidateScreenshotHashSerialized,
           visualSimilarityMatch: visualSimilarity,
@@ -255,6 +326,9 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
         lastScannedAt: new Date(),
         lastScanId: scan.id,
         nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date(), isDormant),
+        downSince: watch.downSince,
+        // Back into the triage queue: it needs a new takedown.
+        ...(watch.reactivated && previous.status === "resolved" ? { status: "new" } : {}),
       },
     });
 
@@ -268,6 +342,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       newSeverity: scoring.severity,
       isFirstScan: previous.lastScanId === null,
       justActivated: !previouslyActive && currentlyActive,
+      reactivated: watch.reactivated,
+      registrationChanges: registrationChanges.filter((c) => c.alert).map(describeChange),
     };
     await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });

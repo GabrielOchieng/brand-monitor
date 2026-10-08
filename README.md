@@ -84,9 +84,22 @@ background:
   **Caveat:** email uses plain SMTP, which Render's free tier blocks — it works locally but
   fails in the deployed app (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
 - **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
-  resolved`), assignee, and tags are editable from its detail page — `resolved`/
-  `false_positive` also stop it from being picked up for further automatic rechecks. Notes
-  are a simple threaded log on the same page.
+  resolved`), assignee, and tags are editable from its detail page. `false_positive` stops
+  automatic rechecks; `resolved` does **not** (see post-takedown watch below). Notes are a
+  simple threaded log on the same page.
+- **Registration intelligence**: each recheck reads the registry record over RDAP (WHOIS as
+  fallback): registrar, created / last-changed / expiry dates, EPP status codes (a
+  `clientHold`/`serverHold` shows as "Suspended at registry"), and the registrar's abuse
+  contact. The hosting provider and its abuse contact come from IP RDAP, re-queried only when
+  the IP changes. Changes between scans (registrar, nameservers, last-changed date, status,
+  expiry, IP) are kept in a **Registration & site history** on the detail page. Registrar,
+  nameserver, last-changed and status changes fire the auto-seeded `registration_changed`
+  alert. This catches a dormant domain being re-armed before its website comes back.
+- **Post-takedown watch**: a finding that is `resolved` or has a `completed` takedown keeps
+  being rechecked. Once a scan shows the site definitely down (no DNS, parked, or HTTP
+  404/410/451; a failed scan doesn't count), seeing live content again fires the auto-seeded
+  `site_reactivated` alert, logs a history entry, and moves a resolved finding back to `new`.
+  On that scan it replaces the severity and `website_activated` alerts rather than adding to them.
 - **Manual submission**: paste a URL on the dashboard to report a suspicious page discovery
   can't reach on its own — most notably a fake social-media profile, since platforms like
   Instagram/Facebook have no discovery API to search (see `ARCHITECTURE.md`). A bare domain
@@ -112,7 +125,10 @@ background:
 - **Takedown tracking**: a finding's detail page lets you log takedown requests (provider —
   e.g. registrar/hosting provider, an optional ticket reference, notes) and track each one's
   status (`requested → acknowledged → completed/rejected`) independently — a finding can have
-  several in flight at once. Pure record-keeping: nothing here ever calls a registrar/hosting
+  several in flight at once. Buttons prefill the provider and contact from the registrar and
+  host abuse contacts. A warning shows when a takedown is marked completed but the latest scan
+  still sees live content (content removal without a registrar suspension leaves the domain
+  with the attacker). Pure record-keeping: nothing here ever calls a registrar/hosting
   provider's actual API.
 - **Certificate Transparency monitoring** (every 30 min per brand): searches crt.sh for any
   logged TLS certificate whose hostname contains the brand name, so it catches squats that no
@@ -142,6 +158,9 @@ background:
 
 - Most WHOIS/RDAP lookups for `.co.ke` and similar ccTLDs come back empty — expected (see
   `apps/api/src/lib/whois.ts`); the finding is still created, just without an age signal.
+- rdap.org returns 403 to requests without a User-Agent (Node's `fetch` sends none by
+  default), so `lib/rdap.ts` sets one. Before 2026-10-08 every production lookup silently fell
+  back to WHOIS because of this.
 - A brand's own allowlisted domains are filtered out of the candidate set, so they never
   show up as a false-positive "threat."
 - A finding's "why this score" breakdown always reflects only its *latest* scan, not a

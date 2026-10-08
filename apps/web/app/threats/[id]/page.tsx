@@ -25,6 +25,13 @@ interface FindingDetail {
     whoisSource: string | null;
     firstResolvedAt: string | null;
     currentlyResolves: boolean;
+    lastChangedAt: string | null;
+    expiresAt: string | null;
+    statusCodes: string[];
+    registrarAbuseEmail: string | null;
+    registrarAbusePhone: string | null;
+    hostingOrg: string | null;
+    hostingAbuseEmail: string | null;
   } | null;
   websiteIntel: {
     screenshotPath: string | null;
@@ -33,9 +40,13 @@ interface FindingDetail {
     hasLoginForm: boolean;
     hasPaymentForm: boolean;
     looksParked: boolean;
+    httpStatus: number | null;
     visualSimilarityMatch: boolean;
   } | null;
   websiteDataCurrent: boolean;
+  downSince: string | null;
+  underTakedownWatch: boolean;
+  changes: Array<{ id: string; field: string; oldValue: string | null; newValue: string | null; detectedAt: string }>;
   evidence: Array<{ id: string; description: string }>;
   scoreEvents: Array<{ id: string; delta: number; reason: string; ruleCode: string }>;
   aiExplanation: {
@@ -52,6 +63,18 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
   const { getToken } = await auth();
   const token = await getToken();
   const finding = await apiFetch<FindingDetail>(`/api/findings/${id}`, token);
+  const di = finding.domainIntel;
+  const onHold = Boolean(di?.statusCodes.some((s) => s === "clientHold" || s === "serverHold"));
+  const siteLive = Boolean(
+    finding.websiteDataCurrent && finding.websiteIntel && !finding.websiteIntel.looksParked && ![404, 410, 451].includes(finding.websiteIntel.httpStatus ?? 0)
+  );
+  const takedownContacts = [
+    di?.registrar && {
+      provider: `${di.registrar} (registrar)`,
+      contact: [di.registrarAbuseEmail, di.registrarAbusePhone].filter(Boolean).join(", ") || null,
+    },
+    di?.hostingOrg && { provider: `${di.hostingOrg} (hosting)`, contact: di.hostingAbuseEmail },
+  ].filter((c): c is { provider: string; contact: string | null } => Boolean(c));
 
   return (
     <div>
@@ -64,6 +87,26 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
             className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
           >
             No longer resolves
+          </span>
+        )}
+        {onHold && (
+          <span
+            title="The registry status includes clientHold or serverHold: the domain is suspended and removed from DNS."
+            className="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800"
+          >
+            Suspended at registry
+          </span>
+        )}
+        {finding.underTakedownWatch && (
+          <span
+            title={
+              finding.downSince
+                ? `Confirmed down since ${new Date(finding.downSince).toLocaleString()}. An alert fires if the site comes back.`
+                : "Resolved or taken down, but not yet confirmed down by a scan. An alert fires if it's seen down and then live again."
+            }
+            className="rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800"
+          >
+            {finding.downSince ? "Down · watching for reactivation" : "Watching for reactivation"}
           </span>
         )}
       </div>
@@ -113,13 +156,28 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         <div className="card p-5">
           <h2 className="label">Domain intelligence</h2>
           <dl className="mt-3 space-y-1.5 text-sm">
-            {finding.domainIntel && <Row label="Registration status" value={resolutionStatus(finding.domainIntel)} />}
-            <Row label="Registrar" value={finding.domainIntel?.registrar} />
-            <Row label="Registered" value={finding.domainIntel?.registeredAt ? new Date(finding.domainIntel.registeredAt).toLocaleString() : null} />
-            <Row label="IP" value={finding.domainIntel?.ip} />
-            <Row label="Nameservers" value={finding.domainIntel?.nameservers?.join(", ")} />
-            <Row label="WHOIS source" value={finding.domainIntel?.whoisSource} />
+            {di && <Row label="Registration status" value={resolutionStatus(di)} />}
+            <Row label="Registrar" value={di?.registrar} />
+            <Row label="Registered" value={formatDate(di?.registeredAt)} />
+            <Row label="Last changed" value={formatDate(di?.lastChangedAt)} />
+            <Row label="Expires" value={formatDate(di?.expiresAt)} />
+            <Row label="Registry status" value={di?.statusCodes.length ? di.statusCodes.join(", ") : null} />
+            <Row label="IP" value={di?.ip} />
+            <Row label="Hosting" value={di?.hostingOrg} />
+            <Row label="Nameservers" value={di?.nameservers?.join(", ")} />
+            <Row label="WHOIS source" value={di?.whoisSource} />
           </dl>
+          {(di?.registrarAbuseEmail || di?.hostingAbuseEmail) && (
+            <div className="mt-4 border-t border-line pt-3">
+              <h3 className="label">Report abuse to</h3>
+              <dl className="mt-2 space-y-1.5 text-sm">
+                {di.registrarAbuseEmail && (
+                  <Row label="Registrar" value={<AbuseContact email={di.registrarAbuseEmail} phone={di.registrarAbusePhone} />} />
+                )}
+                {di.hostingAbuseEmail && <Row label="Host" value={<AbuseContact email={di.hostingAbuseEmail} />} />}
+              </dl>
+            </div>
+          )}
         </div>
         <div className="card p-5">
           <h2 className="label">Website intelligence</h2>
@@ -135,6 +193,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
           )}
           <dl className="mt-3 space-y-1.5 text-sm">
             <Row label="Title" value={finding.websiteIntel?.title} />
+            <Row label="HTTP status" value={finding.websiteIntel?.httpStatus != null ? String(finding.websiteIntel.httpStatus) : null} />
             <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
             <Row label="Payment form" value={finding.websiteIntel?.hasPaymentForm ? "Detected" : "Not detected"} />
             <Row label="Looks parked" value={finding.websiteIntel?.looksParked ? "Yes" : "No"} />
@@ -156,8 +215,62 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         </ul>
       </section>
 
-      <TakedownTracker findingId={finding.id} />
+      <section className="card mt-6 p-5">
+        <h2 className="label">Registration &amp; site history</h2>
+        <ul className="mt-3 divide-y divide-line text-sm">
+          {finding.changes.map((c) => (
+            <li key={c.id} className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:gap-4">
+              <span className="shrink-0 font-mono text-xs text-ink-faint">{new Date(c.detectedAt).toLocaleString()}</span>
+              <span className={c.field === "site" ? "font-medium text-red-700" : "text-ink-muted"}>
+                <span className="font-medium text-ink">{CHANGE_LABELS[c.field] ?? c.field}:</span> {formatChangeValue(c.field, c.oldValue)} →{" "}
+                {formatChangeValue(c.field, c.newValue)}
+              </span>
+            </li>
+          ))}
+          {finding.changes.length === 0 && (
+            <li className="py-2 text-ink-subtle">No changes detected since monitoring began.</li>
+          )}
+        </ul>
+      </section>
+
+      <TakedownTracker findingId={finding.id} contacts={takedownContacts} siteLive={siteLive} />
     </div>
+  );
+}
+
+const CHANGE_LABELS: Record<string, string> = {
+  registrar: "Registrar",
+  nameservers: "Nameservers",
+  last_changed: "Registration updated",
+  expires: "Expiry",
+  status: "Registry status",
+  ip: "IP",
+  site: "Website",
+};
+
+function formatChangeValue(field: string, value: string | null): string {
+  if (!value) return "—";
+  if (field === "last_changed" || field === "expires") return new Date(value).toLocaleString();
+  if (field === "site" && value.startsWith("down since ")) return `down since ${new Date(value.slice(11)).toLocaleString()}`;
+  return value;
+}
+
+function formatDate(value: string | null | undefined): string | null {
+  return value ? new Date(value).toLocaleString() : null;
+}
+
+function AbuseContact({ email, phone }: { email: string | null; phone?: string | null }) {
+  if (!email && !phone) return null;
+  return (
+    <span className="break-all">
+      {email && (
+        <a href={`mailto:${email}`} className="text-brand hover:text-brand-hover hover:underline">
+          {email}
+        </a>
+      )}
+      {email && phone && " · "}
+      {phone}
+    </span>
   );
 }
 
@@ -171,11 +284,11 @@ function resolutionStatus(domainIntel: { firstResolvedAt: string | null; current
   return `No longer resolves (first confirmed ${new Date(domainIntel.firstResolvedAt).toLocaleDateString()})`;
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
+function Row({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-ink-subtle">{label}</dt>
-      <dd className="text-ink">{value ?? "—"}</dd>
+      <dt className="shrink-0 text-ink-subtle">{label}</dt>
+      <dd className="text-right text-ink">{value ?? "—"}</dd>
     </div>
   );
 }

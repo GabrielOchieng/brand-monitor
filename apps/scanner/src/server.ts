@@ -93,7 +93,8 @@ app.post("/scan", async (request, reply) => {
       }
     });
 
-    await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
+    const response = await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
+    const httpStatus = response?.status() ?? null;
     if (settleMs) await page.waitForTimeout(settleMs);
 
     const title = await page.title().catch(() => null);
@@ -138,6 +139,7 @@ app.post("/scan", async (request, reply) => {
       hasLoginForm: hasPasswordField,
       hasPaymentForm: hasPaymentKeyword || hasPaymentInput,
       looksParked,
+      httpStatus,
       screenshotBase64: screenshotBuffer ? screenshotBuffer.toString("base64") : null,
     });
   } catch (err: any) {

@@ -153,6 +153,11 @@ The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / contain
   after a restart, which re-downloads the last 4 days), plus one more idle pg-boss worker. Discovery
   grew from ~770 to ~1,170 candidates per run (≈1,640 with `kenya`/`ke` keywords), each 4 small
   DNS queries, roughly 2–4 MB/day in total.
+- Added 2026-10-08 (estimated, not measured): RDAP now succeeds instead of 403ing, so a recheck
+  receives a ~5–10 KB registry record where it used to get a WHOIS reply of similar size, so no
+  real change there. IP RDAP (~6 KB) runs only when a domain's IP changes. Resolved findings are
+  rechecked again (normal cadence: hourly while down, daily once old and live). That's negligible
+  at the current ~12 findings, but each resolved live site costs one full scan a day (~1–1.6 MB).
 
 Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
 If jobs seem dead, check your email for a suspension notice before anything else.

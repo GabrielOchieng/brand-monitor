@@ -23,6 +23,12 @@ export interface AlertDispatchJobData {
   // pre-filtered for isFirstScan; ruleMatches applies that guard itself, same as
   // score_increase does.
   justActivated: boolean;
+  // A resolved / taken-down finding that was confirmed down is live again (see
+  // pipeline/takedownWatch.ts). Optional: jobs enqueued before this shipped lack it.
+  reactivated?: boolean;
+  // Human-readable, alert-worthy registry changes since the previous scan (see
+  // pipeline/registrationChanges.ts).
+  registrationChanges?: string[];
 }
 
 interface RuleLike {
@@ -34,8 +40,18 @@ interface RuleLike {
 
 // Deliberately conservative defaults so a finding sitting steadily at one severity, or a
 // low/parked first-scan result, doesn't re-alert every 5 minutes forever.
-function ruleMatches(rule: RuleLike, data: AlertDispatchJobData): boolean {
+//
+// A reactivation is one event, and site_reactivated reports it with the current severity --
+// so on that scan the score-based and website_activated rules stand down instead of sending
+// two or three alerts for the same thing.
+export function ruleMatches(rule: Pick<RuleLike, "kind" | "config">, data: AlertDispatchJobData): boolean {
+  if (data.reactivated && rule.kind !== "site_reactivated" && rule.kind !== "registration_changed") return false;
   switch (rule.kind) {
+    case "site_reactivated":
+      return Boolean(data.reactivated);
+    case "registration_changed":
+      if (data.isFirstScan) return false;
+      return (data.registrationChanges?.length ?? 0) > 0;
     case "severity_threshold": {
       const minRank = rank(rule.config?.minSeverity ?? "high");
       const crossedUp = data.isFirstScan || rank(data.previousSeverity) < rank(data.newSeverity);
@@ -62,6 +78,34 @@ function ruleMatches(rule: RuleLike, data: AlertDispatchJobData): boolean {
     default:
       return false;
   }
+}
+
+interface AlertContent {
+  event: string; // webhook event name
+  headline?: string; // email; undefined = the classic score-change wording
+  details?: string[];
+  inApp: string;
+}
+
+function alertContent(kind: string, data: AlertDispatchJobData, identifier: string): AlertContent {
+  if (kind === "site_reactivated") {
+    return {
+      event: "finding.reactivated",
+      headline: "live again after takedown",
+      details: ["The site was confirmed down after a takedown and is serving content again. Request a new takedown, and ask the registrar for a domain suspension (clientHold) rather than content removal."],
+      inApp: `${identifier} is live again after takedown -- now ${data.newSeverity} (${data.newScore}/100)`,
+    };
+  }
+  if (kind === "registration_changed") {
+    const changes = data.registrationChanges ?? [];
+    return {
+      event: "finding.registration_changed",
+      headline: "registration changed",
+      details: changes,
+      inApp: `${identifier} registration changed: ${changes.join("; ")}`,
+    };
+  }
+  return { event: "finding.score_changed", inApp: `${identifier} is now ${data.newSeverity} (${data.newScore}/100)` };
 }
 
 async function deliverChannel(
@@ -99,6 +143,8 @@ async function deliverChannel(
     if (existing?.status === "sent") return;
   }
 
+  const content = alertContent(rule.kind, data, finding.identifier);
+
   try {
     if (channel === "email") {
       const members = await withTenant(organizationId, (tx) => tx.membership.findMany({ where: { organizationId }, include: { user: true } }));
@@ -112,6 +158,8 @@ async function deliverChannel(
           previousSeverity: data.previousSeverity,
           newScore: data.newScore,
           newSeverity: data.newSeverity,
+          headline: content.headline,
+          details: content.details,
         });
       }
     } else if (channel === "in_app") {
@@ -121,18 +169,19 @@ async function deliverChannel(
             organizationId,
             findingId: data.findingId,
             scanId: data.scanId,
-            message: `${finding.identifier} is now ${data.newSeverity} (${data.newScore}/100)`,
+            message: content.inApp,
           },
         })
       );
     } else if (channel === "webhook" && webhookConfig) {
       await sendWebhook(webhookConfig.url, webhookConfig.secret, {
-        event: "finding.score_changed",
+        event: content.event,
         finding: { id: data.findingId, identifier: finding.identifier },
         previousScore: data.previousScore,
         previousSeverity: data.previousSeverity,
         newScore: data.newScore,
         newSeverity: data.newSeverity,
+        ...(content.details ? { details: content.details } : {}),
       });
     }
 

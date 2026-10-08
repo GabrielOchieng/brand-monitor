@@ -122,6 +122,11 @@ model Finding {
   assigneeId      String?   @map("assignee_id")
   assignee        User?    @relation("FindingAssignee", fields: [assigneeId], references: [id])
   tags            String[] @default([])
+  // Post-takedown watch (see recheckJob.ts): set when a scan of a resolved / taken-down
+  // finding definitively shows the site down (no DNS, parked, or HTTP 404/410/451), cleared
+  // when it comes back live -- which is what fires site_reactivated. Requiring a definite
+  // "down" first stops a single failed scan from looking like a reactivation.
+  downSince       DateTime? @map("down_since")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -133,6 +138,7 @@ model Finding {
   notes          FindingNote[]
   aiExplanations AiExplanation[]
   takedowns      Takedown[]
+  changes        FindingChange[]
 
   @@unique([brandId, identifier])
   // brandId-leading composites, not standalone single-column indexes -- the RLS policy on
@@ -252,8 +258,36 @@ model DomainIntel {
   // e.g. a brief test-registration, or a hold period expiring after discovery flagged it.
   firstResolvedAt   DateTime? @map("first_resolved_at")
   currentlyResolves Boolean   @default(false) @map("currently_resolves")
+  // Registry facts beyond creation date (see lib/rdap.ts). Kept from the previous scan when
+  // a lookup fails, rather than blanked.
+  lastChangedAt       DateTime? @map("last_changed_at")
+  expiresAt           DateTime? @map("expires_at")
+  statusCodes         String[]  @default([]) @map("status_codes")
+  registrarAbuseEmail String?   @map("registrar_abuse_email")
+  registrarAbusePhone String?   @map("registrar_abuse_phone")
+  // Who hosts the IP, from IP RDAP. hostingLookupIp is the IP these describe, so the
+  // lookup only re-runs when the IP changes.
+  hostingOrg          String?   @map("hosting_org")
+  hostingAbuseEmail   String?   @map("hosting_abuse_email")
+  hostingLookupIp     String?   @map("hosting_lookup_ip")
 
   @@map("domain_intel")
+}
+
+// Append-only history of registration/DNS changes between scans, plus post-takedown
+// reactivations (field "site"). Written by recheckJob.ts; see pipeline/registrationChanges.ts.
+model FindingChange {
+  id         String   @id @default(cuid())
+  findingId  String   @map("finding_id")
+  finding    Finding  @relation(fields: [findingId], references: [id])
+  scanId     String   @map("scan_id")
+  field      String // registrar | nameservers | last_changed | expires | status | ip | site
+  oldValue   String?  @map("old_value")
+  newValue   String?  @map("new_value")
+  detectedAt DateTime @default(now()) @map("detected_at")
+
+  @@index([findingId, detectedAt])
+  @@map("finding_changes")
 }
 
 model WebsiteIntel {
@@ -267,6 +301,9 @@ model WebsiteIntel {
   hasLoginForm    Boolean  @default(false) @map("has_login_form")
   hasPaymentForm  Boolean  @default(false) @map("has_payment_form")
   looksParked     Boolean  @default(false) @map("looks_parked")
+  // HTTP status of the final document. 404/410/451 count as "site down" for the
+  // post-takedown watch, not as live content.
+  httpStatus      Int?     @map("http_status")
   faviconHash     String?  @map("favicon_hash")
   redirectChain   String[] @map("redirect_chain")
   scannedAt       DateTime @default(now()) @map("scanned_at")
@@ -326,7 +363,7 @@ model PipelineRun {
 model AlertRule {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
-  kind           String // severity_threshold | score_increase | new_finding
+  kind           String // severity_threshold | score_increase | new_finding | website_activated | registration_changed | site_reactivated
   config         Json // e.g. {minSeverity:"high"} | {minDelta:20} | {minSeverity:"medium"}
   channels       String[] // email | in_app | webhook
   enabled        Boolean  @default(true)

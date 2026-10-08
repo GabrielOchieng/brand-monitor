@@ -11,6 +11,7 @@ export interface ScanResult {
   hasLoginForm?: boolean;
   hasPaymentForm?: boolean;
   looksParked?: boolean;
+  httpStatus?: number | null;
   screenshotBase64?: string | null;
 }
 

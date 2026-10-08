@@ -57,4 +57,12 @@ describe("buildAlertEmail", () => {
     const { subject } = buildAlertEmail(base);
     expect(subject).toBe("[Brand Monitor] jambojetflights.com is now MEDIUM (30/100)");
   });
+
+  it("uses the headline and lists escaped details for event-style alerts", () => {
+    const { subject, text, html } = buildAlertEmail({ ...base, headline: "registration changed", details: ["Nameservers: a → <b>"] });
+    expect(subject).toBe("[Brand Monitor] jambojetflights.com: registration changed");
+    expect(text).toContain("jambojetflights.com: registration changed. Currently medium (30/100).");
+    expect(text).toContain("- Nameservers: a → <b>");
+    expect(html).toContain("<li>Nameservers: a → &lt;b&gt;</li>");
+  });
 });

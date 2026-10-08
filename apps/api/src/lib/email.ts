@@ -16,6 +16,10 @@ export interface AlertEmailInput {
   previousSeverity: string;
   newScore: number;
   newSeverity: string;
+  // Set for event-style alerts (site_reactivated, registration_changed) whose news isn't
+  // the score: replaces the score-change wording in the subject and summary.
+  headline?: string;
+  details?: string[];
 }
 
 // Inline styles + a table skeleton, not a <style> block or flex/grid -- Gmail (the client
@@ -37,18 +41,27 @@ function escapeHtml(value: string): string {
 // written to a file and opened in a browser) without needing a real SMTP send.
 export function buildAlertEmail(input: AlertEmailInput): { subject: string; text: string; html: string } {
   const link = `${env.webAppUrl}/threats/${input.findingId}`;
-  const subject = `[Brand Monitor] ${input.findingIdentifier} is now ${input.newSeverity.toUpperCase()} (${input.newScore}/100)`;
+  const subject = input.headline
+    ? `[Brand Monitor] ${input.findingIdentifier}: ${input.headline}`
+    : `[Brand Monitor] ${input.findingIdentifier} is now ${input.newSeverity.toUpperCase()} (${input.newScore}/100)`;
 
   // A recheck can re-fire this alert while the score/severity haven't actually moved
   // (e.g. a rule re-evaluating on every scan) -- "changed from medium to medium" reads
   // like a bug in the copy even when the underlying event is legitimate, so word it
   // according to whether anything actually changed.
   const unchanged = input.previousSeverity === input.newSeverity && input.previousScore === input.newScore;
-  const summaryText = unchanged
-    ? `${input.findingIdentifier} remains ${input.newSeverity} (${input.newScore}/100).`
-    : `${input.findingIdentifier} changed from ${input.previousSeverity} (${input.previousScore}/100) to ${input.newSeverity} (${input.newScore}/100).`;
+  const summaryText = input.headline
+    ? `${input.findingIdentifier}: ${input.headline}. Currently ${input.newSeverity} (${input.newScore}/100).`
+    : unchanged
+      ? `${input.findingIdentifier} remains ${input.newSeverity} (${input.newScore}/100).`
+      : `${input.findingIdentifier} changed from ${input.previousSeverity} (${input.previousScore}/100) to ${input.newSeverity} (${input.newScore}/100).`;
 
-  const text = [summaryText, "", `View the full breakdown: ${link}`].join("\n");
+  const details = input.details ?? [];
+  const text = [summaryText, ...(details.length > 0 ? ["", ...details.map((d) => `- ${d}`)] : []), "", `View the full breakdown: ${link}`].join("\n");
+  const detailsHtml =
+    details.length > 0
+      ? `<ul style="margin:12px 0 0 0;padding-left:18px;font-size:13px;line-height:1.5;color:#374151;">${details.map((d) => `<li>${escapeHtml(d)}</li>`).join("")}</ul>`
+      : "";
 
   const color = SEVERITY_COLORS[input.newSeverity] ?? SEVERITY_COLORS.low;
   const safeIdentifier = escapeHtml(input.findingIdentifier);
@@ -73,7 +86,7 @@ export function buildAlertEmail(input: AlertEmailInput): { subject: string; text
         </tr>
         <tr>
           <td style="padding:0 28px 24px 28px;">
-            <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(summaryText)}</p>
+            <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(summaryText)}</p>${detailsHtml}
           </td>
         </tr>
         <tr>
