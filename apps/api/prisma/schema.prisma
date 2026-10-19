@@ -52,6 +52,9 @@ model Brand {
   organization   Organization @relation(fields: [organizationId], references: [id])
   name           String
   primaryDomain  String   @map("primary_domain")
+  // Unguessable token in the public "report a scam" link (/report/<token>). Null = the
+  // brand has no public form. Rotating it kills every copy of the old link.
+  reportToken    String?  @unique @map("report_token")
   createdAt      DateTime @default(now()) @map("created_at")
 
   domains      BrandDomain[]
@@ -89,7 +92,7 @@ model BrandAsset {
   id        String   @id @default(cuid())
   brandId   String   @map("brand_id")
   brand     Brand    @relation(fields: [brandId], references: [id])
-  type      String // favicon
+  type      String // favicon | screenshot | contact_indicators
   sourceUrl String   @map("source_url")
   hash      String
   createdAt DateTime @default(now()) @map("created_at")
@@ -139,6 +142,7 @@ model Finding {
   aiExplanations AiExplanation[]
   takedowns      Takedown[]
   changes        FindingChange[]
+  indicators     FindingIndicator[]
 
   @@unique([brandId, identifier])
   // brandId-leading composites, not standalone single-column indexes -- the RLS policy on
@@ -290,6 +294,25 @@ model FindingChange {
   @@map("finding_changes")
 }
 
+// Contact/payment details seen on a finding's page (lib/indicators.ts). Never deleted
+// when a later scan stops showing them -- lastSeenAt just stops moving -- so a number the
+// scammer swapped out still links its old pages to new ones. brandId is denormalized so
+// "who else uses this number" is one index lookup, and RLS can key on it directly.
+model FindingIndicator {
+  id          String   @id @default(cuid())
+  findingId   String   @map("finding_id")
+  finding     Finding  @relation(fields: [findingId], references: [id])
+  brandId     String   @map("brand_id")
+  kind        String // phone | whatsapp | mpesa_paybill | mpesa_till | email | telegram | crypto_wallet
+  value       String
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([findingId, kind, value])
+  @@index([brandId, kind, value])
+  @@map("finding_indicators")
+}
+
 model WebsiteIntel {
   id              String   @id @default(cuid())
   findingId       String   @unique @map("finding_id")
@@ -363,7 +386,7 @@ model PipelineRun {
 model AlertRule {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
-  kind           String // severity_threshold | score_increase | new_finding | website_activated | registration_changed | site_reactivated
+  kind           String // severity_threshold | score_increase | new_finding | website_activated | registration_changed | site_reactivated | public_report
   config         Json // e.g. {minSeverity:"high"} | {minDelta:20} | {minSeverity:"medium"}
   channels       String[] // email | in_app | webhook
   enabled        Boolean  @default(true)
@@ -395,8 +418,11 @@ model AlertDelivery {
 model Notification {
   id             String    @id @default(cuid())
   organizationId String    @map("organization_id")
-  findingId      String    @map("finding_id")
-  scanId         String    @map("scan_id")
+  // Null for a notification about a public report that matched no finding (a phone
+  // number nobody has seen yet) -- reportId is set instead.
+  findingId      String?   @map("finding_id")
+  scanId         String?   @map("scan_id")
+  reportId       String?   @map("report_id")
   message        String
   readAt         DateTime? @map("read_at")
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -412,4 +438,28 @@ model WebhookConfig {
   enabled        Boolean @default(true)
 
   @@map("webhook_configs")
+}
+
+// A scam reported by a member of the public through /report/<token> (routes/publicReports.ts).
+// Kept even when it creates no finding: a phone-only report is still evidence, and is
+// matched against finding_indicators. No IP address or other device data is stored.
+model PublicReport {
+  id                String   @id @default(cuid())
+  brandId           String   @map("brand_id")
+  url               String?
+  phone             String?
+  description       String?
+  reporterEmail     String?  @map("reporter_email")
+  // The finding the reported link became (created or existing).
+  findingId         String?  @map("finding_id")
+  // Findings sharing a phone/WhatsApp/paybill/etc. with the report (lib/indicators.ts).
+  matchedFindingIds String[] @default([]) @map("matched_finding_ids")
+  // Whether this report triggered a scan -- counts toward the per-brand daily cap.
+  scanQueued        Boolean  @default(false) @map("scan_queued")
+  status            String   @default("new") // new | reviewed | dismissed
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([brandId, createdAt])
+  @@index([findingId])
+  @@map("public_reports")
 }

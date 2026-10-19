@@ -9,7 +9,16 @@ import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch }
 import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
 import { computeNextScanAt } from "./cadence";
-import { ensureBrandFaviconHash, ensureBrandScreenshotHash, saveScreenshot } from "./enrichmentShared";
+import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, saveScreenshot } from "./enrichmentShared";
+import {
+  extractIndicators,
+  withoutOwnIndicators,
+  indicatorKey,
+  INDICATOR_LABELS,
+  PAYMENT_INDICATOR_KINDS,
+  type Indicator,
+  type IndicatorKind,
+} from "../lib/indicators";
 import { diffRegistration, describeChange } from "./registrationChanges";
 import { isDefinitelyDown, isGoneStatus, isLiveContent, nextTakedownWatch } from "./takedownWatch";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
@@ -28,7 +37,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   const { findingId, organizationId, triggeredBy = "scheduled" } = data;
 
   const finding = await withTenant(organizationId, (tx) =>
-    tx.finding.findUniqueOrThrow({ where: { id: findingId }, include: { brand: true, domainIntel: true } })
+    tx.finding.findUniqueOrThrow({ where: { id: findingId }, include: { brand: { include: { domains: true } }, domainIntel: true } })
   );
 
   const brand = finding.brand;
@@ -101,6 +110,27 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     }
   }
 
+  // Contact/payment details on the page (lib/indicators.ts), minus the brand's own.
+  // Only from a successful scan -- a skipped one says nothing about what the page shows.
+  let indicators: Indicator[] = [];
+  let sharedIndicator: { label: string; value: string; otherFindings: number } | null = null;
+  if (websiteResult && !websiteResult.skipped) {
+    const ownKeys = await ensureBrandOwnIndicators(organizationId, brand.id, brand.primaryDomain);
+    const ownDomains = [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase());
+    indicators = withoutOwnIndicators(
+      extractIndicators(websiteResult.indicatorText ?? websiteResult.extractedText ?? "", websiteResult.links ?? []),
+      ownKeys,
+      ownDomains
+    );
+    sharedIndicator = indicators.length > 0 ? await findMostSharedIndicator(organizationId, brand.id, findingId, indicators) : null;
+  }
+
+  const publicReportCount = await withTenant(organizationId, (tx) =>
+    tx.publicReport.count({
+      where: { status: { not: "dismissed" }, OR: [{ findingId }, { matchedFindingIds: { has: findingId } }] },
+    })
+  );
+
   // Homoglyph credit is a discovery-time-only concept (from permutations.ts's candidate
   // generation) -- a recheck has no candidate metadata, only the domain string itself.
   // That's fine: score events are point-in-time facts about that scan, not required to
@@ -128,6 +158,9 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     appStoreImpersonation: finding.source === "app_store",
     // Same write-once trust as above.
     phishFeedListed: finding.source === "phish_feed",
+    sharedIndicator,
+    hasPaymentDestination: indicators.some((i) => PAYMENT_INDICATOR_KINDS.has(i.kind)),
+    publicReportCount,
   });
 
   let screenshotPath: string | null = null;
@@ -309,6 +342,18 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       });
     }
 
+    if (indicators.length > 0) {
+      const now = new Date();
+      await tx.findingIndicator.createMany({
+        data: indicators.map((i) => ({ findingId, brandId: brand.id, kind: i.kind, value: i.value, firstSeenAt: now, lastSeenAt: now })),
+        skipDuplicates: true,
+      });
+      await tx.findingIndicator.updateMany({
+        where: { findingId, OR: indicators.map((i) => ({ kind: i.kind, value: i.value })) },
+        data: { lastSeenAt: now },
+      });
+    }
+
     await tx.findingScoreEvent.createMany({
       data: scoring.events.map((e) => ({ findingId, scanId: scan.id, delta: e.delta, reason: e.reason, ruleCode: e.ruleCode })),
     });
@@ -350,3 +395,41 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });
 }
+
+// Which of this page's indicators appears on the most OTHER findings of the same brand.
+// False positives are left out: an analyst already said that page isn't a threat, so
+// sharing a number with it proves nothing.
+async function findMostSharedIndicator(
+  organizationId: string,
+  brandId: string,
+  findingId: string,
+  indicators: Indicator[]
+): Promise<{ label: string; value: string; otherFindings: number } | null> {
+  const rows = await withTenant(organizationId, (tx) =>
+    tx.findingIndicator.findMany({
+      where: {
+        brandId,
+        findingId: { not: findingId },
+        finding: { status: { not: "false_positive" } },
+        OR: indicators.map((i) => ({ kind: i.kind, value: i.value })),
+      },
+      select: { kind: true, value: true, findingId: true },
+    })
+  );
+  const findingsByKey = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const key = indicatorKey({ kind: r.kind as IndicatorKind, value: r.value });
+    findingsByKey.set(key, (findingsByKey.get(key) ?? new Set()).add(r.findingId));
+  }
+  // On a tie, the more scam-specific detail names the rule: a WhatsApp number or paybill
+  // says more about who's behind a page than a shared email.
+  const byPriority = [...indicators].sort((a, b) => SHARED_PRIORITY.indexOf(a.kind) - SHARED_PRIORITY.indexOf(b.kind));
+  let best: { label: string; value: string; otherFindings: number } | null = null;
+  for (const i of byPriority) {
+    const count = findingsByKey.get(indicatorKey(i))?.size ?? 0;
+    if (count > (best?.otherFindings ?? 0)) best = { label: INDICATOR_LABELS[i.kind], value: i.value, otherFindings: count };
+  }
+  return best;
+}
+
+const SHARED_PRIORITY: IndicatorKind[] = ["whatsapp", "mpesa_paybill", "mpesa_till", "crypto_wallet", "telegram", "phone", "email"];

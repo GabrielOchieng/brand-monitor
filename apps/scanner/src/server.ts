@@ -40,6 +40,7 @@ const PARKING_KEYWORDS = [
 ];
 
 const BLOCKED_RESOURCE_TYPES = new Set(["font", "media"]);
+const MAX_LINKS = 300;
 
 const app = Fastify({ logger: true });
 
@@ -125,6 +126,16 @@ app.post("/scan", async (request, reply) => {
     const lowerTitleAndText = `${title ?? ""} ${extractedText ?? ""}`.toLowerCase();
     const looksParked = PARKING_KEYWORDS.some((k) => lowerTitleAndText.includes(k)) || lowerText.trim().length < 40;
 
+    // For contact/payment extraction (apps/api/src/lib/indicators.ts): scam pages often
+    // keep the number only in a wa.me / tel: button, never in visible text.
+    const links = await page
+      .$$eval(
+        "a[href]",
+        (as, max) => [...new Set(as.map((a) => a.getAttribute("href") ?? ""))].filter(Boolean).slice(0, max),
+        MAX_LINKS
+      )
+      .catch(() => [] as string[]);
+
     const screenshotBuffer = await page.screenshot({ fullPage: false }).catch(() => null);
 
     await context.close();
@@ -136,6 +147,11 @@ app.post("/scan", async (request, reply) => {
       title,
       metaDescription,
       extractedText: (extractedText ?? "").slice(0, 5000),
+      // The stored excerpt above is cut at 5000 chars; contact details usually sit in the
+      // footer, past that. The scanner and API share a container, so the extra text costs
+      // no outbound bandwidth.
+      indicatorText: (extractedText ?? "").slice(0, 50000),
+      links,
       hasLoginForm: hasPasswordField,
       hasPaymentForm: hasPaymentKeyword || hasPaymentInput,
       looksParked,

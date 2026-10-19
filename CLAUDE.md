@@ -17,8 +17,11 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
-  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), manual submission.
+  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), manual submission, public
+  scam reports (`public_report`, `routes/publicReports.ts` -- the only unauthenticated write route).
   `Finding.source` is a free-text string; `type` is `domain` or `url`.
+- Rechecks also extract contact/payment details from the page (`lib/indicators.ts` ->
+  `finding_indicators`); a value shared by two findings links them and scores `SHARED_INDICATOR`.
 - Rechecks also diff the registry record between scans (`finding_changes`, `registration_changed`
   alert) and run the post-takedown watch: `resolved` findings are still rechecked, and a confirmed-down
   -> live transition fires `site_reactivated` (`pipeline/registrationChanges.ts`, `pipeline/takedownWatch.ts`).

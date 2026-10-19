@@ -23,6 +23,13 @@ export interface ScoringInput {
   isAllowlisted: boolean;
   appStoreImpersonation: boolean;
   phishFeedListed?: boolean;
+  // The most-shared contact/payment detail on this page, if any other finding of the same
+  // brand shows it too (lib/indicators.ts, recheckJob.ts).
+  sharedIndicator?: { label: string; value: string; otherFindings: number } | null;
+  // Page gives an M-Pesa paybill/till or crypto wallet to pay into.
+  hasPaymentDestination?: boolean;
+  // Non-dismissed public reports pointing at this finding (routes/publicReports.ts).
+  publicReportCount?: number;
 }
 
 export interface ScoringResult {
@@ -95,8 +102,28 @@ export function computeScore(input: ScoringInput): ScoringResult {
   // Spaces/hyphens are stripped so "Jambo Jet" and "Jambo-Jet" count too. Can fire on a
   // legitimate page that merely mentions the brand (a travel agent, a news article) --
   // which is why it's corroborating weight, not enough for high severity on its own.
-  if (mentionsBrand(input.pageTitle, input.brandRoot) || mentionsBrand(input.pageText, input.brandRoot)) {
+  const pageNamesBrand = mentionsBrand(input.pageTitle, input.brandRoot) || mentionsBrand(input.pageText, input.brandRoot);
+  if (pageNamesBrand) {
     events.push({ delta: 25, reason: "Website title or content uses the protected brand's name", ruleCode: "BRAND_NAME_ON_PAGE" });
+  }
+
+  // The brand takes payment through its own checkout, so a page using its name that asks
+  // for money straight into an M-Pesa number or a wallet is a classic refund/booking scam.
+  // Gated on the brand mention: plenty of unrelated shops show a till number.
+  if (input.hasPaymentDestination && pageNamesBrand) {
+    events.push({ delta: 15, reason: "Page uses the brand's name and asks for payment to an M-Pesa number or crypto wallet", ruleCode: "PAYMENT_DESTINATION" });
+  }
+
+  // Same phone/WhatsApp/paybill/wallet on two pages is the strongest "same operation"
+  // signal there is -- but one page's extraction can be wrong, so it corroborates rather
+  // than decides.
+  if (input.sharedIndicator) {
+    const { label, value, otherFindings } = input.sharedIndicator;
+    events.push({
+      delta: 20,
+      reason: `Shares ${label} ${value} with ${otherFindings} other finding${otherFindings === 1 ? "" : "s"}`,
+      ruleCode: "SHARED_INDICATOR",
+    });
   }
 
   if (input.hasLoginForm) {
@@ -129,6 +156,16 @@ export function computeScore(input: ScoringInput): ScoringResult {
       reason: "App Store listing's name/seller matches the protected brand but isn't the known official publisher",
       ruleCode: "APP_STORE_IMPERSONATION",
     });
+  }
+
+  // Real people who were targeted. Corroborating, not deciding: a reporter can be wrong
+  // (a legitimate travel agent looks like a scam to a nervous customer), so several
+  // independent reports count for more than one.
+  const reports = input.publicReportCount ?? 0;
+  if (reports >= 3) {
+    events.push({ delta: 25, reason: `Reported as a scam by ${reports} members of the public`, ruleCode: "PUBLIC_REPORT" });
+  } else if (reports > 0) {
+    events.push({ delta: 15, reason: `Reported as a scam by ${reports === 1 ? "a member" : `${reports} members`} of the public`, ruleCode: "PUBLIC_REPORT" });
   }
 
   // Someone already reported this exact URL as phishing (pipeline/phishFeedMonitorJob.ts)

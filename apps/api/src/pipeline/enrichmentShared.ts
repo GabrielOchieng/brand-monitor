@@ -5,6 +5,7 @@ import { withTenant } from "../lib/tenant";
 import { fetchFaviconHash } from "../lib/favicon";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeRegionalHashes, serializeRegionalHashes } from "../lib/visualSimilarity";
+import { extractIndicators, serializeIndicators, deserializeIndicatorKeys } from "../lib/indicators";
 
 const SCREENSHOT_DIR = path.join(process.cwd(), "screenshots");
 
@@ -112,4 +113,39 @@ export async function saveScreenshot(findingId: string, base64: string): Promise
   const filename = `${findingId}.png`;
   await fs.writeFile(path.join(SCREENSHOT_DIR, filename), Buffer.from(base64, "base64"));
   return `/screenshots/${filename}`;
+}
+
+// The brand's own published contacts (customer-care number, WhatsApp, emails), taken from
+// its real homepage, so pages that quote them -- a legitimate travel agent, or a clone that
+// left the real footer in -- don't get linked or scored on them (lib/indicators.ts).
+// Stored as a BrandAsset like the favicon/screenshot references, "|"-joined in `hash`.
+// A failed capture isn't stored (an empty list would hide the brand's numbers for 45
+// days), but it is remembered in memory for a few hours: otherwise every recheck would
+// rescan the brand's homepage, ~1.5 MB of Render bandwidth each time.
+const OWN_INDICATOR_RETRY_MS = 6 * 60 * 60 * 1000;
+const ownIndicatorFailedAt = new Map<string, number>();
+
+export async function ensureBrandOwnIndicators(orgId: string, brandId: string, primaryDomain: string): Promise<Set<string>> {
+  const existing = await withTenant(orgId, (tx) =>
+    tx.brandAsset.findFirst({ where: { brandId, type: "contact_indicators" }, orderBy: { createdAt: "desc" } })
+  );
+  if (existing && !isExpired(existing.createdAt)) return deserializeIndicatorKeys(existing.hash);
+  const failedAt = ownIndicatorFailedAt.get(brandId);
+  if (failedAt && Date.now() - failedAt < OWN_INDICATOR_RETRY_MS) return deserializeIndicatorKeys(existing?.hash);
+
+  const result = await scanWebsite(`https://${primaryDomain}`, SCANNER_USER_AGENT, 2000);
+  // A blank page is a failed capture too: jambojet.com answers the scanner with HTTP 200
+  // and an empty body (2026-10-19), which would otherwise be cached as "no contacts".
+  const text = result.indicatorText ?? result.extractedText ?? "";
+  if (result.skipped || text.trim().length < 200 || looksLikeBotChallenge(result.title, text)) {
+    console.warn(`[indicators] couldn't read brand ${brandId}'s own contacts from ${primaryDomain}: ${result.reason ?? "blank page or bot challenge"}`);
+    ownIndicatorFailedAt.set(brandId, Date.now());
+    return deserializeIndicatorKeys(existing?.hash);
+  }
+
+  const serialized = serializeIndicators(extractIndicators(text, result.links ?? []));
+  await withTenant(orgId, (tx) =>
+    tx.brandAsset.create({ data: { brandId, type: "contact_indicators", sourceUrl: `https://${primaryDomain}`, hash: serialized } })
+  );
+  return deserializeIndicatorKeys(serialized);
 }

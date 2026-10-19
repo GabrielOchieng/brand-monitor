@@ -151,6 +151,26 @@ background:
   "confirmed" (phishunt's terms). Other free feeds were ruled out on 2026-10-19: OpenPhish's free
   feed forbids commercial use, PhishTank refuses new users (403), URLhaus is mostly malware and
   wants a key, Phishing.Database stopped updating.
+- **Contact & payment details** (every successful scan): the scanner returns the page's link hrefs
+  and up to 50k chars of text, and `lib/indicators.ts` extracts phone numbers (Kenyan forms
+  normalized to `+254…`), WhatsApp (`wa.me`, `api.whatsapp.com`), M-Pesa paybill/till, emails,
+  Telegram handles and crypto wallets into `finding_indicators`. The brand's own contacts (read
+  from its homepage, cached 45 days as a `contact_indicators` BrandAsset) and emails at its own
+  domains are dropped. Shown on the finding page with every other finding that uses the same
+  value. Scoring: `SHARED_INDICATOR` (+20, value also on another non-false-positive finding) and
+  `PAYMENT_DESTINATION` (+15, page names the brand and gives an M-Pesa number or wallet). Known
+  gap: jambojet.com serves the scanner a blank page, so Jambojet's own numbers aren't captured
+  yet (retried every 6h) — a clone quoting the real call-centre number can link to another clone.
+- **Public scam reports** (`/reports`, form at `/report/<token>`): owners/admins create a per-brand
+  link (rotate or turn off anytime) to share with customers. The form takes a link and/or a
+  phone/WhatsApp number plus a description, with no login. A link becomes a finding (source
+  `public_report`) and is scanned (max 30 report-triggered scans per brand per day; `wa.me`/`t.me`
+  links and the brand's own site are never scanned). Numbers and anything in the description are
+  matched against `finding_indicators`, so "they called me from 0712…" links to the clone sites
+  using that number. Each report raises an in-app `public_report` notification; the finding page
+  lists its reports; scoring adds `PUBLIC_REPORT` (+15, or +25 at 3+ non-dismissed reports). Spam
+  protection: Cloudflare Turnstile when configured (DEPLOYMENT.md §4), honeypot, 5/hour per IP.
+  Stored: what the reporter typed, optional email; no IP or device data.
 - **App Store monitoring** (every 4h per brand): searches Apple's iTunes Search API and flags
   apps whose title or publisher contains the brand name. Source `app_store`, scored `high` on its
   own via the `APP_STORE_IMPERSONATION` rule. There's no "known official app" allowlist yet — if a

@@ -126,6 +126,28 @@ describe("computeScore", () => {
     expect(result.severity).toBe("high");
   });
 
+  it("credits a payment destination only when the page names the brand", () => {
+    const codes = (pageText: string) =>
+      computeScore({ ...base, domain: "pages.dev", pageText, hasPaymentDestination: true }).events.map((e) => e.ruleCode);
+    expect(codes("Jambojet refunds: pay via paybill")).toContain("PAYMENT_DESTINATION");
+    expect(codes("Mama Mboga shop, till 123456")).not.toContain("PAYMENT_DESTINATION");
+  });
+
+  it("fires SHARED_INDICATOR with the shared value in the reason", () => {
+    const result = computeScore({ ...base, domain: "pages.dev", sharedIndicator: { label: "WhatsApp number", value: "+254712345678", otherFindings: 2 } });
+    expect(result.events).toEqual([
+      { delta: 20, reason: "Shares WhatsApp number +254712345678 with 2 other findings", ruleCode: "SHARED_INDICATOR" },
+    ]);
+  });
+
+  it("weights PUBLIC_REPORT by how many people reported", () => {
+    const delta = (n: number) => computeScore({ ...base, domain: "pages.dev", publicReportCount: n }).events.find((e) => e.ruleCode === "PUBLIC_REPORT")?.delta;
+    expect(delta(0)).toBeUndefined();
+    expect(delta(1)).toBe(15);
+    expect(delta(2)).toBe(15);
+    expect(delta(3)).toBe(25);
+  });
+
   it("maps score to severity consistently with severityForScore", () => {
     const critical = computeScore({
       ...base,

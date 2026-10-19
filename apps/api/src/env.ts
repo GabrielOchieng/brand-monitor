@@ -60,4 +60,8 @@ export const env = {
   // container) overrides this down to 1, since more than one concurrent Chromium instance
   // there risks taking down the whole container, not just the scan.
   recheckConcurrency: Number(process.env.RECHECK_CONCURRENCY ?? 3),
+  // Cloudflare Turnstile secret for the public report form (lib/publicReports.ts). Empty =
+  // no CAPTCHA check. The matching site key goes to the web app as
+  // NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+  turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
 };

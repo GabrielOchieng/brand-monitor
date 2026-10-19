@@ -10,6 +10,7 @@ import { env } from "../env";
 import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
 import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
+import { parseSubmittedUrl } from "../lib/submittedUrl";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -64,22 +65,6 @@ const PatchTakedownSchema = z.object({
   reference: z.string().max(200).optional(),
   notes: z.string().max(5000).optional(),
 });
-
-// Loopback/private/link-local/metadata hostnames rejected here as a fast, string-only
-// pre-check for immediate user feedback -- NOT the authoritative SSRF gate, which can't
-// be done by string matching alone (a domain can resolve to a private IP only at fetch
-// time). The real gate is in the scanner service itself, right before navigation
-// (apps/scanner/src/ssrfGuard.ts), which resolves the hostname first.
-const BLOCKED_HOSTNAME_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^169\.254\./,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^192\.168\./,
-  /^::1$/,
-  /^0\.0\.0\.0$/,
-];
 
 const ManualSubmitSchema = z.object({
   brandId: z.string().min(1),
@@ -233,7 +218,35 @@ export async function findingsRoutes(app: FastifyInstance) {
     );
     const underTakedownWatch = finding.status === "resolved" || completedTakedowns > 0;
 
-    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation, websiteDataCurrent, changes, underTakedownWatch });
+    // Contact/payment details seen on this page, each with the other findings of the same
+    // brand that show it too -- the strong campaign link (the /related route below is the
+    // weak registrar one).
+    const indicators = await withTenant(request.auth!.orgId, async (tx) => {
+      const own = await tx.findingIndicator.findMany({ where: { findingId: id }, orderBy: [{ kind: "asc" }, { lastSeenAt: "desc" }] });
+      if (own.length === 0) return [];
+      const shared = await tx.findingIndicator.findMany({
+        where: { brandId: finding.brandId, findingId: { not: id }, OR: own.map((i) => ({ kind: i.kind, value: i.value })) },
+        select: { kind: true, value: true, finding: { select: { id: true, identifier: true, severity: true, status: true } } },
+      });
+      return own.map((i) => ({
+        kind: i.kind,
+        value: i.value,
+        firstSeenAt: i.firstSeenAt,
+        lastSeenAt: i.lastSeenAt,
+        sharedWith: shared.filter((s) => s.kind === i.kind && s.value === i.value).map((s) => s.finding),
+      }));
+    });
+
+    const publicReports = await withTenant(request.auth!.orgId, (tx) =>
+      tx.publicReport.findMany({
+        where: { OR: [{ findingId: id }, { matchedFindingIds: { has: id } }] },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, url: true, phone: true, description: true, status: true, createdAt: true },
+      })
+    );
+
+    return reply.send({ ...finding, evidence, scoreEvents, aiExplanation, websiteDataCurrent, changes, underTakedownWatch, indicators, publicReports });
   });
 
   // Deliberately conservative v1: registrar + tight registration-time window is the only
@@ -565,26 +578,9 @@ export async function findingsRoutes(app: FastifyInstance) {
       if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
       const orgId = request.auth!.orgId;
 
-      let target: URL;
-      try {
-        target = new URL(parsed.data.url);
-      } catch {
-        return reply.status(400).send({ error: "invalid_url" });
-      }
-      if (target.protocol !== "http:" && target.protocol !== "https:") {
-        return reply.status(400).send({ error: "invalid_url" });
-      }
-      if (BLOCKED_HOSTNAME_PATTERNS.some((re) => re.test(target.hostname))) {
-        return reply.status(400).send({ error: "target_not_allowed" });
-      }
-
-      // Bare domain (no path/query/hash) is structurally identical to what discovery
-      // produces -- rides recheckJob.ts's unmodified domain-enrichment path. Anything
-      // else (a social-media profile, a specific page) is scored as its own URL -- see
-      // the type-branch in recheckJob.ts.
-      const isBareDomain = (target.pathname === "" || target.pathname === "/") && !target.search && !target.hash;
-      const type = isBareDomain ? "domain" : "url";
-      const identifier = isBareDomain ? target.hostname.toLowerCase() : target.toString();
+      const target = parseSubmittedUrl(parsed.data.url);
+      if (!target.ok) return reply.status(400).send({ error: target.error });
+      const { type, identifier } = target;
 
       const result = await withTenant(orgId, async (tx) => {
         const brand = await tx.brand.findUnique({ where: { id: parsed.data.brandId } });

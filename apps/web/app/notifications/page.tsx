@@ -7,7 +7,8 @@ import { apiFetch } from "../../lib/api";
 
 interface Notification {
   id: string;
-  findingId: string;
+  findingId: string | null;
+  reportId: string | null;
   message: string;
   readAt: string | null;
   createdAt: string;
@@ -56,7 +57,8 @@ export default function NotificationsPage() {
         {notifications.map((n) => (
           <div key={n.id} className={`flex items-center justify-between px-4 py-3 ${n.readAt ? "opacity-50" : ""}`}>
             <div>
-              <Link href={`/threats/${n.findingId}`} className="text-sm text-ink hover:text-brand-hover">
+              {/* A public report that matched no finding links to the reports list instead. */}
+              <Link href={n.findingId ? `/threats/${n.findingId}` : "/reports"} className="text-sm text-ink hover:text-brand-hover">
                 {n.message}
               </Link>
               <div className="text-xs text-ink-subtle">{new Date(n.createdAt).toLocaleString()}</div>

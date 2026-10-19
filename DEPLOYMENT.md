@@ -118,6 +118,12 @@ the Clerk side instead of `/team`.
    there are no separate production keys, per the decision in step 3.
 4. Deploy, then go back to Render and update `WEB_APP_URL` (step 2.6) to this real Vercel
    URL — it starts as a placeholder since the URL isn't known until this step.
+5. Optional, for the public report form (`/report/<token>`): create a free Cloudflare account
+   (no card), add a **Turnstile** widget for the Vercel hostname, then set
+   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` on Vercel and `TURNSTILE_SECRET_KEY` on Render. Set both or
+   neither: with only the site key the form shows a check the API ignores; with only the secret
+   every report fails `captcha_failed`. Without them the form relies on a honeypot field and a
+   5-per-hour per-IP limit. Either way, reports trigger at most 30 scans per brand per day.
 
 ## 5. Smoke test
 

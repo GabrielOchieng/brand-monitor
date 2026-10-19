@@ -5,6 +5,7 @@ import { FindingLifecycle } from "../../../components/FindingLifecycle";
 import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
 import { TakedownTracker } from "../../../components/TakedownTracker";
 import { RelatedFindingsPanel } from "../../../components/RelatedFindingsPanel";
+import { IndicatorsPanel, type FindingIndicatorView } from "../../../components/IndicatorsPanel";
 
 interface FindingDetail {
   id: string;
@@ -47,6 +48,8 @@ interface FindingDetail {
   downSince: string | null;
   underTakedownWatch: boolean;
   changes: Array<{ id: string; field: string; oldValue: string | null; newValue: string | null; detectedAt: string }>;
+  indicators: FindingIndicatorView[];
+  publicReports: Array<{ id: string; url: string | null; phone: string | null; description: string | null; status: string; createdAt: string }>;
   evidence: Array<{ id: string; description: string }>;
   scoreEvents: Array<{ id: string; delta: number; reason: string; ruleCode: string }>;
   aiExplanation: {
@@ -137,6 +140,25 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
       </section>
 
       <AiExplanationPanel findingId={finding.id} initialExplanation={finding.aiExplanation} />
+
+      {(finding.publicReports ?? []).length > 0 && (
+        <section className="card mt-6 p-5">
+          <h2 className="label">Reported by the public ({finding.publicReports.length})</h2>
+          <ul className="mt-3 divide-y divide-line">
+            {finding.publicReports.map((r) => (
+              <li key={r.id} className={`py-2 text-sm ${r.status === "dismissed" ? "opacity-50" : ""}`}>
+                <div className="text-xs text-ink-subtle">
+                  {new Date(r.createdAt).toLocaleString()} · {r.status}
+                  {r.phone && <> · number given: <span className="font-mono">{r.phone}</span></>}
+                </div>
+                {r.description ? <p className="mt-0.5 whitespace-pre-wrap text-ink-muted">{r.description}</p> : <p className="mt-0.5 text-ink-subtle">(no description)</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <IndicatorsPanel indicators={finding.indicators ?? []} />
 
       <RelatedFindingsPanel findingId={finding.id} />
 

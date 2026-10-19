@@ -12,13 +12,17 @@ import { webhookRoutes } from "./routes/webhooks";
 import { notificationsRoutes } from "./routes/notifications";
 import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { membersRoutes } from "./routes/members";
+import { publicReportRoutes } from "./routes/publicReports";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 import { jobsHealth, sourcesHealth } from "./queue/health";
 
 async function main() {
-  const app = Fastify({ logger: true });
+  // trustProxy: Render sits in front of the container, so without it request.ip is the
+  // proxy's address and the public report form's per-IP limit (routes/publicReports.ts)
+  // would be one shared bucket for every visitor.
+  const app = Fastify({ logger: true, trustProxy: true });
 
   await app.register(cors, {
     origin: (origin, cb) => {
@@ -59,6 +63,7 @@ async function main() {
   await app.register(notificationsRoutes);
   await app.register(webhookConfigRoutes);
   await app.register(membersRoutes);
+  await app.register(publicReportRoutes);
 
   app.get("/health", async () => ({ ok: true }));
   // 503 when the scheduled jobs have stalled -- see queue/health.ts. Point the alerting

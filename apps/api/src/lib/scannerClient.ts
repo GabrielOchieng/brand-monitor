@@ -8,6 +8,10 @@ export interface ScanResult {
   title?: string | null;
   metaDescription?: string | null;
   extractedText?: string;
+  // Up to 50k chars of page text and the page's link hrefs, for lib/indicators.ts only --
+  // never stored as-is.
+  indicatorText?: string;
+  links?: string[];
   hasLoginForm?: boolean;
   hasPaymentForm?: boolean;
   looksParked?: boolean;

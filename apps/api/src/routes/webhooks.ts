@@ -79,6 +79,12 @@ export async function webhookRoutes(app: FastifyInstance) {
               update: {},
             });
           }
+          // In-app only -- see routes/publicReports.ts.
+          await adminPrisma.alertRule.upsert({
+            where: { id: `default-public-report-${id}` },
+            create: { id: `default-public-report-${id}`, organizationId: id, kind: "public_report", config: {}, channels: ["in_app"] },
+            update: {},
+          });
           break;
         }
         case "user.created":
