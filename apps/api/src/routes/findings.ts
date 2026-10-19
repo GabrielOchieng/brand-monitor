@@ -11,6 +11,8 @@ import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
 import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
 import { parseSubmittedUrl } from "../lib/submittedUrl";
+import { parseSocialUrl } from "../lib/socialUrls";
+import { recordSocialSighting } from "../pipeline/socialFindings";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -169,7 +171,7 @@ export async function findingsRoutes(app: FastifyInstance) {
     const finding = await withTenant(request.auth!.orgId, (tx) =>
       tx.finding.findUnique({
         where: { id },
-        include: { domainIntel: true, websiteIntel: true },
+        include: { domainIntel: true, websiteIntel: true, socialIntel: true },
       })
     );
     // RLS means a cross-tenant id simply doesn't come back, same as a bad id -- both
@@ -588,11 +590,16 @@ export async function findingsRoutes(app: FastifyInstance) {
 
         // Re-submitting the same URL later is a no-op dedup + fresh recheck, not a
         // duplicate finding, thanks to the existing @@unique([brandId, identifier]).
-        const finding = await tx.finding.upsert({
-          where: { brandId_identifier: { brandId: brand.id, identifier } },
-          create: { brandId: brand.id, type, identifier, source: "manual_submission", nextScanAt: new Date() },
-          update: { nextScanAt: new Date() },
-        });
+        // A social link becomes the account behind it, with the post kept as evidence.
+        const social = type === "social" ? parseSocialUrl(identifier) : null;
+        if (social) await recordSocialSighting(tx, brand.id, "manual_submission", { account: social, postUrl: target.postUrl });
+        const finding = social
+          ? await tx.finding.findUniqueOrThrow({ where: { brandId_identifier: { brandId: brand.id, identifier } } })
+          : await tx.finding.upsert({
+              where: { brandId_identifier: { brandId: brand.id, identifier } },
+              create: { brandId: brand.id, type, identifier, source: "manual_submission", nextScanAt: new Date() },
+              update: { nextScanAt: new Date() },
+            });
 
         const data: RecheckJobData = { findingId: finding.id, organizationId: orgId, triggeredBy: "manual" };
         await boss.send(QUEUE_RECHECK, data, { db: fromPrisma(tx), singletonKey: finding.id });

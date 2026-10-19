@@ -6,6 +6,7 @@ import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
 import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, TagIcon, ChevronDownIcon } from "../../components/icons";
 import { BrandKeywords } from "../../components/BrandKeywords";
+import { BrandOfficialAccounts } from "../../components/BrandOfficialAccounts";
 
 interface Summary {
   brand: { id: string; name: string; primaryDomain: string; hasVisualBaseline: boolean };
@@ -326,7 +327,7 @@ export default function DashboardPage() {
               <PencilIcon className="h-3.5 w-3.5" /> Edit
             </button>
             <button onClick={() => setShowKeywords((v) => !v)} className="btn-ghost whitespace-nowrap">
-              <TagIcon className="h-3.5 w-3.5" /> Keywords
+              <TagIcon className="h-3.5 w-3.5" /> Keywords &amp; accounts
             </button>
             {summary.brand.hasVisualBaseline && (
               <a
@@ -395,7 +396,12 @@ export default function DashboardPage() {
         </form>
       )}
 
-      {showKeywords && selectedBrandId && <BrandKeywords brandId={selectedBrandId} />}
+      {showKeywords && selectedBrandId && (
+        <>
+          <BrandKeywords brandId={selectedBrandId} />
+          <BrandOfficialAccounts brandId={selectedBrandId} />
+        </>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="card flex flex-col justify-between p-5">

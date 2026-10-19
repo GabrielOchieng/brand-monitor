@@ -55,6 +55,9 @@ model Brand {
   // Unguessable token in the public "report a scam" link (/report/<token>). Null = the
   // brand has no public form. Rotating it kills every copy of the old link.
   reportToken    String?  @unique @map("report_token")
+  // The brand's real social accounts, as canonical profile URLs (lib/socialUrls.ts) --
+  // social search never reports these, and handle-impersonation scoring skips them.
+  officialSocialUrls String[] @default([]) @map("official_social_urls")
   createdAt      DateTime @default(now()) @map("created_at")
 
   domains      BrandDomain[]
@@ -104,8 +107,9 @@ model Finding {
   id              String   @id @default(cuid())
   brandId         String   @map("brand_id")
   brand           Brand    @relation(fields: [brandId], references: [id])
+  // domain | url | social (a social-media account; identifier is its canonical profile URL)
   type            String   @default("domain")
-  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | phish_feed
+  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | phish_feed | public_report | social_search
   identifier      String // the candidate domain
   riskScore       Int      @default(0) @map("risk_score")
   severity        String   @default("low")
@@ -143,6 +147,7 @@ model Finding {
   takedowns      Takedown[]
   changes        FindingChange[]
   indicators     FindingIndicator[]
+  socialIntel    SocialIntel?
 
   @@unique([brandId, identifier])
   // brandId-leading composites, not standalone single-column indexes -- the RLS policy on
@@ -313,6 +318,37 @@ model FindingIndicator {
   @@map("finding_indicators")
 }
 
+// What a search engine showed about a social-media account (pipeline/socialSearchMonitorJob.ts).
+// The platforms block automated access, so this snippet -- not a page scan -- is the
+// evidence a social finding is scored on.
+model SocialIntel {
+  id          String   @id @default(cuid())
+  findingId   String   @unique @map("finding_id")
+  finding     Finding  @relation(fields: [findingId], references: [id])
+  brandId     String   @map("brand_id")
+  platform    String // facebook | instagram | tiktok | x | telegram | youtube
+  handle      String?
+  // The post/video the search hit pointed at (the identifier is the account itself).
+  postUrl     String?  @map("post_url")
+  title       String?
+  snippet     String?
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  @@map("social_intel")
+}
+
+// Global (not per-tenant) usage counters for metered free tiers, e.g. Tavily's 1,000
+// searches/month. Read and written only through adminPrisma.
+model ProviderUsage {
+  provider String
+  period   String // YYYY-MM
+  count    Int    @default(0)
+
+  @@id([provider, period])
+  @@map("provider_usage")
+}
+
 model WebsiteIntel {
   id              String   @id @default(cuid())
   findingId       String   @unique @map("finding_id")
@@ -423,6 +459,9 @@ model Notification {
   findingId      String?   @map("finding_id")
   scanId         String?   @map("scan_id")
   reportId       String?   @map("report_id")
+  // External page the notification is about (a fact-check article) -- set instead of
+  // findingId/reportId.
+  link           String?
   message        String
   readAt         DateTime? @map("read_at")
   createdAt      DateTime  @default(now()) @map("created_at")

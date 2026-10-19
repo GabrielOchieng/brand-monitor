@@ -9,17 +9,10 @@ import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch }
 import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
 import { computeNextScanAt } from "./cadence";
-import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, saveScreenshot } from "./enrichmentShared";
-import {
-  extractIndicators,
-  withoutOwnIndicators,
-  indicatorKey,
-  INDICATOR_LABELS,
-  PAYMENT_INDICATOR_KINDS,
-  type Indicator,
-  type IndicatorKind,
-} from "../lib/indicators";
+import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, findMostSharedIndicator, saveScreenshot } from "./enrichmentShared";
+import { extractIndicators, withoutOwnIndicators, PAYMENT_INDICATOR_KINDS, type Indicator } from "../lib/indicators";
 import { diffRegistration, describeChange } from "./registrationChanges";
+import { runSocialRecheck } from "./socialFindings";
 import { isDefinitelyDown, isGoneStatus, isLiveContent, nextTakedownWatch } from "./takedownWatch";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
 import type { AlertDispatchJobData } from "../queue/alertDispatch";
@@ -40,13 +33,16 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     tx.finding.findUniqueOrThrow({ where: { id: findingId }, include: { brand: { include: { domains: true } }, domainIntel: true } })
   );
 
+  // Social accounts are never scanned -- see socialFindings.ts.
+  if (finding.type === "social") return runSocialRecheck(organizationId, findingId, triggeredBy);
+
   const brand = finding.brand;
   const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
 
   // A "domain" finding (auto-discovered, or a manually-submitted bare domain) is a
   // registrable name we own the full context of -- DNS/WHOIS/favicon-vs-root all make
-  // sense against it. Any other type (currently just "url", from manual submission of a
-  // path-bearing link like a social-media profile) is a specific page on infrastructure
+  // sense against it. A "url" finding (a path-bearing link from a manual submission,
+  // public report or phishing feed) is a specific page on infrastructure
   // we don't control -- WHOIS/DNS/favicon data about e.g. instagram.com says nothing
   // about one fake profile hosted there, and would be actively misleading if displayed
   // as "domain intelligence." Skip those steps entirely for non-domain types; still scan
@@ -395,41 +391,3 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });
 }
-
-// Which of this page's indicators appears on the most OTHER findings of the same brand.
-// False positives are left out: an analyst already said that page isn't a threat, so
-// sharing a number with it proves nothing.
-async function findMostSharedIndicator(
-  organizationId: string,
-  brandId: string,
-  findingId: string,
-  indicators: Indicator[]
-): Promise<{ label: string; value: string; otherFindings: number } | null> {
-  const rows = await withTenant(organizationId, (tx) =>
-    tx.findingIndicator.findMany({
-      where: {
-        brandId,
-        findingId: { not: findingId },
-        finding: { status: { not: "false_positive" } },
-        OR: indicators.map((i) => ({ kind: i.kind, value: i.value })),
-      },
-      select: { kind: true, value: true, findingId: true },
-    })
-  );
-  const findingsByKey = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const key = indicatorKey({ kind: r.kind as IndicatorKind, value: r.value });
-    findingsByKey.set(key, (findingsByKey.get(key) ?? new Set()).add(r.findingId));
-  }
-  // On a tie, the more scam-specific detail names the rule: a WhatsApp number or paybill
-  // says more about who's behind a page than a shared email.
-  const byPriority = [...indicators].sort((a, b) => SHARED_PRIORITY.indexOf(a.kind) - SHARED_PRIORITY.indexOf(b.kind));
-  let best: { label: string; value: string; otherFindings: number } | null = null;
-  for (const i of byPriority) {
-    const count = findingsByKey.get(indicatorKey(i))?.size ?? 0;
-    if (count > (best?.otherFindings ?? 0)) best = { label: INDICATOR_LABELS[i.kind], value: i.value, otherFindings: count };
-  }
-  return best;
-}
-
-const SHARED_PRIORITY: IndicatorKind[] = ["whatsapp", "mpesa_paybill", "mpesa_till", "crypto_wallet", "telegram", "phone", "email"];

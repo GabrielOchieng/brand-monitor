@@ -125,6 +125,13 @@ the Clerk side instead of `/team`.
    every report fails `captcha_failed`. Without them the form relies on a honeypot field and a
    5-per-hour per-IP limit. Either way, reports trigger at most 30 scans per brand per day.
 
+6. Optional, for social-account and fact-check search: create a free Tavily account at
+   tavily.com (no card; 1,000 searches/month) and set `TAVILY_API_KEY` on Render. Without it those
+   jobs do nothing. `TAVILY_MONTHLY_CAP` (default 900) is a hard stop counted in the
+   `provider_usage` table, so the free allowance can't be overrun; each brand uses ~95/month.
+   Then add each brand's official social accounts and WhatsApp link on the dashboard
+   (**Keywords & accounts**), or its own accounts get reported.
+
 ## 5. Smoke test
 
 Open the deployed Vercel URL, sign in, confirm the dashboard loads real data (proves the
@@ -167,6 +174,10 @@ The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / contain
 - Added 2026-10-19 (measured feed size): the phishing feed is ~35 KB/hour, ~0.8 MB/day. Don't
   switch it to `feed.json` (~1 MB per download, ~23 MB/day). Matches are rare for a regional brand
   (0 for Jambojet on the first check), so the scans it triggers are negligible.
+- Added 2026-10-20 (estimated): social search is 3 Tavily calls per brand per day plus 1 a week,
+  each a few KB of JSON, so well under 1 MB/day. It shares one queue/worker between its two
+  schedules on purpose: every extra pg-boss worker is another 60s poller (~2–3 MB/day). Social
+  findings are never scanned, so they add no scanner traffic.
 
 Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
 If jobs seem dead, check your email for a suspension notice before anything else.
@@ -190,10 +201,12 @@ nothing on a normal run). Query pg-boss directly against the production DB:
 - Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
   (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
   `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`),
-  `phish-feed-monitor` (`40 * * * *`).
+  `phish-feed-monitor` (`40 * * * *`), and `social-search-monitor` twice (`20 6 * * *` key `social`,
+  `50 6 * * 1` key `fact_check`).
 - Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503. It also
-  reports `sources.ct_log` / `sources.nrd` / `sources.phish_feed` (last successful query, `stale`
-  after 24h / 48h / 6h), which
+  reports `sources.ct_log` / `sources.nrd` / `sources.phish_feed` / `sources.social_search` (last
+  successful query, `stale` after 24h / 48h / 6h / 48h; social only when `TAVILY_API_KEY` is set),
+  and `tavilyUsage` (searches used this month, as of this process's last search), which
   don't affect the status code. `GET /health/jobs?sources=1` returns 503 when a source is stale
   too: point a **second** UptimeRobot monitor at it, so a dead feed alerts without looking like an
   outage. Stale since the last restart just means it hasn't succeeded *since that restart*.

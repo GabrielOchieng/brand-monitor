@@ -44,6 +44,16 @@ interface FindingDetail {
     httpStatus: number | null;
     visualSimilarityMatch: boolean;
   } | null;
+  socialIntel: {
+    platform: string;
+    handle: string | null;
+    postUrl: string | null;
+    title: string | null;
+    snippet: string | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
+  } | null;
+  type: string;
   websiteDataCurrent: boolean;
   downSince: string | null;
   underTakedownWatch: boolean;
@@ -158,11 +168,13 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         </section>
       )}
 
+      {finding.type === "social" && <SocialAccountPanel identifier={finding.identifier} intel={finding.socialIntel} />}
+
       <IndicatorsPanel indicators={finding.indicators ?? []} />
 
       <RelatedFindingsPanel findingId={finding.id} />
 
-      {finding.websiteIntel?.screenshotPath && (
+      {finding.type !== "social" && finding.websiteIntel?.screenshotPath && (
         <section className="card mt-6 p-5">
           <h2 className="label">Screenshot</h2>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -174,58 +186,60 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         </section>
       )}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div className="card p-5">
-          <h2 className="label">Domain intelligence</h2>
-          <dl className="mt-3 space-y-1.5 text-sm">
-            {di && <Row label="Registration status" value={resolutionStatus(di)} />}
-            <Row label="Registrar" value={di?.registrar} />
-            <Row label="Registered" value={formatDate(di?.registeredAt)} />
-            <Row label="Last changed" value={formatDate(di?.lastChangedAt)} />
-            <Row label="Expires" value={formatDate(di?.expiresAt)} />
-            <Row label="Registry status" value={di?.statusCodes.length ? di.statusCodes.join(", ") : null} />
-            <Row label="IP" value={di?.ip} />
-            <Row label="Hosting" value={di?.hostingOrg} />
-            <Row label="Nameservers" value={di?.nameservers?.join(", ")} />
-            <Row label="WHOIS source" value={di?.whoisSource} />
-          </dl>
-          {(di?.registrarAbuseEmail || di?.hostingAbuseEmail) && (
-            <div className="mt-4 border-t border-line pt-3">
-              <h3 className="label">Report abuse to</h3>
-              <dl className="mt-2 space-y-1.5 text-sm">
-                {di.registrarAbuseEmail && (
-                  <Row label="Registrar" value={<AbuseContact email={di.registrarAbuseEmail} phone={di.registrarAbusePhone} />} />
-                )}
-                {di.hostingAbuseEmail && <Row label="Host" value={<AbuseContact email={di.hostingAbuseEmail} />} />}
-              </dl>
-            </div>
-          )}
-        </div>
-        <div className="card p-5">
-          <h2 className="label">Website intelligence</h2>
-          {!finding.websiteDataCurrent && (
-            <p
-              title="The most recent recheck couldn't successfully scan this site (timeout, network error, or it's blocking automated requests) -- the data below is from an earlier successful scan, not the latest attempt."
-              className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-            >
-              {finding.websiteIntel
-                ? "Showing data from an earlier scan -- the most recent recheck didn't succeed."
-                : "This site has never been successfully scanned yet."}
-            </p>
-          )}
-          <dl className="mt-3 space-y-1.5 text-sm">
-            <Row label="Title" value={finding.websiteIntel?.title} />
-            <Row label="HTTP status" value={finding.websiteIntel?.httpStatus != null ? String(finding.websiteIntel.httpStatus) : null} />
-            <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
-            <Row label="Payment form" value={finding.websiteIntel?.hasPaymentForm ? "Detected" : "Not detected"} />
-            <Row label="Looks parked" value={finding.websiteIntel?.looksParked ? "Yes" : "No"} />
-            <Row
-              label="Visual similarity"
-              value={finding.websiteIntel ? (finding.websiteIntel.visualSimilarityMatch ? "Resembles real site" : "No match") : undefined}
-            />
-          </dl>
-        </div>
-      </section>
+      {finding.type !== "social" && (
+        <section className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="card p-5">
+            <h2 className="label">Domain intelligence</h2>
+            <dl className="mt-3 space-y-1.5 text-sm">
+              {di && <Row label="Registration status" value={resolutionStatus(di)} />}
+              <Row label="Registrar" value={di?.registrar} />
+              <Row label="Registered" value={formatDate(di?.registeredAt)} />
+              <Row label="Last changed" value={formatDate(di?.lastChangedAt)} />
+              <Row label="Expires" value={formatDate(di?.expiresAt)} />
+              <Row label="Registry status" value={di?.statusCodes.length ? di.statusCodes.join(", ") : null} />
+              <Row label="IP" value={di?.ip} />
+              <Row label="Hosting" value={di?.hostingOrg} />
+              <Row label="Nameservers" value={di?.nameservers?.join(", ")} />
+              <Row label="WHOIS source" value={di?.whoisSource} />
+            </dl>
+            {(di?.registrarAbuseEmail || di?.hostingAbuseEmail) && (
+              <div className="mt-4 border-t border-line pt-3">
+                <h3 className="label">Report abuse to</h3>
+                <dl className="mt-2 space-y-1.5 text-sm">
+                  {di.registrarAbuseEmail && (
+                    <Row label="Registrar" value={<AbuseContact email={di.registrarAbuseEmail} phone={di.registrarAbusePhone} />} />
+                  )}
+                  {di.hostingAbuseEmail && <Row label="Host" value={<AbuseContact email={di.hostingAbuseEmail} />} />}
+                </dl>
+              </div>
+            )}
+          </div>
+          <div className="card p-5">
+            <h2 className="label">Website intelligence</h2>
+            {!finding.websiteDataCurrent && (
+              <p
+                title="The most recent recheck couldn't successfully scan this site (timeout, network error, or it's blocking automated requests) -- the data below is from an earlier successful scan, not the latest attempt."
+                className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"
+              >
+                {finding.websiteIntel
+                  ? "Showing data from an earlier scan -- the most recent recheck didn't succeed."
+                  : "This site has never been successfully scanned yet."}
+              </p>
+            )}
+            <dl className="mt-3 space-y-1.5 text-sm">
+              <Row label="Title" value={finding.websiteIntel?.title} />
+              <Row label="HTTP status" value={finding.websiteIntel?.httpStatus != null ? String(finding.websiteIntel.httpStatus) : null} />
+              <Row label="Login form" value={finding.websiteIntel?.hasLoginForm ? "Detected" : "Not detected"} />
+              <Row label="Payment form" value={finding.websiteIntel?.hasPaymentForm ? "Detected" : "Not detected"} />
+              <Row label="Looks parked" value={finding.websiteIntel?.looksParked ? "Yes" : "No"} />
+              <Row
+                label="Visual similarity"
+                value={finding.websiteIntel ? (finding.websiteIntel.visualSimilarityMatch ? "Resembles real site" : "No match") : undefined}
+              />
+            </dl>
+          </div>
+        </section>
+      )}
 
       <section className="card mt-6 p-5">
         <h2 className="label">Evidence</h2>
@@ -257,6 +271,58 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
 
       <TakedownTracker findingId={finding.id} contacts={takedownContacts} siteLive={siteLive} />
     </div>
+  );
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  x: "X",
+  telegram: "Telegram",
+  youtube: "YouTube",
+};
+
+// A social finding is never scanned (the platforms block it) -- this is what a search
+// engine showed about the account, which is what it was scored on.
+function SocialAccountPanel({ identifier, intel }: { identifier: string; intel: FindingDetail["socialIntel"] }) {
+  return (
+    <section className="card mt-6 p-5">
+      <h2 className="label">Social account</h2>
+      <dl className="mt-3 space-y-1.5 text-sm">
+        <Row label="Platform" value={intel ? (PLATFORM_LABELS[intel.platform] ?? intel.platform) : null} />
+        <Row
+          label="Account"
+          value={
+            <a href={identifier} target="_blank" rel="noopener noreferrer" className="break-all text-brand hover:text-brand-hover hover:underline">
+              {intel?.handle ? `@${intel.handle}` : identifier}
+            </a>
+          }
+        />
+        {intel?.postUrl && (
+          <Row
+            label="Post seen"
+            value={
+              <a href={intel.postUrl} target="_blank" rel="noopener noreferrer" className="break-all text-brand hover:text-brand-hover hover:underline">
+                {intel.postUrl}
+              </a>
+            }
+          />
+        )}
+        <Row label="First seen" value={formatDate(intel?.firstSeenAt)} />
+        <Row label="Last seen in search" value={formatDate(intel?.lastSeenAt)} />
+      </dl>
+      {(intel?.title || intel?.snippet) && (
+        <blockquote className="mt-4 border-l-2 border-line pl-3 text-sm text-ink-muted">
+          {intel.title && <p className="font-medium text-ink">{intel.title}</p>}
+          {intel.snippet && <p className="mt-1 whitespace-pre-wrap">{intel.snippet}</p>}
+        </blockquote>
+      )}
+      <p className="mt-3 text-xs text-ink-subtle">
+        From search-engine results — the platform itself isn't scanned. Report the account on the platform; a
+        confirmed impersonation can also go through Meta Brand Rights Protection.
+      </p>
+    </section>
   );
 }
 

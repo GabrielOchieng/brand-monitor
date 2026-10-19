@@ -11,6 +11,7 @@ import {
   QUEUE_APP_STORE_MONITOR,
   QUEUE_NRD_MONITOR,
   QUEUE_PHISH_FEED_MONITOR,
+  QUEUE_SOCIAL_SEARCH_MONITOR,
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
   QUEUE_DISPATCH_CT_MONITOR,
@@ -22,6 +23,7 @@ import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
 import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
 import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
+import { runSocialSearchMonitorJob, runFactCheckMonitorJob } from "../pipeline/socialSearchMonitorJob";
 import { markRecheckDispatched } from "./health";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
@@ -115,6 +117,11 @@ export async function registerQueueWorkers(): Promise<void> {
     await runPhishFeedMonitorJob();
   });
 
+  await boss.work<{ kind?: "social" | "fact_check" }>(QUEUE_SOCIAL_SEARCH_MONITOR, WORKER_POLLING, async ([job]) => {
+    if (job.data?.kind === "fact_check") await runFactCheckMonitorJob();
+    else await runSocialSearchMonitorJob();
+  });
+
   await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
@@ -141,6 +148,11 @@ export async function scheduleDispatchers(): Promise<void> {
   // Hourly, matching the feed's own update rate. Phishing pages often live only hours,
   // so slower would miss some entirely; ~35 KB per run is ~0.8 MB/day of bandwidth.
   await boss.schedule(QUEUE_PHISH_FEED_MONITOR, "40 * * * *");
+  // Daily and weekly: metered by Tavily's free 1,000 searches/month (lib/tavily.ts), and
+  // fake social accounts live for weeks, not hours. 06:20 UTC is 09:20 in Nairobi, so a
+  // new finding lands at the start of the working day.
+  await boss.schedule(QUEUE_SOCIAL_SEARCH_MONITOR, "20 6 * * *", { kind: "social" }, { key: "social" });
+  await boss.schedule(QUEUE_SOCIAL_SEARCH_MONITOR, "50 6 * * 1", { kind: "fact_check" }, { key: "fact_check" });
 }
 
 export { dispatchDiscoveryForBrand };

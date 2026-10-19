@@ -20,7 +20,7 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 | §10: roles come from Clerk org roles | Roles live in Postgres `Membership.role` (`owner/admin/analyst/viewer`). Initial role set from the Clerk webhook (org creator → `owner`, invitees → `viewer`); changed by an owner via `PATCH /api/organization/members/:userId` (the `/team` page). Clerk's own role is ignored. | Clerk charges ~$100/mo for custom roles on a production instance. |
 | Clerk production instance | Clerk **dev** instance, permanently | Clerk production requires a custom domain with DNS control (`*.vercel.app` / `*.onrender.com` are rejected). |
 | §12: CT feeds via vendors | crt.sh free JSON API, pull-based polling | A persistent firehose (CertStream) doesn't fit the short-lived-job architecture or the 512MB budget. |
-| §5.3: social / app-store coverage | iOS App Store only (iTunes Search API). Google Play, Instagram, Facebook, TikTok, X are **not** covered except via manual URL submission. | No legitimate free API: Google has none; Meta/TikTok gate brand-protection tools behind rights-holder verification; X is paid. |
+| §5.3: social / app-store coverage | iOS App Store (iTunes Search API), plus social accounts found through a web search API (Tavily, daily, 3 searches/brand) on Facebook, Instagram, TikTok, X, Telegram and YouTube — scored on the search result (lookalike handle, foreign contact number), never scanned. Weekly PesaCheck fact-check search. Google Play and the Meta Ad Library are **not** covered. | No platform offers a free API to search other people's accounts (checked 2026-10-19): X closed its free tier (Feb 2026, now pay-per-use); Meta's page/Threads search needs business verification + app review; Meta Content Library and TikTok's APIs are research-only; the Meta Ad Library API returns commercial ads only for the EU/UK, so Kenyan scam ads are invisible to it; Google Play has no API. Search engines do index the fakes, and Tavily is the only search API still free with no card (Google CSE closed to new customers, Bing retired, Brave needs a card). |
 | §15: generic cloud stack | Vercel (web) + Render free (API + scanner in ONE container) + Neon (Postgres), strictly $0 | Hard $0 constraint; Oracle Cloud (country block) and GCP ($50 hold) were ruled out. |
 | Redis-style queue | pg-boss on Postgres | One fewer service to host. |
 
@@ -29,7 +29,7 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 2. **Email alerts currently fail on Render:** the free tier blocks outbound SMTP (ports 25/465/587). Needs a switch to an HTTPS-API email provider with a free tier. In-app notifications and the webhook channel are unaffected.
 3. **`website_activated` can re-fire repeatedly** for a live site whose scan result flaps between "active" and "parked/failed" (observed on `jambojet.net`). Needs flap dampening.
 4. Scale ceiling: one 512MB container shared by the API and headless Chromium, `RECHECK_CONCURRENCY=1`.
-5. Not built: error tracking, API rate limiting, data export, Google Play / social discovery.
+5. Not built: error tracking, API rate limiting, data export, Google Play monitoring, Meta Ad Library (its API has no Kenyan commercial ads).
 
 ---
 

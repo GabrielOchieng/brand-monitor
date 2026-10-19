@@ -17,9 +17,10 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
-  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), manual submission, public
+  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
+  Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), manual submission, public
   scam reports (`public_report`, `routes/publicReports.ts` -- the only unauthenticated write route).
-  `Finding.source` is a free-text string; `type` is `domain` or `url`.
+  `Finding.source` is a free-text string; `type` is `domain`, `url` or `social`.
 - Rechecks also extract contact/payment details from the page (`lib/indicators.ts` ->
   `finding_indicators`); a value shared by two findings links them and scores `SHARED_INDICATOR`.
 - Rechecks also diff the registry record between scans (`finding_changes`, `registration_changed`
@@ -28,7 +29,8 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - On the office network, a web filter (Fortinet) answers DNS for known-bad domains with a block page
   (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
-  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h and phish-feed-monitor 1h (global, no dispatcher). Queues are declared in `queue/boss.ts`.
+  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h, phish-feed-monitor 1h and
+  social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
 Vercel (web) + Render free (API and scanner in ONE container) + Neon (Postgres) + Clerk **dev**

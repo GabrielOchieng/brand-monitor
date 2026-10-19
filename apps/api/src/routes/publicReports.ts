@@ -8,6 +8,8 @@ import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
 import { extractIndicators, type Indicator } from "../lib/indicators";
 import { parseSubmittedUrl } from "../lib/submittedUrl";
+import { parseSocialUrl } from "../lib/socialUrls";
+import { recordSocialSighting } from "../pipeline/socialFindings";
 import {
   PublicReportSchema,
   CONTACT_LINK_HOSTS,
@@ -145,8 +147,11 @@ async function saveReport(
 ): Promise<void> {
   const ownDomains = [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase());
   const isOwn = (host: string) => ownDomains.some((o) => host === o || host.endsWith(`.${o}`));
-  // A wa.me / t.me link is a contact handle, not a site; the brand's own site isn't a scam.
-  const scannable = target && !CONTACT_LINK_HOSTS.has(target.hostname.replace(/^www\./, "")) && !isOwn(target.hostname) ? target : null;
+  // A wa.me link (or a t.me link that isn't a channel) is a contact handle, not a site;
+  // the brand's own site isn't a scam. A Telegram channel is a social account.
+  const social = target?.type === "social" ? parseSocialUrl(target.identifier) : null;
+  const scannable =
+    target && (social || !CONTACT_LINK_HOSTS.has(target.hostname.replace(/^www\./, ""))) && !isOwn(target.hostname) ? target : null;
 
   const indicators = extractIndicators(`${input.phone ?? ""}\n${input.description ?? ""}`, input.url ? [input.url] : []);
 
@@ -163,6 +168,8 @@ async function saveReport(
 
       if (existing) {
         findingId = existing.id;
+      } else if (underCap && social) {
+        findingId = (await recordSocialSighting(tx, brand.id, "public_report", { account: social, postUrl: scannable.postUrl })).findingId;
       } else if (underCap) {
         const created = await tx.finding.create({
           data: { brandId: brand.id, type: scannable.type, identifier: scannable.identifier, source: "public_report", nextScanAt: new Date() },

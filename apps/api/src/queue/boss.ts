@@ -37,6 +37,9 @@ export const QUEUE_CT_MONITOR = "ct-monitor";
 export const QUEUE_APP_STORE_MONITOR = "app-store-monitor";
 export const QUEUE_NRD_MONITOR = "nrd-monitor";
 export const QUEUE_PHISH_FEED_MONITOR = "phish-feed-monitor";
+// Social-account search (daily) and fact-check search (weekly) share one queue and worker,
+// told apart by job data -- each extra worker is another poller eating bandwidth.
+export const QUEUE_SOCIAL_SEARCH_MONITOR = "social-search-monitor";
 export const QUEUE_DISPATCH_DISCOVERY = "dispatch-discovery";
 export const QUEUE_DISPATCH_RECHECK = "dispatch-recheck";
 export const QUEUE_DISPATCH_CT_MONITOR = "dispatch-ct-monitor";
@@ -73,6 +76,7 @@ export async function ensureQueues(): Promise<void> {
   // Global (not per-brand) and scheduled directly, no dispatcher -- see nrdMonitorJob.ts.
   await boss.createQueue(QUEUE_NRD_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_PHISH_FEED_MONITOR, { retryLimit: 0 });
+  await boss.createQueue(QUEUE_SOCIAL_SEARCH_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_DISPATCH_DISCOVERY);
   await boss.createQueue(QUEUE_DISPATCH_RECHECK);
   await boss.createQueue(QUEUE_DISPATCH_CT_MONITOR);

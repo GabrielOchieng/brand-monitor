@@ -187,3 +187,22 @@ describe("computeScore", () => {
     expect(r.severity).toBe("critical");
   });
 });
+
+describe("computeScore for social accounts", () => {
+  const social = { ...base, domain: "https://www.tiktok.com/@fly.jambojet" };
+
+  it("never applies the domain-name rules to a platform's domain", () => {
+    expect(ruleCodes({ ...social, social: { handleImpersonation: false, contactDetails: false } })).toEqual([]);
+  });
+
+  it("reaches high for a lookalike account with its own contact number", () => {
+    const result = computeScore({ ...social, social: { handleImpersonation: true, contactDetails: true } });
+    expect(result.events.map((e) => e.ruleCode)).toEqual(["SOCIAL_HANDLE_IMPERSONATION", "SOCIAL_CONTACT_DETAILS"]);
+    expect(result.score).toBe(70);
+    expect(result.severity).toBe("high");
+  });
+
+  it("puts a lookalike name alone at medium", () => {
+    expect(computeScore({ ...social, social: { handleImpersonation: true, contactDetails: false } }).severity).toBe("medium");
+  });
+});

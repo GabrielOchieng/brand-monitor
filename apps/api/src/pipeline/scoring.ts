@@ -30,6 +30,9 @@ export interface ScoringInput {
   hasPaymentDestination?: boolean;
   // Non-dismissed public reports pointing at this finding (routes/publicReports.ts).
   publicReportCount?: number;
+  // Set only for a social-media account finding (lib/socialUrls.ts). Its "domain" is the
+  // platform's, so none of the domain-name rules apply -- these two replace them.
+  social?: { handleImpersonation: boolean; contactDetails: boolean } | null;
 }
 
 export interface ScoringResult {
@@ -40,47 +43,17 @@ export interface ScoringResult {
 
 // Deterministic, additive, explainable -- every point traceable to a named rule.
 // Reduced ruleset vs. the full ARCHITECTURE.md §6 model to match what the POC actually
-// collects (no correlation/social signals yet).
+// collects.
 function mentionsBrand(text: string | null | undefined, brandRoot: string): boolean {
   return Boolean(text) && text!.toLowerCase().replace(/[\s._-]+/g, "").includes(brandRoot);
 }
 
 export function computeScore(input: ScoringInput): ScoringResult {
   const events: ScoreEvent[] = [];
-  const sld = input.domain.split(".")[0];
-  const containsRootVerbatim = sld.includes(input.brandRoot) && sld !== input.brandRoot;
-  // Plain Levenshtein ratio over the whole SLD under-scores brand+keyword concatenations
-  // (e.g. "jambojet-secure-login" vs "jambojet" is a low character-level ratio despite
-  // containing the exact brand name) -- treat a verbatim substring match as equivalent to
-  // high similarity, since it's an even less ambiguous signal than a fuzzy typo.
-  const similarity = containsRootVerbatim ? 1 : similarityRatio(sld, input.brandRoot);
-
-  if (input.isHomoglyph) {
-    events.push({ delta: 25, reason: "Homoglyph/confusable-character match to protected brand", ruleCode: "HOMOGLYPH_MATCH" });
-  } else if (containsRootVerbatim) {
-    events.push({ delta: 30, reason: "Protected brand name appears verbatim in the domain, combined with additional keywords", ruleCode: "DOMAIN_SIMILARITY_HIGH" });
-  } else if (similarity >= 0.85) {
-    events.push({ delta: 30, reason: `Domain strongly resembles protected brand (${Math.round(similarity * 100)}% similarity)`, ruleCode: "DOMAIN_SIMILARITY_HIGH" });
-  } else if (similarity >= 0.6) {
-    events.push({ delta: 15, reason: `Domain moderately resembles protected brand (${Math.round(similarity * 100)}% similarity)`, ruleCode: "DOMAIN_SIMILARITY_MEDIUM" });
-  }
-
-  if (input.registeredAt) {
-    const ageMs = Date.now() - input.registeredAt.getTime();
-    const hours = ageMs / (1000 * 60 * 60);
-    if (hours < 24) {
-      events.push({ delta: 30, reason: "Domain registered less than 24 hours ago", ruleCode: "DOMAIN_AGE_LT_24H" });
-    } else if (hours < 24 * 7) {
-      events.push({ delta: 20, reason: "Domain registered less than 7 days ago", ruleCode: "DOMAIN_AGE_LT_7D" });
-    } else if (hours < 24 * 30) {
-      // Phishing kits often go live a week or two after registration
-      // (flyjambojetkenya.store: registered Sept 24, live clone found Oct 7).
-      events.push({ delta: 10, reason: "Domain registered less than 30 days ago", ruleCode: "DOMAIN_AGE_LT_30D" });
-    }
-  }
-
-  if (isHighRiskTld(input.domain)) {
-    events.push({ delta: 10, reason: "Registered under a TLD with elevated abuse history", ruleCode: "HIGH_RISK_TLD" });
+  if (input.social) {
+    scoreSocialAccount(input.social, events);
+  } else {
+    scoreDomainName(input, events);
   }
 
   if (input.faviconMatch) {
@@ -180,4 +153,56 @@ export function computeScore(input: ScoringInput): ScoringResult {
   const score = Math.max(0, Math.min(100, rawScore));
 
   return { score, severity: severityForScore(score), events };
+}
+
+// Name similarity, registration age and TLD -- facts about a registrable domain name.
+function scoreDomainName(input: ScoringInput, events: ScoreEvent[]): void {
+  const sld = input.domain.split(".")[0];
+  const containsRootVerbatim = sld.includes(input.brandRoot) && sld !== input.brandRoot;
+  // Plain Levenshtein ratio over the whole SLD under-scores brand+keyword concatenations
+  // (e.g. "jambojet-secure-login" vs "jambojet" is a low character-level ratio despite
+  // containing the exact brand name) -- treat a verbatim substring match as equivalent to
+  // high similarity, since it's an even less ambiguous signal than a fuzzy typo.
+  const similarity = containsRootVerbatim ? 1 : similarityRatio(sld, input.brandRoot);
+
+  if (input.isHomoglyph) {
+    events.push({ delta: 25, reason: "Homoglyph/confusable-character match to protected brand", ruleCode: "HOMOGLYPH_MATCH" });
+  } else if (containsRootVerbatim) {
+    events.push({ delta: 30, reason: "Protected brand name appears verbatim in the domain, combined with additional keywords", ruleCode: "DOMAIN_SIMILARITY_HIGH" });
+  } else if (similarity >= 0.85) {
+    events.push({ delta: 30, reason: `Domain strongly resembles protected brand (${Math.round(similarity * 100)}% similarity)`, ruleCode: "DOMAIN_SIMILARITY_HIGH" });
+  } else if (similarity >= 0.6) {
+    events.push({ delta: 15, reason: `Domain moderately resembles protected brand (${Math.round(similarity * 100)}% similarity)`, ruleCode: "DOMAIN_SIMILARITY_MEDIUM" });
+  }
+
+  if (input.registeredAt) {
+    const ageMs = Date.now() - input.registeredAt.getTime();
+    const hours = ageMs / (1000 * 60 * 60);
+    if (hours < 24) {
+      events.push({ delta: 30, reason: "Domain registered less than 24 hours ago", ruleCode: "DOMAIN_AGE_LT_24H" });
+    } else if (hours < 24 * 7) {
+      events.push({ delta: 20, reason: "Domain registered less than 7 days ago", ruleCode: "DOMAIN_AGE_LT_7D" });
+    } else if (hours < 24 * 30) {
+      // Phishing kits often go live a week or two after registration
+      // (flyjambojetkenya.store: registered Sept 24, live clone found Oct 7).
+      events.push({ delta: 10, reason: "Domain registered less than 30 days ago", ruleCode: "DOMAIN_AGE_LT_30D" });
+    }
+  }
+
+  if (isHighRiskTld(input.domain)) {
+    events.push({ delta: 10, reason: "Registered under a TLD with elevated abuse history", ruleCode: "HIGH_RISK_TLD" });
+  }
+}
+
+// A social account is judged on what it calls itself and where it sends people: a page
+// named like the brand that isn't one of its official accounts (fly.jambojet, FlyJambojetUG),
+// and a phone/WhatsApp/M-Pesa number in its posts that isn't the brand's. Together they're
+// the standard fake-booking pattern, which is why the pair reaches "high".
+function scoreSocialAccount(social: NonNullable<ScoringInput["social"]>, events: ScoreEvent[]): void {
+  if (social.handleImpersonation) {
+    events.push({ delta: 40, reason: "Social account name resembles the protected brand but isn't one of its official accounts", ruleCode: "SOCIAL_HANDLE_IMPERSONATION" });
+  }
+  if (social.contactDetails) {
+    events.push({ delta: 30, reason: "Posts give a phone, WhatsApp or payment number that isn't the brand's", ruleCode: "SOCIAL_CONTACT_DETAILS" });
+  }
 }

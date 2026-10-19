@@ -64,4 +64,8 @@ export const env = {
   // no CAPTCHA check. The matching site key goes to the web app as
   // NEXT_PUBLIC_TURNSTILE_SITE_KEY.
   turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
+  // Tavily web search for social-account and fact-check discovery (lib/tavily.ts). Empty =
+  // those jobs don't run. The cap stays under the free plan's 1,000 credits/month.
+  tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
+  tavilyMonthlyCap: Number(process.env.TAVILY_MONTHLY_CAP ?? 900),
 };

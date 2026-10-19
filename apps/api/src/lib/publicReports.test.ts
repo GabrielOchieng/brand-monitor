@@ -34,7 +34,14 @@ describe("verifyTurnstile", () => {
 describe("parseSubmittedUrl", () => {
   it("splits bare domains from page URLs and blocks private hosts", () => {
     expect(parseSubmittedUrl("https://Jambojet-Refund.site/")).toMatchObject({ ok: true, type: "domain", identifier: "jambojet-refund.site" });
-    expect(parseSubmittedUrl("https://facebook.com/jambojet.promo")).toMatchObject({ ok: true, type: "url" });
+    expect(parseSubmittedUrl("https://sites.google.com/view/jambojet-refunds")).toMatchObject({ ok: true, type: "url" });
+    // A social link is the account behind it, with the post kept alongside.
+    expect(parseSubmittedUrl("https://facebook.com/jambojet.promo")).toMatchObject({
+      ok: true,
+      type: "social",
+      identifier: "https://www.facebook.com/jambojet.promo",
+      postUrl: "https://facebook.com/jambojet.promo",
+    });
     expect(parseSubmittedUrl("http://192.168.1.1/")).toEqual({ ok: false, error: "target_not_allowed" });
     expect(parseSubmittedUrl("ftp://x.com")).toEqual({ ok: false, error: "invalid_url" });
   });

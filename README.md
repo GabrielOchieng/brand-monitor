@@ -151,6 +151,23 @@ background:
   "confirmed" (phishunt's terms). Other free feeds were ruled out on 2026-10-19: OpenPhish's free
   feed forbids commercial use, PhishTank refuses new users (403), URLhaus is mostly malware and
   wants a key, Phishing.Database stopped updating.
+- **Social accounts** (daily, global; needs `TAVILY_API_KEY`): three web searches per brand through
+  Tavily (free 1,000 searches/month, no card) restricted to Facebook, Instagram, TikTok, X, Telegram
+  and YouTube. A hit becomes a `social` finding (source `social_search`) only if it isn't one of the
+  brand's official accounts and either its handle looks like the brand (`@fly.jambojet`,
+  `FlyJambojetUG`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't the
+  brand's. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
+  title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
+  clone site sharing a WhatsApp number link up). Social findings are **never scanned**: the platforms
+  block automated access and forbid scraping, so rechecks re-score stored evidence daily with no
+  network. Scoring: `SOCIAL_HANDLE_IMPERSONATION` (+40) and `SOCIAL_CONTACT_DETAILS` (+30) replace the
+  domain-name rules; both together is high. Manual submissions and public reports of a social link
+  become the same kind of finding. A hard cap (`TAVILY_MONTHLY_CAP`, default 900) stops searching
+  before the free allowance runs out; usage shows on `/health/jobs`. Official accounts (and the
+  official `wa.me` link) are edited on the dashboard under **Keywords & accounts**.
+- **Fact-checks** (weekly, same key): one search per brand on pesacheck.org. A new article about the
+  brand raises an in-app notification linking to it (no finding: the article isn't the threat).
+  PesaCheck's RSS feed only holds ~15 articles (about a day), so searching is the reliable route.
 - **Contact & payment details** (every successful scan): the scanner returns the page's link hrefs
   and up to 50k chars of text, and `lib/indicators.ts` extracts phone numbers (Kenyan forms
   normalized to `+254…`), WhatsApp (`wa.me`, `api.whatsapp.com`), M-Pesa paybill/till, emails,
@@ -164,8 +181,9 @@ background:
 - **Public scam reports** (`/reports`, form at `/report/<token>`): owners/admins create a per-brand
   link (rotate or turn off anytime) to share with customers. The form takes a link and/or a
   phone/WhatsApp number plus a description, with no login. A link becomes a finding (source
-  `public_report`) and is scanned (max 30 report-triggered scans per brand per day; `wa.me`/`t.me`
-  links and the brand's own site are never scanned). Numbers and anything in the description are
+  `public_report`) and is scanned (max 30 report-triggered scans per brand per day; `wa.me` and
+  non-channel `t.me` links and the brand's own site are never scanned; a social-media link becomes a
+  social finding, which isn't scanned either). Numbers and anything in the description are
   matched against `finding_indicators`, so "they called me from 0712…" links to the clone sites
   using that number. Each report raises an in-app `public_report` notification; the finding page
   lists its reports; scoring adds `PUBLIC_REPORT` (+15, or +25 at 3+ non-dismissed reports). Spam

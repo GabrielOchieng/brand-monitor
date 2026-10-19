@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
+import { parseSocialUrl } from "../lib/socialUrls";
 
 const CreateBrandSchema = z.object({
   name: z.string().min(1),
@@ -18,6 +19,27 @@ const UpdateBrandSchema = z.object({
 });
 
 const AddKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
+
+const OfficialSocialsSchema = z.object({ urls: z.array(z.string().trim().min(1).max(500)).max(50) });
+
+// An official account is stored as its canonical profile URL (lib/socialUrls.ts), so any
+// link to it -- a post, the mobile site, a different capitalisation -- matches. A wa.me
+// link is kept as given: it marks the WhatsApp number as the brand's own.
+export function canonicalOfficialUrl(raw: string): string | null {
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const social = parseSocialUrl(withScheme);
+  if (social) return social.profileUrl;
+  try {
+    const url = new URL(withScheme);
+    const host = url.hostname.replace(/^www\./, "");
+    if ((host === "wa.me" && /^\/\+?\d{8,15}\/?$/.test(url.pathname)) || (host === "api.whatsapp.com" && url.searchParams.get("phone"))) {
+      return url.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 // Minimal brand CRUD -- enough to onboard a brand per org and prove tenant isolation.
 // The full onboarding UI (domains/assets management, editing) is Stage B.
@@ -158,6 +180,33 @@ export async function brandRoutes(app: FastifyInstance) {
     }
   );
 
+  app.get("/api/brands/:id/official-socials", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const brand = await withTenant(request.auth!.orgId, (tx) => tx.brand.findUnique({ where: { id }, select: { officialSocialUrls: true } }));
+    if (!brand) return reply.status(404).send({ error: "not_found" });
+    return reply.send({ urls: brand.officialSocialUrls });
+  });
+
+  // Replaces the whole list -- it's short, and the UI edits it as one list.
+  app.put(
+    "/api/brands/:id/official-socials",
+    { preHandler: [authenticate, requireRole("owner", "admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = OfficialSocialsSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const urls: string[] = [];
+      for (const raw of parsed.data.urls) {
+        const canonical = canonicalOfficialUrl(raw);
+        if (!canonical) return reply.status(400).send({ error: "not_a_social_account", url: raw });
+        if (!urls.includes(canonical)) urls.push(canonical);
+      }
+      const result = await withTenant(request.auth!.orgId, (tx) => tx.brand.updateMany({ where: { id }, data: { officialSocialUrls: urls } }));
+      if (result.count === 0) return reply.status(404).send({ error: "not_found" });
+      return reply.send({ urls });
+    }
+  );
+
   // Deletes a brand and everything under it -- every child table has a real FK
   // (ON DELETE RESTRICT), so Postgres refuses the delete unless children go first, in
   // dependency order (scan-tagged rows before their Scan, everything before Finding,
@@ -186,6 +235,9 @@ export async function brandRoutes(app: FastifyInstance) {
         await tx.domainIntel.deleteMany({ where: { findingId: { in: findingIds } } });
         await tx.websiteIntel.deleteMany({ where: { findingId: { in: findingIds } } });
         await tx.findingNote.deleteMany({ where: { findingId: { in: findingIds } } });
+        await tx.findingIndicator.deleteMany({ where: { findingId: { in: findingIds } } });
+        await tx.findingChange.deleteMany({ where: { findingId: { in: findingIds } } });
+        await tx.socialIntel.deleteMany({ where: { findingId: { in: findingIds } } });
         await tx.takedown.deleteMany({ where: { findingId: { in: findingIds } } });
         // Scan last among finding-children -- FindingEvidence/FindingScoreEvent/
         // AiExplanation all also carry a scanId FK, so Scan must outlive them.

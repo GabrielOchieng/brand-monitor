@@ -5,7 +5,15 @@ import { withTenant } from "../lib/tenant";
 import { fetchFaviconHash } from "../lib/favicon";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeRegionalHashes, serializeRegionalHashes } from "../lib/visualSimilarity";
-import { extractIndicators, serializeIndicators, deserializeIndicatorKeys } from "../lib/indicators";
+import {
+  extractIndicators,
+  serializeIndicators,
+  deserializeIndicatorKeys,
+  indicatorKey,
+  INDICATOR_LABELS,
+  type Indicator,
+  type IndicatorKind,
+} from "../lib/indicators";
 
 const SCREENSHOT_DIR = path.join(process.cwd(), "screenshots");
 
@@ -149,3 +157,41 @@ export async function ensureBrandOwnIndicators(orgId: string, brandId: string, p
   );
   return deserializeIndicatorKeys(serialized);
 }
+
+// Which of this page's indicators appears on the most OTHER findings of the same brand.
+// False positives are left out: an analyst already said that page isn't a threat, so
+// sharing a number with it proves nothing.
+export async function findMostSharedIndicator(
+  organizationId: string,
+  brandId: string,
+  findingId: string,
+  indicators: Indicator[]
+): Promise<{ label: string; value: string; otherFindings: number } | null> {
+  const rows = await withTenant(organizationId, (tx) =>
+    tx.findingIndicator.findMany({
+      where: {
+        brandId,
+        findingId: { not: findingId },
+        finding: { status: { not: "false_positive" } },
+        OR: indicators.map((i) => ({ kind: i.kind, value: i.value })),
+      },
+      select: { kind: true, value: true, findingId: true },
+    })
+  );
+  const findingsByKey = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const key = indicatorKey({ kind: r.kind as IndicatorKind, value: r.value });
+    findingsByKey.set(key, (findingsByKey.get(key) ?? new Set()).add(r.findingId));
+  }
+  // On a tie, the more scam-specific detail names the rule: a WhatsApp number or paybill
+  // says more about who's behind a page than a shared email.
+  const byPriority = [...indicators].sort((a, b) => SHARED_PRIORITY.indexOf(a.kind) - SHARED_PRIORITY.indexOf(b.kind));
+  let best: { label: string; value: string; otherFindings: number } | null = null;
+  for (const i of byPriority) {
+    const count = findingsByKey.get(indicatorKey(i))?.size ?? 0;
+    if (count > (best?.otherFindings ?? 0)) best = { label: INDICATOR_LABELS[i.kind], value: i.value, otherFindings: count };
+  }
+  return best;
+}
+
+const SHARED_PRIORITY: IndicatorKind[] = ["whatsapp", "mpesa_paybill", "mpesa_till", "crypto_wallet", "telegram", "phone", "email"];

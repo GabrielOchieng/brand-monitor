@@ -17,6 +17,7 @@ import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 import { jobsHealth, sourcesHealth } from "./queue/health";
+import { tavilyUsageSnapshot } from "./lib/tavily";
 
 async function main() {
   // trustProxy: Render sits in front of the container, so without it request.ip is the
@@ -75,7 +76,7 @@ async function main() {
     const sources = sourcesHealth();
     const strict = (request.query as { sources?: string }).sources === "1";
     const ok = jobs.ok && (!strict || sources.ok);
-    return reply.status(ok ? 200 : 503).send({ ...jobs, ok, sources: sources.sources });
+    return reply.status(ok ? 200 : 503).send({ ...jobs, ok, sources: sources.sources, tavilyUsage: tavilyUsageSnapshot() });
   });
 
   // Requires `npm run queue:bootstrap` to have already granted brandmonitor_app access

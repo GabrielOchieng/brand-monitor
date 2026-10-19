@@ -1,3 +1,5 @@
+import { env } from "../env";
+
 // Backs GET /health/jobs: "are the scheduled jobs actually running", which plain /health
 // (process is up) can't answer. Production once ran nothing for 11 days (Render suspended
 // the workspace over bandwidth) with nobody noticing -- point an external uptime monitor
@@ -33,6 +35,9 @@ export const SOURCE_STALE_AFTER_MS: Record<string, number> = {
   ct_log: 24 * 60 * 60 * 1000, // runs every 30 min
   nrd: 48 * 60 * 60 * 1000, // one file a day, published at an unpredictable hour
   phish_feed: 6 * 60 * 60 * 1000, // runs hourly
+  // Only tracked when it can run at all (TAVILY_API_KEY set) -- otherwise it would read
+  // stale forever.
+  ...(env.tavilyApiKey ? { social_search: 48 * 60 * 60 * 1000 } : {}), // runs daily
 };
 
 const sourceLastSuccess: Record<string, Date> = {};
