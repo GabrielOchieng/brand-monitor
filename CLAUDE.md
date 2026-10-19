@@ -17,7 +17,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
-  monitor (`app_store`), manual submission.
+  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), manual submission.
   `Finding.source` is a free-text string; `type` is `domain` or `url`.
 - Rechecks also diff the registry record between scans (`finding_changes`, `registration_changed`
   alert) and run the post-takedown watch: `resolved` findings are still rechecked, and a confirmed-down
@@ -25,7 +25,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - On the office network, a web filter (Fortinet) answers DNS for known-bad domains with a block page
   (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
-  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h (global, no dispatcher). Queues are declared in `queue/boss.ts`.
+  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h and phish-feed-monitor 1h (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
 Vercel (web) + Render free (API and scanner in ONE container) + Neon (Postgres) + Clerk **dev**

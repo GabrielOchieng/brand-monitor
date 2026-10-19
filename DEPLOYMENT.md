@@ -158,6 +158,9 @@ The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / contain
   real change there. IP RDAP (~6 KB) runs only when a domain's IP changes. Resolved findings are
   rechecked again (normal cadence: hourly while down, daily once old and live). That's negligible
   at the current ~12 findings, but each resolved live site costs one full scan a day (~1–1.6 MB).
+- Added 2026-10-19 (measured feed size): the phishing feed is ~35 KB/hour, ~0.8 MB/day. Don't
+  switch it to `feed.json` (~1 MB per download, ~23 MB/day). Matches are rare for a regional brand
+  (0 for Jambojet on the first check), so the scans it triggers are negligible.
 
 Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
 If jobs seem dead, check your email for a suspension notice before anything else.
@@ -180,9 +183,11 @@ nothing on a normal run). Query pg-boss directly against the production DB:
 
 - Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
   (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
-  `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`).
+  `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`),
+  `phish-feed-monitor` (`40 * * * *`).
 - Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503. It also
-  reports `sources.ct_log` / `sources.nrd` (last successful query, `stale` after 24h / 48h), which
+  reports `sources.ct_log` / `sources.nrd` / `sources.phish_feed` (last successful query, `stale`
+  after 24h / 48h / 6h), which
   don't affect the status code. `GET /health/jobs?sources=1` returns 503 when a source is stale
   too: point a **second** UptimeRobot monitor at it, so a dead feed alerts without looking like an
   outage. Stale since the last restart just means it hasn't succeeded *since that restart*.

@@ -32,6 +32,7 @@ export function jobsHealth(now: Date = new Date(), last: Date | null = lastReche
 export const SOURCE_STALE_AFTER_MS: Record<string, number> = {
   ct_log: 24 * 60 * 60 * 1000, // runs every 30 min
   nrd: 48 * 60 * 60 * 1000, // one file a day, published at an unpredictable hour
+  phish_feed: 6 * 60 * 60 * 1000, // runs hourly
 };
 
 const sourceLastSuccess: Record<string, Date> = {};

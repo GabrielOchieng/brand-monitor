@@ -22,6 +22,7 @@ export interface ScoringInput {
   looksParked: boolean;
   isAllowlisted: boolean;
   appStoreImpersonation: boolean;
+  phishFeedListed?: boolean;
 }
 
 export interface ScoringResult {
@@ -128,6 +129,14 @@ export function computeScore(input: ScoringInput): ScoringResult {
       reason: "App Store listing's name/seller matches the protected brand but isn't the known official publisher",
       ruleCode: "APP_STORE_IMPERSONATION",
     });
+  }
+
+  // Someone already reported this exact URL as phishing (pipeline/phishFeedMonitorJob.ts)
+  // AND it mentions the brand -- the feed match required that. High on its own, like
+  // APP_STORE_IMPERSONATION. Worded "reported", not "confirmed": phishunt's terms forbid
+  // asserting a listing is confirmed phishing on the feed's say-so alone.
+  if (input.phishFeedListed) {
+    events.push({ delta: 60, reason: "Reported as phishing by public threat feeds (phishunt.io)", ruleCode: "PHISH_FEED_LISTED" });
   }
 
   const rawScore = events.reduce((sum, e) => sum + e.delta, 0);

@@ -10,6 +10,7 @@ import {
   QUEUE_CT_MONITOR,
   QUEUE_APP_STORE_MONITOR,
   QUEUE_NRD_MONITOR,
+  QUEUE_PHISH_FEED_MONITOR,
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
   QUEUE_DISPATCH_CT_MONITOR,
@@ -20,6 +21,7 @@ import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
 import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
 import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
+import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
 import { markRecheckDispatched } from "./health";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
@@ -109,6 +111,10 @@ export async function registerQueueWorkers(): Promise<void> {
     await runNrdMonitorJob();
   });
 
+  await boss.work(QUEUE_PHISH_FEED_MONITOR, WORKER_POLLING, async () => {
+    await runPhishFeedMonitorJob();
+  });
+
   await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
@@ -132,6 +138,9 @@ export async function scheduleDispatchers(): Promise<void> {
   // Every 6h: the daily file appears at no fixed hour. A run only downloads days it
   // hasn't processed yet, so extra runs cost one small 404 each.
   await boss.schedule(QUEUE_NRD_MONITOR, "15 */6 * * *");
+  // Hourly, matching the feed's own update rate. Phishing pages often live only hours,
+  // so slower would miss some entirely; ~35 KB per run is ~0.8 MB/day of bandwidth.
+  await boss.schedule(QUEUE_PHISH_FEED_MONITOR, "40 * * * *");
 }
 
 export { dispatchDiscoveryForBrand };

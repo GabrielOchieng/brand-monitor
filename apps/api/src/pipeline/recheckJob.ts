@@ -126,6 +126,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // resolving/false-positiving the finding already handles that the same way it does
     // everywhere else in this app.
     appStoreImpersonation: finding.source === "app_store",
+    // Same write-once trust as above.
+    phishFeedListed: finding.source === "phish_feed",
   });
 
   let screenshotPath: string | null = null;

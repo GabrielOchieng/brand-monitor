@@ -120,6 +120,12 @@ describe("computeScore", () => {
     expect(result.severity).toBe("high");
   });
 
+  it("fires PHISH_FEED_LISTED and alone reaches high severity", () => {
+    const result = computeScore({ ...base, domain: "pages.dev", phishFeedListed: true });
+    expect(result.events.map((e) => e.ruleCode)).toEqual(["PHISH_FEED_LISTED"]);
+    expect(result.severity).toBe("high");
+  });
+
   it("maps score to severity consistently with severityForScore", () => {
     const critical = computeScore({
       ...base,

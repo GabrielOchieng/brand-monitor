@@ -142,6 +142,15 @@ background:
   one of its ASCII misspellings (`typoVariants`, ≥6 chars). Any TLD, any naming pattern, no cert
   needed. **It's a sample**: the free list is capped at 70,000 domains/day, so it misses most
   registrations (`flyjambojetkenya.store` wasn't in it). Extra coverage, not a guarantee.
+- **Phishing feed** (hourly, global): downloads phishunt.io's public feed of active phishing URLs
+  (CC0; aggregates OpenPhish, PhishTank, urlscan, Google Safe Browsing, TweetFeed — ~800 URLs) and
+  creates a finding (source `phish_feed`) for any URL containing the brand or a misspelling,
+  host *or path*. That catches phishing on shared hosting (`*.pages.dev`, `sites.google.com/...`)
+  that domain discovery can't. A bare host becomes a `domain` finding, anything with a path a `url`
+  finding. Scored by `PHISH_FEED_LISTED` (+60, high on its own), worded "reported", not
+  "confirmed" (phishunt's terms). Other free feeds were ruled out on 2026-10-19: OpenPhish's free
+  feed forbids commercial use, PhishTank refuses new users (403), URLhaus is mostly malware and
+  wants a key, Phishing.Database stopped updating.
 - **App Store monitoring** (every 4h per brand): searches Apple's iTunes Search API and flags
   apps whose title or publisher contains the brand name. Source `app_store`, scored `high` on its
   own via the `APP_STORE_IMPERSONATION` rule. There's no "known official app" allowlist yet — if a

@@ -36,6 +36,7 @@ export const QUEUE_RECHECK = "recheck";
 export const QUEUE_CT_MONITOR = "ct-monitor";
 export const QUEUE_APP_STORE_MONITOR = "app-store-monitor";
 export const QUEUE_NRD_MONITOR = "nrd-monitor";
+export const QUEUE_PHISH_FEED_MONITOR = "phish-feed-monitor";
 export const QUEUE_DISPATCH_DISCOVERY = "dispatch-discovery";
 export const QUEUE_DISPATCH_RECHECK = "dispatch-recheck";
 export const QUEUE_DISPATCH_CT_MONITOR = "dispatch-ct-monitor";
@@ -71,6 +72,7 @@ export async function ensureQueues(): Promise<void> {
   await ensureExclusiveQueue(QUEUE_APP_STORE_MONITOR, { retryLimit: 1 });
   // Global (not per-brand) and scheduled directly, no dispatcher -- see nrdMonitorJob.ts.
   await boss.createQueue(QUEUE_NRD_MONITOR, { retryLimit: 0 });
+  await boss.createQueue(QUEUE_PHISH_FEED_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_DISPATCH_DISCOVERY);
   await boss.createQueue(QUEUE_DISPATCH_RECHECK);
   await boss.createQueue(QUEUE_DISPATCH_CT_MONITOR);
