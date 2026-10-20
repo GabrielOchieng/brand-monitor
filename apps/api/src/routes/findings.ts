@@ -13,6 +13,7 @@ import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correla
 import { parseSubmittedUrl } from "../lib/submittedUrl";
 import { parseSocialUrl } from "../lib/socialUrls";
 import { recordSocialSighting } from "../pipeline/socialFindings";
+import { allowManualSubmit } from "../lib/rateLimit";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -582,6 +583,7 @@ export async function findingsRoutes(app: FastifyInstance) {
 
       const target = parseSubmittedUrl(parsed.data.url);
       if (!target.ok) return reply.status(400).send({ error: target.error });
+      if (!allowManualSubmit(orgId)) return reply.status(429).send({ error: "too_many_submissions" });
       const { type, identifier } = target;
 
       const result = await withTenant(orgId, async (tx) => {

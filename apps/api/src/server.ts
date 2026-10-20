@@ -18,12 +18,21 @@ import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 import { jobsHealth, sourcesHealth } from "./queue/health";
 import { tavilyUsageSnapshot } from "./lib/tavily";
+import { allowRequest, allowScreenshot } from "./lib/rateLimit";
 
 async function main() {
   // trustProxy: Render sits in front of the container, so without it request.ip is the
   // proxy's address and the public report form's per-IP limit (routes/publicReports.ts)
   // would be one shared bucket for every visitor.
   const app = Fastify({ logger: true, trustProxy: true });
+
+  // Per-IP limits, ahead of everything else (including CORS preflights and static files).
+  // /health* is exempt: UptimeRobot polls it from shared IPs.
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.url.startsWith("/health")) return;
+    const allowed = request.url.startsWith("/screenshots/") ? allowScreenshot(request.ip) : allowRequest(request.ip);
+    if (!allowed) return reply.status(429).header("retry-after", "60").send({ error: "rate_limited" });
+  });
 
   await app.register(cors, {
     origin: (origin, cb) => {

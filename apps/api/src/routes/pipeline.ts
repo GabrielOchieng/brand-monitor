@@ -1,14 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { fromPrisma } from "pg-boss";
-import { authenticate } from "../lib/auth";
+import { authenticate, requireRole } from "../lib/auth";
+import { allowDiscoveryRun } from "../lib/rateLimit";
 import { withTenant } from "../lib/tenant";
 import { boss, QUEUE_DISCOVERY } from "../queue/boss";
 import type { DiscoveryJobData } from "../pipeline/discoveryJob";
 
 export async function pipelineRoutes(app: FastifyInstance) {
-  app.post("/api/pipeline/run", { preHandler: authenticate }, async (request, reply) => {
+  // Viewers can't start runs: each one is thousands of outbound DNS queries.
+  app.post("/api/pipeline/run", { preHandler: [authenticate, requireRole("owner", "admin", "analyst")] }, async (request, reply) => {
     const { brandId } = (request.body ?? {}) as { brandId?: string };
     const orgId = request.auth!.orgId;
+    if (!allowDiscoveryRun(orgId)) return reply.status(429).send({ error: "too_many_discovery_runs" });
 
     // PipelineRun creation and the job enqueue happen in one transaction (via pg-boss's
     // fromPrisma adapter) -- a crash between the two is impossible, unlike a plain

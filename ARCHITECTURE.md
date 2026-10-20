@@ -29,7 +29,7 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 2. **Email alerts currently fail on Render:** the free tier blocks outbound SMTP (ports 25/465/587). Needs a switch to an HTTPS-API email provider with a free tier. In-app notifications and the webhook channel are unaffected.
 3. **The parked-page detector occasionally misreads a single scan of a live site** (`jambojet.net`'s score swings 45 → 20 → 45). Alerts are protected since 2026-10-20 (`website_activated` fires once per finding; a takedown is confirmed down only after 2 consecutive down scans), but the score still flaps, which would trip a `score_increase` rule if one were enabled.
 4. Scale ceiling: one 512MB container shared by the API and headless Chromium, `RECHECK_CONCURRENCY=1`.
-5. Not built: error tracking, API rate limiting, data export, Google Play monitoring, Meta Ad Library (its API has no Kenyan commercial ads).
+5. Not built: error tracking, data export, Google Play monitoring, Meta Ad Library (its API has no Kenyan commercial ads).
 
 ---
 

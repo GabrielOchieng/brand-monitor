@@ -178,6 +178,12 @@ The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / contain
   each a few KB of JSON, so well under 1 MB/day. It shares one queue/worker between its two
   schedules on purpose: every extra pg-boss worker is another 60s poller (~2–3 MB/day). Social
   findings are never scanned, so they add no scanner traffic.
+- Added 2026-10-20 (estimated): the 6 Jambojet core keywords are now paired, adding ~1,440
+  discovery candidates per run (~3,080 total), roughly +3 MB/day of DNS queries.
+- Rate limits (`lib/rateLimit.ts`, in memory, reset on restart): 300 requests/min and 60
+  `/screenshots/` files/min per IP (`/health*` exempt), plus per org 12 manual discovery runs and
+  50 manual submissions per 24h. Discovery runs need analyst or above. Per-IP keys come from
+  X-Forwarded-For and can be spoofed; the per-org limits are the ones that hold.
 
 Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
 If jobs seem dead, check your email for a suspension notice before anything else.

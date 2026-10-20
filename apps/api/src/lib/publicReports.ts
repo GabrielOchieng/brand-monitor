@@ -22,26 +22,6 @@ export type PublicReportInput = z.infer<typeof PublicReportSchema>;
 // WhatsApp number, extracted as an indicator instead of becoming a finding.
 export const CONTACT_LINK_HOSTS = new Set(["wa.me", "api.whatsapp.com", "t.me", "telegram.me"]);
 
-// Fixed-window limiter in memory. Resets on restart and isn't shared across instances --
-// fine for one Render container. Keyed on the client IP, which behind Render's proxy comes
-// from X-Forwarded-For and can be spoofed, so this only slows casual abuse; the per-brand
-// daily scan cap is what actually protects the bandwidth budget.
-export function createRateLimiter(limit: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  return (key: string, now: number = Date.now()): boolean => {
-    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-    if (recent.length >= limit) {
-      hits.set(key, recent);
-      return false;
-    }
-    recent.push(now);
-    hits.set(key, recent);
-    // Keep the map from growing forever under a flood of distinct keys.
-    if (hits.size > 10_000) for (const [k, v] of hits) if (v.every((t) => now - t >= windowMs)) hits.delete(k);
-    return true;
-  };
-}
-
 // Scans triggered by public reports, per brand per rolling 24h. Each scan is ~1-1.5 MB of
 // Render's 5 GB/month; past the cap, reports are still saved but wait for an analyst.
 export const PUBLIC_REPORT_DAILY_SCAN_CAP = 30;

@@ -122,6 +122,8 @@ background:
   rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) since each call spends
   real Anthropic budget. Requires `ANTHROPIC_API_KEY` in `.env` — the button surfaces a clear
   error if it's missing/invalid rather than failing silently.
+- **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
+  manual discovery runs and 50 manual submissions a day. Limits live in memory and reset on restart.
 - **Takedown tracking**: a finding's detail page lets you log takedown requests (provider —
   e.g. registrar/hosting provider, an optional ticket reference, notes) and track each one's
   status (`requested → acknowledged → completed/rejected`) independently — a finding can have

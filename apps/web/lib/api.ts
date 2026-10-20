@@ -9,6 +9,7 @@ export async function apiFetch<T>(path: string, token: string | null, init?: Req
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  if (res.status === 429) throw new Error("Too many requests. Try again later.");
   if (!res.ok) {
     let detail = "";
     try {

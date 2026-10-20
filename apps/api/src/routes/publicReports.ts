@@ -14,10 +14,10 @@ import {
   PublicReportSchema,
   CONTACT_LINK_HOSTS,
   PUBLIC_REPORT_DAILY_SCAN_CAP,
-  createRateLimiter,
   verifyTurnstile,
   type PublicReportInput,
 } from "../lib/publicReports";
+import { createRateLimiter } from "../lib/rateLimit";
 import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { PublicReportSchema, createRateLimiter, verifyTurnstile } from "./publicReports";
+import { PublicReportSchema, verifyTurnstile } from "./publicReports";
+import { createRateLimiter } from "./rateLimit";
 import { parseSubmittedUrl } from "./submittedUrl";
 
 describe("PublicReportSchema", () => {
