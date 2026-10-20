@@ -8,6 +8,8 @@ import { TrashIcon } from "./icons";
 interface Keyword {
   id: string;
   keyword: string;
+  // Paired with the other core keywords in discovery (fly + book -> flybookjambojet.xyz).
+  core: boolean;
 }
 
 export function BrandKeywords({ brandId }: { brandId: string }) {
@@ -16,6 +18,7 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
   const [newKeyword, setNewKeyword] = useState("");
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -50,6 +53,24 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
     }
   }
 
+  async function handleToggleCore(k: Keyword) {
+    setTogglingId(k.id);
+    setError(null);
+    try {
+      const token = await getToken();
+      const updated = await apiFetch<Keyword>(`/api/brands/${brandId}/keywords/${k.id}`, token, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ core: !k.core }),
+      });
+      setKeywords((prev) => prev.map((p) => (p.id === k.id ? updated : p)));
+    } catch (err: any) {
+      setError(err.message.includes("too_many_core_keywords") ? "At most 8 keywords can be paired." : err.message);
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   async function handleRemove(id: string) {
     setRemovingId(id);
     setError(null);
@@ -69,16 +90,27 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
       <div className="label">Discovery keywords</div>
       <p className="mt-0.5 text-xs text-ink-subtle">
         Combined with the brand name to catch lookalikes like "book" + brand → bookjambojet.com
-        — a bare typo-check alone would miss these.
+        — a bare typo-check alone would miss these. Click a keyword to pair it with the other
+        paired ones too ("fly" + "book" → flybookjambojet.xyz); up to 8.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {keywords.map((k) => (
           <span
             key={k.id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs text-ink"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+              k.core ? "border-brand bg-brand-muted text-brand" : "border-line bg-surface text-ink"
+            }`}
           >
-            {k.keyword}
+            <button
+              onClick={() => handleToggleCore(k)}
+              disabled={togglingId === k.id}
+              aria-pressed={k.core}
+              title={k.core ? "Paired with other paired keywords. Click to unpair." : "Click to pair with other paired keywords"}
+            >
+              {k.keyword}
+              {k.core && <span className="ml-1 font-semibold">· paired</span>}
+            </button>
             <button
               onClick={() => handleRemove(k.id)}
               disabled={removingId === k.id}

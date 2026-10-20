@@ -52,8 +52,8 @@ anything that adds outbound traffic (polling, scans, external API calls) must be
    debounced since 2026-10-20 (`findings.first_live_at`, `down_streak`); the detector itself isn't fixed.
 4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
    now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
-   The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Brand-settings UI can't mark
-   keywords `concat_term_core`, so core-pair candidates never run in prod.
+   The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Keywords can be marked paired
+   (`concat_term_core`) in the Keywords panel since 2026-10-20; none are marked in prod yet.
 5. Smaller: no error tracking, no API rate limiting, no data export, ThreatsTable "Domain" header shows
    full URLs for `url` findings.
 

@@ -19,6 +19,12 @@ const UpdateBrandSchema = z.object({
 });
 
 const AddKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
+const UpdateKeywordSchema = z.object({ core: z.boolean() });
+
+// Core keywords are paired with each other (permutations.ts): n core -> n*(n-1) compounds,
+// each on 12 TLDs, each a 4-query DNS check every discovery run. 8 -> 56 compounds, ~2.7k
+// extra candidates per run; Render's free 5 GB/month outbound budget is shared with everything.
+const MAX_CORE_KEYWORDS = 8;
 
 const OfficialSocialsSchema = z.object({ urls: z.array(z.string().trim().min(1).max(500)).max(50) });
 
@@ -133,7 +139,7 @@ export async function brandRoutes(app: FastifyInstance) {
       });
     });
     if (!result) return reply.status(404).send({ error: "not_found" });
-    return reply.send(result.map((k) => ({ id: k.id, keyword: k.keyword })));
+    return reply.send(result.map((k) => ({ id: k.id, keyword: k.keyword, core: k.type === "concat_term_core" })));
   });
 
   app.post(
@@ -154,13 +160,45 @@ export async function brandRoutes(app: FastifyInstance) {
           });
         });
         if (!result) return reply.status(404).send({ error: "not_found" });
-        return reply.status(201).send({ id: result.id, keyword: result.keyword });
+        return reply.status(201).send({ id: result.id, keyword: result.keyword, core: false });
       } catch (err: any) {
         // @@unique([brandId, keyword]) -- adding one already present is a no-op from the
         // caller's perspective, not an error worth surfacing as a 500.
         if (err?.code === "P2002") return reply.status(409).send({ error: "duplicate_keyword" });
         throw err;
       }
+    }
+  );
+
+  // Marks a keyword "core" (paired with the other core keywords in discovery) or back to plain.
+  app.patch(
+    "/api/brands/:id/keywords/:keywordId",
+    { preHandler: [authenticate, requireRole("owner", "admin")] },
+    async (request, reply) => {
+      const { id, keywordId } = request.params as { id: string; keywordId: string };
+      const parsed = UpdateKeywordSchema.safeParse(request.body);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      const orgId = request.auth!.orgId;
+
+      const result = await withTenant(orgId, async (tx) => {
+        const keyword = await tx.brandKeyword.findFirst({
+          where: { id: keywordId, brandId: id, type: { in: ["concat_term", "concat_term_core"] } },
+        });
+        if (!keyword) return "not_found" as const;
+        if (parsed.data.core && keyword.type !== "concat_term_core") {
+          const coreCount = await tx.brandKeyword.count({ where: { brandId: id, type: "concat_term_core" } });
+          if (coreCount >= MAX_CORE_KEYWORDS) return "too_many" as const;
+        }
+        return tx.brandKeyword.update({
+          where: { id: keywordId },
+          data: { type: parsed.data.core ? "concat_term_core" : "concat_term" },
+        });
+      });
+      if (result === "not_found") return reply.status(404).send({ error: "not_found" });
+      if (result === "too_many") {
+        return reply.status(409).send({ error: "too_many_core_keywords", message: `At most ${MAX_CORE_KEYWORDS} keywords can be paired.` });
+      }
+      return reply.send({ id: result.id, keyword: result.keyword, core: result.type === "concat_term_core" });
     }
   );
 

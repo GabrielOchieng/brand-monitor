@@ -198,6 +198,10 @@ background:
   of the brand's keywords (no hyphens, high-risk TLDs only) — e.g. `flyjambojetkenya.store` once
   `fly` and `kenya` are keywords. Each keyword adds ~2×(keywords)×12 DNS lookups per run, so
   keep the list to words attackers actually use.
+- **Paired keywords**: click a keyword in the Keywords panel to mark it *paired* (`concat_term_core`).
+  Paired keywords are also combined with each other around the brand (`fly`+`book` →
+  `flybookjambojet.xyz`, 4 arrangements, high-risk TLDs). Capped at 8 per brand: 6 paired adds
+  ~1,440 candidates (~6k DNS queries) per discovery run.
 - **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
   and the last owner can't be demoted). Invite people with Clerk's organization switcher.
 
