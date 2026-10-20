@@ -96,8 +96,8 @@ background:
   nameserver, last-changed and status changes fire the auto-seeded `registration_changed`
   alert. This catches a dormant domain being re-armed before its website comes back.
 - **Post-takedown watch**: a finding that is `resolved` or has a `completed` takedown keeps
-  being rechecked. Once a scan shows the site definitely down (no DNS, parked, or HTTP
-  404/410/451; a failed scan doesn't count), seeing live content again fires the auto-seeded
+  being rechecked. Once two consecutive scans show the site definitely down (no DNS, parked, or HTTP
+  404/410/451; a failed scan doesn't count or break the streak), seeing live content again fires the auto-seeded
   `site_reactivated` alert, logs a history entry, and moves a resolved finding back to `new`.
   On that scan it replaces the severity and `website_activated` alerts rather than adding to them.
 - **Manual submission**: paste a URL on the dashboard to report a suspicious page discovery
@@ -114,7 +114,7 @@ background:
   normal finding (hourly rather than faster to fit Render's free bandwidth) — specifically so
   the moment it starts serving real content gets caught fast. A dedicated `website_activated`
   alert rule (auto-seeded per org, same as the default severity alert) fires the first time
-  that happens, separately from the regular severity/score alerts.
+  that happens and only then (a live site whose scan is misread as parked once doesn't re-alert), separately from the regular severity/score alerts.
 - **AI explanation**: a "Generate AI explanation" button on a finding's detail page asks
   Claude to narrate its deterministic score/evidence in plain English — the score itself is
   never set or influenced by the model, only explained after the fact (see `ARCHITECTURE.md`

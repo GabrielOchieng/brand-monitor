@@ -134,6 +134,12 @@ model Finding {
   // when it comes back live -- which is what fires site_reactivated. Requiring a definite
   // "down" first stops a single failed scan from looking like a reactivation.
   downSince       DateTime? @map("down_since")
+  // Consecutive definitely-down scans while not yet confirmed down: downSince is only set at 2,
+  // because the parked-page detector occasionally misreads one scan of a live site.
+  downStreak      Int      @default(0) @map("down_streak")
+  // First scan that saw live, non-parked content. website_activated fires only when this was
+  // still null, so a live site whose scans flap live/parked doesn't re-alert on every return.
+  firstLiveAt     DateTime? @map("first_live_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

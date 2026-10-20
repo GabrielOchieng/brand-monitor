@@ -25,22 +25,35 @@ export function isDefinitelyDown(input: { isDomainType: boolean; dnsExists: bool
 
 export interface TakedownWatchState {
   downSince: Date | null;
+  downStreak: number;
   reactivated: boolean;
 }
 
+// Down scans in a row needed to confirm a site down. One isn't enough: the parked-page
+// detector occasionally misreads a single scan of a live site (jambojet.net, 2026-09), and
+// that alone would arm a false site_reactivated on the next normal scan.
+export const DOWN_CONFIRMATIONS = 2;
+
 // A finding is under post-takedown watch once it's resolved or has a completed takedown.
-// Two states: unconfirmed (downSince null) and confirmed down. Live content while
-// confirmed down = reactivated, which resets to unconfirmed so a second takedown cycle
-// can fire again.
+// Two states: unconfirmed (downSince null, counting definitely-down scans in downStreak) and
+// confirmed down. Live content while confirmed down = reactivated, which resets to
+// unconfirmed so a second takedown cycle can fire again. A failed scan (neither down nor
+// live) leaves everything as it was.
 export function nextTakedownWatch(input: {
   underWatch: boolean;
   downSince: Date | null;
+  downStreak: number;
   definitelyDown: boolean;
   live: boolean;
   now: Date;
 }): TakedownWatchState {
-  if (!input.underWatch) return { downSince: null, reactivated: false };
-  if (input.downSince && input.live) return { downSince: null, reactivated: true };
-  if (!input.downSince && input.definitelyDown) return { downSince: input.now, reactivated: false };
-  return { downSince: input.downSince, reactivated: false };
+  if (!input.underWatch) return { downSince: null, downStreak: 0, reactivated: false };
+  if (input.live) return { downSince: null, downStreak: 0, reactivated: input.downSince !== null };
+  if (!input.downSince && input.definitelyDown) {
+    const downStreak = input.downStreak + 1;
+    return downStreak >= DOWN_CONFIRMATIONS
+      ? { downSince: input.now, downStreak: 0, reactivated: false }
+      : { downSince: null, downStreak, reactivated: false };
+  }
+  return { downSince: input.downSince, downStreak: input.downStreak, reactivated: false };
 }

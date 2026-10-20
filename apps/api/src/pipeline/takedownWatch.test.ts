@@ -30,28 +30,46 @@ describe("isLiveContent / isDefinitelyDown", () => {
 });
 
 describe("nextTakedownWatch", () => {
+  const step = (state: { downSince: Date | null; downStreak: number }, obs: { definitelyDown?: boolean; live?: boolean }, at = now) =>
+    nextTakedownWatch({ underWatch: true, ...state, definitelyDown: false, live: false, ...obs, now: at });
+
   it("does nothing for a finding that isn't resolved or taken down", () => {
-    expect(nextTakedownWatch({ underWatch: false, downSince: null, definitelyDown: true, live: false, now })).toEqual({ downSince: null, reactivated: false });
+    expect(nextTakedownWatch({ underWatch: false, downSince: null, downStreak: 1, definitelyDown: true, live: false, now })).toEqual({
+      downSince: null,
+      downStreak: 0,
+      reactivated: false,
+    });
   });
 
-  it("confirms down, holds through failed scans, then fires once when live again", () => {
-    let state = nextTakedownWatch({ underWatch: true, downSince: null, definitelyDown: true, live: false, now: earlier });
-    expect(state).toEqual({ downSince: earlier, reactivated: false });
+  it("confirms down after two down scans, holds through failed scans, then fires once when live again", () => {
+    let state = step({ downSince: null, downStreak: 0 }, { definitelyDown: true }, earlier);
+    expect(state).toEqual({ downSince: null, downStreak: 1, reactivated: false });
 
-    // A failed scan (neither definitely down nor live) changes nothing.
-    state = nextTakedownWatch({ underWatch: true, downSince: state.downSince, definitelyDown: false, live: false, now });
-    expect(state).toEqual({ downSince: earlier, reactivated: false });
+    // A failed scan (neither definitely down nor live) changes nothing, mid-streak or confirmed.
+    state = step(state, {});
+    expect(state).toEqual({ downSince: null, downStreak: 1, reactivated: false });
 
-    state = nextTakedownWatch({ underWatch: true, downSince: state.downSince, definitelyDown: false, live: true, now });
-    expect(state).toEqual({ downSince: null, reactivated: true });
+    state = step(state, { definitelyDown: true });
+    expect(state).toEqual({ downSince: now, downStreak: 0, reactivated: false });
+
+    state = step(state, {});
+    expect(state).toEqual({ downSince: now, downStreak: 0, reactivated: false });
+
+    state = step(state, { live: true });
+    expect(state).toEqual({ downSince: null, downStreak: 0, reactivated: true });
 
     // Still live on the next scan: no second alert.
-    state = nextTakedownWatch({ underWatch: true, downSince: state.downSince, definitelyDown: false, live: true, now });
-    expect(state).toEqual({ downSince: null, reactivated: false });
+    state = step(state, { live: true });
+    expect(state).toEqual({ downSince: null, downStreak: 0, reactivated: false });
+  });
+
+  it("does not fire when a live site has one misread parked scan", () => {
+    let state = step({ downSince: null, downStreak: 0 }, { definitelyDown: true });
+    state = step(state, { live: true });
+    expect(state).toEqual({ downSince: null, downStreak: 0, reactivated: false });
   });
 
   it("never fires for a takedown marked complete while the site was still up", () => {
-    const state = nextTakedownWatch({ underWatch: true, downSince: null, definitelyDown: false, live: true, now });
-    expect(state.reactivated).toBe(false);
+    expect(step({ downSince: null, downStreak: 0 }, { live: true }).reactivated).toBe(false);
   });
 });

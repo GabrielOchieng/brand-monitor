@@ -43,12 +43,13 @@ anything that adds outbound traffic (polling, scans, external API calls) must be
   Cloud (country block) and GCP ($50 hold) are ruled out. Never suggest paid options, and verify free-tier
   terms with a web search instead of memory — they change.
 
-## Open issues (as of 2026-10-06, priority order)
+## Open issues (as of 2026-10-20, priority order)
 1. Sept 25 -> Oct 6 outage was a Render bandwidth suspension (5 GB/month), not the keep-alive. Fixed
    2026-10-06 by tuning pg-boss polling (~400 -> ~30 MB/day), hourly dormant rechecks, and blocking
    fonts/media in the scanner; `/health/jobs` added for alerting. Watch Render's bandwidth metric.
 2. Email alerts fail on Render (free tier blocks outbound SMTP). Needs a free HTTPS-API email provider.
-3. `website_activated` re-fires repeatedly when a live site's scan flaps between active and parked.
+3. The parked-page detector sometimes misreads one scan of a live site as parked (score flaps). Alerts are
+   debounced since 2026-10-20 (`findings.first_live_at`, `down_streak`); the detector itself isn't fixed.
 4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
    now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
    The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Brand-settings UI can't mark

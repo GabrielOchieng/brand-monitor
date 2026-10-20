@@ -13,7 +13,7 @@ import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshot
 import { extractIndicators, withoutOwnIndicators, PAYMENT_INDICATOR_KINDS, type Indicator } from "../lib/indicators";
 import { diffRegistration, describeChange } from "./registrationChanges";
 import { runSocialRecheck } from "./socialFindings";
-import { isDefinitelyDown, isGoneStatus, isLiveContent, nextTakedownWatch } from "./takedownWatch";
+import { isDefinitelyDown, isLiveContent, nextTakedownWatch } from "./takedownWatch";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
 import type { AlertDispatchJobData } from "../queue/alertDispatch";
 
@@ -184,14 +184,13 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // code path that might touch riskScore/severity outside this job.
     const previous = await tx.finding.findUniqueOrThrow({ where: { id: findingId } });
 
-    // Read BEFORE the upsert below overwrites it, and unconditionally (not just when
-    // websiteResult exists) -- needed on every round, including a skipped one, so a
-    // dormant -> skipped -> skipped -> active sequence still compares against the real
-    // dormant baseline from before the skip streak, not something poisoned in between.
-    const previousWebsiteIntel = await tx.websiteIntel.findUnique({ where: { findingId } });
-    const previouslyActive =
-      previousWebsiteIntel !== null && !previousWebsiteIntel.looksParked && !isGoneStatus(previousWebsiteIntel.httpStatus);
     const currentlyActive = isLiveContent(websiteResult);
+    // "Dormant -> active" is a once-per-finding event: compared against the first-ever live
+    // scan, not the previous scan, because the parked-page detector occasionally misreads one
+    // scan of a live site and comparing scan-to-scan re-fired website_activated on every
+    // return (jambojet.net: 14 alerts in 6 days). A site coming back after a takedown is
+    // site_reactivated's job (takedownWatch.ts).
+    const justActivated = currentlyActive && previous.firstLiveAt === null;
     // Dormant = not currently showing real, non-parked content -- keeps getting rechecked
     // on the aggressive cadence (see cadence.ts) until it does, rather than backing off
     // with age like an already-resolved-one-way-or-the-other finding would.
@@ -208,9 +207,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // (someone else's) WHOIS/DNS facts here would show up in the UI's "domain
     // intelligence" panel as if it described the threat itself.
     if (isDomainType) {
-      // Read BEFORE the upsert overwrites it -- firstResolvedAt is a first-ever fact
-      // (mirrors previousWebsiteIntel's "read before overwrite" just above), never
-      // clobbered by a later recheck that finds the domain no longer resolving.
+      // Read BEFORE the upsert overwrites it -- firstResolvedAt is a first-ever fact,
+      // never clobbered by a later recheck that finds the domain no longer resolving.
       // discoveryJob.ts already sets this at creation time for an auto-discovered
       // finding (it only creates one after its own DNS check confirms dns.exists), so
       // preserving it forward here is what actually makes a later "lapsed" state
@@ -282,6 +280,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     const watch = nextTakedownWatch({
       underWatch: previous.status === "resolved" || completedTakedowns > 0,
       downSince: previous.downSince,
+      downStreak: previous.downStreak,
       definitelyDown: isDefinitelyDown({ isDomainType, dnsExists: dns.exists, hasAddress: ip !== null, result: websiteResult }),
       live: currentlyActive,
       now: new Date(),
@@ -370,6 +369,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
         lastScanId: scan.id,
         nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date(), isDormant),
         downSince: watch.downSince,
+        downStreak: watch.downStreak,
+        ...(justActivated ? { firstLiveAt: new Date() } : {}),
         // Back into the triage queue: it needs a new takedown.
         ...(watch.reactivated && previous.status === "resolved" ? { status: "new" } : {}),
       },
@@ -384,7 +385,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
       newScore: scoring.score,
       newSeverity: scoring.severity,
       isFirstScan: previous.lastScanId === null,
-      justActivated: !previouslyActive && currentlyActive,
+      justActivated,
       reactivated: watch.reactivated,
       registrationChanges: registrationChanges.filter((c) => c.alert).map(describeChange),
     };
