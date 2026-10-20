@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { apiFetch } from "../../lib/api";
 import { ThreatsTable } from "../../components/ThreatsTable";
+import { ExportCsvButton } from "../../components/ExportCsvButton";
 import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
 
 export interface FindingRow {
@@ -94,15 +95,22 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
     return hrefWith({ sortBy: column, sortDir: nextDir });
   }
 
+  // Every filter and the sort, but not the page: the export is all pages.
+  const exportQs = new URLSearchParams(qs);
+  exportQs.delete("page");
+
   const hasActiveFilters = Boolean(sp.status || sp.severity || sp.brandId || sp.q || sp.assigneeId);
 
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Threat feed</h1>
-        <p className="text-sm text-ink-subtle">
-          {data.total} finding{data.total === 1 ? "" : "s"} · page {data.page} of {totalPages}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-ink-subtle">
+            {data.total} finding{data.total === 1 ? "" : "s"} · page {data.page} of {totalPages}
+          </p>
+          <ExportCsvButton query={exportQs.toString()} />
+        </div>
       </div>
 
       <form method="GET" className="card mt-4 flex flex-wrap items-end gap-3 p-4">
@@ -157,7 +165,7 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
           <label className="label">Search</label>
           <div className="relative mt-1">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-            <input name="q" defaultValue={sp.q ?? ""} placeholder="Domain contains…" className="field-sm w-full pl-8" />
+            <input name="q" defaultValue={sp.q ?? ""} placeholder="Domain or URL contains…" className="field-sm w-full pl-8" />
           </div>
         </div>
         <button type="submit" className="btn-primary px-3.5 py-1.5 text-xs">

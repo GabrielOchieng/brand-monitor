@@ -204,6 +204,10 @@ background:
   Paired keywords are also combined with each other around the brand (`fly`+`book` →
   `flybookjambojet.xyz`, 4 arrangements, high-risk TLDs). Capped at 8 per brand: 6 paired adds
   ~1,440 candidates (~6k DNS queries) per discovery run.
+- **CSV export**: "Export CSV" on the threat feed downloads every finding matching the current
+  filters and sort (not just the page, max 5,000) with registrar, IP, hosting org, assignee and a
+  link back (`GET /api/findings/export.csv`). Cells starting with `= + - @` are prefixed with `'`
+  so attacker-chosen URLs can't run as spreadsheet formulas.
 - **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
   and the last owner can't be demoted). Invite people with Clerk's organization switcher.
 

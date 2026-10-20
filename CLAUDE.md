@@ -54,8 +54,7 @@ anything that adds outbound traffic (polling, scans, external API calls) must be
    now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
    The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Keywords can be marked paired
    (`concat_term_core`) in the Keywords panel since 2026-10-20; Jambojet's 6 core words are paired in prod.
-5. Smaller: no error tracking, no data export, rate limits are in-memory only (`lib/rateLimit.ts`), ThreatsTable "Domain" header shows
-   full URLs for `url` findings.
+5. Smaller: no error tracking; rate limits are in-memory only (`lib/rateLimit.ts`).
 
 ## How to work with the owner
 - **Never commit or push unless told "commit and push"** (or equivalent). End commit messages with the

@@ -172,7 +172,7 @@ export function ThreatsTable({
                   className="accent-brand"
                 />
               </th>
-              <th className="px-4 py-3">Domain</th>
+              <th className="px-4 py-3">Target</th>
               <th className="px-4 py-3">Severity</th>
               <th className="px-4 py-3">
                 <SortHeader column="riskScore">Score</SortHeader>
@@ -197,7 +197,16 @@ export function ThreatsTable({
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <Link href={`/threats/${f.id}`} className="font-mono text-[13px] text-ink hover:text-brand-hover">
+                  {f.type !== "domain" && (
+                    <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+                      {f.type === "social" ? "Social" : "URL"}
+                    </span>
+                  )}
+                  <Link
+                    href={`/threats/${f.id}`}
+                    title={f.identifier}
+                    className="inline-block max-w-[28rem] truncate align-bottom font-mono text-[13px] text-ink hover:text-brand-hover"
+                  >
                     {f.identifier}
                   </Link>
                   {f.brandName && <span className="ml-2 text-xs text-ink-subtle">({f.brandName})</span>}

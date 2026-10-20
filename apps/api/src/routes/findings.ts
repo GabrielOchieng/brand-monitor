@@ -14,6 +14,7 @@ import { parseSubmittedUrl } from "../lib/submittedUrl";
 import { parseSocialUrl } from "../lib/socialUrls";
 import { recordSocialSighting } from "../pipeline/socialFindings";
 import { allowManualSubmit } from "../lib/rateLimit";
+import { toCsv } from "../lib/csv";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -26,6 +27,22 @@ const PatchFindingSchema = z.object({
   assigneeId: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
 });
+
+const EXPORT_MAX_ROWS = 5000;
+
+// Default (no status/severity filter) shows everything -- don't silently hide real
+// production data the first time filtering ships. assigneeId/brandId need no extra
+// tenant validation beyond what RLS already provides: a garbage or foreign-org id in
+// either just yields zero rows via the brand_id IN (...) policy join, never a leak.
+function findingsWhere(q: z.infer<typeof FindingsQuerySchema>): Prisma.FindingWhereInput {
+  return {
+    ...(q.status ? { status: q.status } : {}),
+    ...(q.severity ? { severity: q.severity } : {}),
+    ...(q.brandId ? { brandId: q.brandId } : {}),
+    ...(q.assigneeId ? { assigneeId: q.assigneeId === "unassigned" ? null : q.assigneeId } : {}),
+    ...(q.q ? { identifier: { contains: q.q, mode: "insensitive" } } : {}),
+  };
+}
 
 const FindingsQuerySchema = z.object({
   status: FindingStatusSchema.optional(),
@@ -83,17 +100,7 @@ export async function findingsRoutes(app: FastifyInstance) {
     const q = parsed.data;
     const orgId = request.auth!.orgId;
 
-    // Default (no status/severity filter) shows everything -- don't silently hide real
-    // production data the first time filtering ships. assigneeId/brandId need no extra
-    // tenant validation beyond what RLS already provides: a garbage or foreign-org id in
-    // either just yields zero rows via the brand_id IN (...) policy join, never a leak.
-    const where: Prisma.FindingWhereInput = {
-      ...(q.status ? { status: q.status } : {}),
-      ...(q.severity ? { severity: q.severity } : {}),
-      ...(q.brandId ? { brandId: q.brandId } : {}),
-      ...(q.assigneeId ? { assigneeId: q.assigneeId === "unassigned" ? null : q.assigneeId } : {}),
-      ...(q.q ? { identifier: { contains: q.q, mode: "insensitive" } } : {}),
-    };
+    const where = findingsWhere(q);
 
     const [findings, total] = await withTenant(orgId, (tx) =>
       Promise.all([
@@ -127,6 +134,53 @@ export async function findingsRoutes(app: FastifyInstance) {
       page: q.page,
       pageSize: q.pageSize,
     });
+  });
+
+  // Same filters and sort as the feed, every page at once (capped), for reporting.
+  app.get("/api/findings/export.csv", { preHandler: authenticate }, async (request, reply) => {
+    const parsed = FindingsQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+    const q = parsed.data;
+
+    const findings = await withTenant(request.auth!.orgId, (tx) =>
+      tx.finding.findMany({
+        where: findingsWhere(q),
+        orderBy: { [q.sortBy]: q.sortDir },
+        take: EXPORT_MAX_ROWS,
+        include: {
+          brand: { select: { name: true } },
+          assignee: { select: { email: true } },
+          domainIntel: { select: { registrar: true, registeredAt: true, ip: true, hostingOrg: true } },
+        },
+      })
+    );
+
+    const csv = toCsv(
+      ["identifier", "type", "brand", "severity", "risk_score", "status", "source", "first_detected_at", "last_scanned_at", "assignee", "tags", "registrar", "registered_at", "ip", "hosting_org", "link"],
+      findings.map((f) => [
+        f.identifier,
+        f.type,
+        f.brand.name,
+        f.severity,
+        f.riskScore,
+        f.status,
+        f.source,
+        f.firstDetectedAt,
+        f.lastScannedAt,
+        f.assignee?.email,
+        f.tags,
+        f.domainIntel?.registrar,
+        f.domainIntel?.registeredAt,
+        f.domainIntel?.ip,
+        f.domainIntel?.hostingOrg,
+        `${env.webAppUrl}/threats/${f.id}`,
+      ])
+    );
+    const date = new Date().toISOString().slice(0, 10);
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", `attachment; filename="findings-${date}.csv"`)
+      .send(csv);
   });
 
   app.patch(
