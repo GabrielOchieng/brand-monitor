@@ -33,21 +33,23 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
-Vercel (web) + Render free (API and scanner in ONE container) + Neon (Postgres) + Clerk **dev**
-instance (permanent by decision) + UptimeRobot keep-alive on `/health` (alerting monitor on `/health/jobs`).
-**Render's free workspace allows 5 GB/month outbound bandwidth, then suspends everything until the 1st** —
-anything that adds outbound traffic (polling, scans, external API calls) must be budgeted; see DEPLOYMENT.md §6.
+Since 2026-11-19: Vercel (web) + an OVH VPS running Dokploy (`panel.gabrielochieng.com`): the API and
+scanner in ONE container at `brand-monitor-api.gabrielochieng.com`, and a **shared Postgres 18 server**
+(`postgres-shared`, internal host only, no public port) that every app on the VPS uses, each with its own
+database + role. Clerk **dev** instance (permanent by decision). UptimeRobot alerts on `/health/jobs`.
+Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DEPLOYMENT.md §7.
 
 ## Hard constraints
-- **Everything must stay at $0** — no card, no paid tiers. The owner has said this repeatedly. Oracle
-  Cloud (country block) and GCP ($50 hold) are ruled out. Never suggest paid options, and verify free-tier
-  terms with a web search instead of memory — they change.
+- **The only paid item is the owner's existing VPS** (runs Dokploy, panel.gabrielochieng.com, shared with
+  another project). Everything else must stay at $0 — no card, no paid tiers, no paid add-ons. Oracle
+  Cloud (country block) and GCP ($50 hold) are ruled out. Verify free-tier terms with a web search
+  instead of memory — they change.
 
-## Open issues (as of 2026-10-20, priority order)
-1. Sept 25 -> Oct 6 outage was a Render bandwidth suspension (5 GB/month), not the keep-alive. Fixed
-   2026-10-06 by tuning pg-boss polling (~400 -> ~30 MB/day), hourly dormant rechecks, and blocking
-   fonts/media in the scanner; `/health/jobs` added for alerting. Watch Render's bandwidth metric.
-2. Email alerts fail on Render (free tier blocks outbound SMTP). Needs a free HTTPS-API email provider.
+## Open issues (as of 2026-11-19, priority order)
+1. No database backups. Dokploy can back up to S3-compatible storage; needs a free, no-card target.
+   Production was down 2026-10-22 -> 11-19 (Render suspension) until the move to the VPS.
+2. Email alerts over SMTP: never worked on Render (blocked); unconfirmed on the VPS. Check
+   `alert_deliveries` after the next alert before reaching for an HTTPS-API email provider.
 3. The parked-page detector sometimes misreads one scan of a live site as parked (score flaps). Alerts are
    debounced since 2026-10-20 (`findings.first_live_at`, `down_streak`); the detector itself isn't fixed.
 4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
@@ -70,8 +72,10 @@ anything that adds outbound traffic (polling, scans, external API calls) must be
 - **Never leave `npm run dev` (tsx watch) running.** Its recheck dispatcher sends real alert emails to the
   owner's inbox. Stopping a background task does not kill the child node process: find the PID with
   `netstat -ano | grep :4000` and run `taskkill //F //PID <pid>`.
-- Neon auto-suspends; the first connection after idle often fails — retry once.
-- To query production: throwaway script with `new PrismaClient({ datasources: { db: { url } } })`, reading
-  `DATABASE_URL` from `apps/api/.env.production` (gitignored). Never print or commit credentials.
+- Production Postgres has no public port, so local scripts can't reach it. Ask the owner to run SQL in
+  Dokploy's `postgres-shared` container terminal (`psql -U postgres -d brandmonitor`), or to open a
+  temporary External Port / SSH tunnel. `apps/api/.env.production` (gitignored) still holds the retired
+  Neon URL, valid until Neon is deleted. Never print or commit credentials.
+- In Git Bash, `docker exec` container paths get rewritten to Windows paths; prefix with `MSYS_NO_PATHCONV=1`.
 - `apps/api/src/env.ts` forces IPv4-first DNS because Node's `fetch` hung on this machine's IPv6 route.
 - Python isn't installed; use node for scripting.

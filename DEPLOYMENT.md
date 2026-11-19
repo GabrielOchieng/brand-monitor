@@ -1,146 +1,122 @@
-# Deploying Brand Monitor for free
+# Deploying Brand Monitor
 
-Three services, three providers, all genuinely free tier as of September 2026 — no card
-required anywhere in this setup (free tiers change — re-check before relying on this
-months later):
-
-| Piece | Where | Why |
+| Piece | Where | Cost |
 |---|---|---|
-| `apps/web` (Next.js) | Vercel | first-party Next.js hosting, generous free tier, no card |
-| Postgres | Neon | free tier's default role has `CREATEROLE`, which the RLS migration needs |
-| `apps/api` + `apps/scanner` (one container) | Render | free Web Service needs no card at all — the only provider found that doesn't, after Oracle Cloud outright rejected Kenya as a billing country and Google Cloud required a $50 authorization hold |
+| `apps/web` (Next.js) | Vercel (Hobby) | free |
+| `apps/api` + `apps/scanner` (one container) | OVH VPS (VPS-2: 4 vCores, 8 GB RAM, 75 GB, Beauharnois CA) running Dokploy | the one paid item |
+| Postgres 18 | Same VPS: one **shared** Postgres server in Dokploy, used by every app on the box; each app gets its own database + role | (VPS) |
+| Auth | Clerk **dev** instance (see §4) | free |
+| Monitoring | UptimeRobot on `/health/jobs` | free |
 
-`apps/api` and `apps/scanner` run as **two processes in one container** on Render, not two
-separate services — Render's free tier is 750 instance-hours/month shared across the whole
-workspace, enough for one always-on service (~730 hrs) but not two (~1460 combined). See
-`apps/api/Dockerfile` and `docker-entrypoint.sh` for how both processes start together;
-`apps/scanner`'s own standalone `Dockerfile` and the root `docker-compose.yml` are
-unaffected by this — local dev still runs the two as separate containers exactly as before.
+Live (since 2026-11-19): web `https://brand-monitor-web-eta.vercel.app`, API
+`https://brand-monitor-api.gabrielochieng.com`. Dokploy panel: `panel.gabrielochieng.com`.
+Both Vercel and Dokploy auto-deploy on every push to `main`.
 
-**RAM is tight**: Render's free tier is only 512MB total, shared between the Fastify/pg-
-boss process and however many headless-Chromium instances the scanner has running at once
-in the same container. `RECHECK_CONCURRENCY=1` (see `.env.production.example`) caps that
-at one concurrent scan — more than one risks OOM-killing the whole container, not just the
-scan. This is a real reliability trade-off versus a bigger machine, accepted deliberately
-to stay at $0.
+Budget rule: the VPS is the only paid item. Everything else stays on free tiers with no card.
 
-The API is served over real HTTPS automatically — Render gives every Web Service a real
-TLS certificate on its own `*.onrender.com` subdomain, no domain purchase, no DNS, no
-Caddy/Let's Encrypt setup needed (this is also why `apps/web`'s browser-side calls to the
-API — see `apiFetch` usage in `app/dashboard/page.tsx` — won't get blocked as mixed
-content: both ends are HTTPS by default).
+`apps/api` and `apps/scanner` run as **two processes in one container** (`apps/api/Dockerfile`,
+`docker-entrypoint.sh`); the API reaches the scanner on `127.0.0.1:3100`, never exposed. This was
+forced by Render's free tier originally and is kept because it's simple. Local dev still runs
+the scanner as its own container (root `docker-compose.yml`).
 
-## 1. Neon (Postgres)
+## 1. Shared Postgres (Dokploy project `infra`, service `postgres-shared`)
 
-1. Create a free project at [neon.tech](https://neon.tech).
-2. Copy the **direct** (non-pooled) connection string — not the pooled/PgBouncer one. This
-   app is a long-running server managing its own Prisma pool, not a serverless function
-   making many short-lived connections, so the pooler (built for the latter) just adds a
-   variable worth avoiding.
-3. That's it for now — the `brandmonitor_app` role gets created automatically when the RLS
-   migration runs in step 3 below.
+Created once for the whole VPS. Image **`postgres:18`**, superuser `postgres`, **no external
+port** (reachable only on Dokploy's internal network, host `infra-postgresshared-zdz0e1:5432`).
 
-## 2. Render (`apps/api` + `apps/scanner`)
+**Do not set `PGDATA`.** Dokploy (v0.31) mounts its persistent volume at
+`/var/lib/postgresql/18/docker`, which is the postgres:18 image's default `PGDATA`. Setting
+`PGDATA=/var/lib/postgresql/data` (the pre-18 path) puts the data in an anonymous volume that's
+recreated empty on every reload; this happened during setup. To check, run
+`echo $PGDATA; grep postgresql /proc/mounts` in the container terminal: `PGDATA` must be one of
+the mounted paths.
 
-1. Create a free account at [render.com](https://render.com) — no card required for the
-   free tier.
-2. **New → Web Service**, connect this repo.
-3. Set **Dockerfile Path** to `apps/api/Dockerfile` and leave the **Docker Build Context
-   Directory** as the repo root (`.`) — this exactly matches `docker build -f
-   apps/api/Dockerfile .`, already verified working locally.
-4. Pick the **Free** instance type.
-5. Set **Health Check Path** to `/health` (the existing route needs no changes).
-6. Add environment variables from `apps/api/.env.production` (create it from
-   `apps/api/.env.production.example` first if you haven't) — Neon's connection strings
-   from step 1 (pick a real password for `brandmonitor_app`, not the dev default), your
-   Clerk **production** instance keys (see step 3 below), SMTP, Anthropic key,
-   `RECHECK_CONCURRENCY=1`, and `WEB_APP_URL` set to your eventual Vercel URL. Do **not**
-   set `PORT` — Render injects its own.
-7. Deploy. The container's entrypoint runs `prisma migrate deploy`, syncs
-   `brandmonitor_app`'s password with `DATABASE_APP_URL`, bootstraps the pg-boss grants,
-   then starts both the scanner and api processes — all automatically, on every deploy,
-   no separate manual step.
-8. Confirm `https://<your-service-name>.onrender.com/health` returns `{"ok":true}`.
+Adding an app's database (container terminal → `psql -U postgres`):
 
-**Keep it from sleeping**: Render's free Web Service sleeps after 15 minutes with no
-*inbound HTTP* traffic. This matters more than it sounds like it should — pg-boss's own
-background polling loop runs continuously inside the same process, but that's internal
-activity, not inbound HTTP traffic, so it does **not** by itself keep Render from sleeping
-the container. Without a fix, the queue would silently stop making progress for long
-stretches whenever nothing happens to hit the API externally. Fix: a free, no-card external
-uptime pinger — [UptimeRobot](https://uptimerobot.com) is the standard choice — hitting
-`https://<your-service-name>.onrender.com/health` every 5 minutes. That's enough inbound
-traffic to keep the container from ever sleeping in practice. Add a **second** monitor, with
-email alerts on, at `/health/jobs`: it returns 503 once the scheduled jobs have stalled for 15
-minutes (`apps/api/src/queue/health.ts`), which plain `/health` can't detect.
+```sql
+CREATE ROLE <app> LOGIN;              -- brand-monitor needs: LOGIN CREATEROLE BYPASSRLS
+\password <app>                       -- avoids quoting problems; letters+digits only (it goes in a URL)
+CREATE DATABASE <app> OWNER <app>;
+REVOKE ALL ON DATABASE <app> FROM PUBLIC;
+```
 
-## 3. Clerk — deliberately staying on the dev instance
+**Brand-monitor's owner role (`brandmonitor`) needs `CREATEROLE` and `BYPASSRLS`, not superuser:**
+- `CREATEROLE`: the RLS migration creates the `brandmonitor_app` role.
+- `BYPASSRLS`: every table has `FORCE ROW LEVEL SECURITY`, and `adminPrisma` (webhook sync, the
+  cross-tenant recheck dispatcher) connects as this role. Without it the dispatcher silently sees
+  zero rows. Neon's owner role had this implicitly through `neon_superuser`.
 
-**Decision: this deployment runs on Clerk's free development instance permanently, not a
-production instance.** Clerk's production mode requires a real custom domain with DNS you
-control (a `*.vercel.app`/`*.onrender.com` subdomain is explicitly rejected — Clerk needs
-to verify ownership via CNAME/TXT records, and neither platform lets you manage records for
-its own shared domain). Getting a domain just for this was considered (a free `eu.org`
-registration + Cloudflare DNS was the $0-compatible option) but deliberately skipped: for a
-small internal team tool like this — not public self-serve signups — the dev instance's
-only real downsides are a cosmetic "Development mode" watermark on Clerk's UI widgets and
-using Clerk's shared OAuth app credentials instead of your own. Revisit this only if the
-app ever needs public/external sign-ups at meaningful volume.
+Everything else (`prisma migrate deploy`, the `brandmonitor_app` password, pg-boss grants) is
+handled by the API container's entrypoint on every start. Tested against Postgres 18 as a
+non-superuser on 2026-11-19.
 
-Point the webhook at the deployed API instead of localhost: in the Clerk dashboard →
-Developers → Webhooks, add an endpoint at
-`https://<your-service-name>.onrender.com/api/webhooks/clerk`, subscribed to
+## 2. API (Dokploy project `brand-monitor`, Application)
+
+- Provider GitHub, branch `main`, auto-deploy on.
+- Build type **Dockerfile**: file `apps/api/Dockerfile`, context path `.` (repo root; it's an
+  npm-workspaces monorepo and needs the root lockfile).
+- Domain `brand-monitor-api.gabrielochieng.com` → container port **4000**, HTTPS via Let's
+  Encrypt (Dokploy's Traefik). DNS: A record `brand-monitor-api` → `198.245.56.186`.
+- Volume `brand-monitor-screenshots` → `/app/apps/api/screenshots` (finding screenshots; served at
+  `/screenshots/`).
+- Environment: see `apps/api/.env.production.example`. The database URLs use the internal host:
+  ```
+  DATABASE_URL=postgresql://brandmonitor:<pw>@infra-postgresshared-zdz0e1:5432/brandmonitor
+  DATABASE_APP_URL=postgresql://brandmonitor_app:<pw>@infra-postgresshared-zdz0e1:5432/brandmonitor
+  ```
+  Don't set `PORT` (defaults to 4000).
+
+Every start runs migrations, syncs `brandmonitor_app`'s password with `DATABASE_APP_URL`,
+bootstraps the pg-boss grants, then starts the scanner and API. If either process dies the
+container exits and Dokploy restarts it.
+
+Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":true}`.
+
+## 3. Vercel (`apps/web`)
+
+1. Import the repo as a Vercel project with **Root Directory** `apps/web` (Vercel runs
+   `npm install` from the repo root itself; no `vercel.json`).
+2. Env vars: `NEXT_PUBLIC_API_URL=https://brand-monitor-api.gabrielochieng.com` plus the Clerk dev
+   instance's publishable/secret keys. `NEXT_PUBLIC_*` values are baked into the browser bundle at
+   build time: add them as type **Config**, not Secret (Vercel refuses public-prefixed secrets and
+   can't convert a saved secret), and **redeploy** after changing them.
+3. `WEB_APP_URL` on the API must exactly equal the Vercel origin (see §6).
+4. Optional, public report form (`/report/<token>`): a free Cloudflare **Turnstile** widget for the
+   Vercel hostname; `NEXT_PUBLIC_TURNSTILE_SITE_KEY` on Vercel, `TURNSTILE_SECRET_KEY` on the API.
+   Set both or neither: with only the site key the form shows a check the API ignores; with only
+   the secret every report fails `captcha_failed`. Without them the form relies on a honeypot
+   field and a 5-per-hour per-IP limit. Reports trigger at most 30 scans per brand per day.
+5. Optional, social-account and fact-check search: a free Tavily key (tavily.com, no card,
+   1,000 searches/month; never enable pay-as-you-go) as `TAVILY_API_KEY` on the API. Without it
+   those jobs do nothing. `TAVILY_MONTHLY_CAP` (default 900) is a hard stop counted in
+   `provider_usage`; each brand uses ~95/month. Then add each brand's official social accounts
+   and WhatsApp link on the dashboard (**Keywords & accounts**), or its own accounts get reported.
+
+## 4. Clerk — deliberately staying on the dev instance
+
+**This deployment runs on Clerk's free development instance permanently.** Production mode needs
+a custom domain with DNS control; when this was decided there was none (`*.vercel.app` is
+rejected). `gabrielochieng.com` now exists, so production is possible, but for a small internal
+team tool the dev instance's only downsides are a "Development mode" watermark and Clerk's shared
+OAuth credentials. Revisit only if the app needs public sign-ups.
+
+Webhook: Clerk dashboard → Developers → Webhooks, endpoint
+`https://brand-monitor-api.gabrielochieng.com/api/webhooks/clerk`, subscribed to
 `organization.created`, `organization.updated`, `user.created`, `user.updated`,
 `organizationMembership.created`, `organizationMembership.updated`,
-`organizationMembership.deleted`. Put its signing secret in
-`CLERK_WEBHOOK_SIGNING_SECRET` and the existing dev instance's secret key in
-`CLERK_SECRET_KEY` on Render (step 2.6) — the same dev keys `apps/web/.env.local` already
-uses locally, not separate production keys.
+`organizationMembership.deleted`. Its signing secret → `CLERK_WEBHOOK_SIGNING_SECRET`; the dev
+instance's secret key → `CLERK_SECRET_KEY` (the same dev keys `apps/web/.env.local` uses).
 
-**Custom org roles are also deliberately not configured on Clerk at all anymore** — even
-though the dev instance offers them for free, this app no longer reads role from Clerk.
-Role (`owner`/`admin`/`analyst`/`viewer`) is managed entirely in-app now, at `/team` (see
-`apps/api/src/lib/auth.ts`'s `VALID_ROLES` comment for the full story) — the org creator
-automatically becomes `owner`, anyone invited afterward starts as `viewer` and gets
-promoted from `/team` by an owner. **Clerk's own dashboard role toggle (Admin/Member) is
-purely cosmetic and has no effect on this app** — a real gotcha for a future reader who
-doesn't know this file's history, worth remembering before "fixing" someone's access from
-the Clerk side instead of `/team`.
-
-## 4. Vercel (`apps/web`)
-
-1. Import this repo as a new Vercel project.
-2. Set **Root Directory** to `apps/web` in the project settings. Vercel auto-detects the
-   npm-workspaces monorepo from the root `package.json` and runs `npm install` from the
-   repo root itself — no `vercel.json` needed.
-3. Set environment variables: `NEXT_PUBLIC_API_URL=https://<your-service-name>.onrender.com`,
-   plus the same Clerk dev instance publishable/secret keys used everywhere else (step 3) —
-   there are no separate production keys, per the decision in step 3.
-4. Deploy, then go back to Render and update `WEB_APP_URL` (step 2.6) to this real Vercel
-   URL — it starts as a placeholder since the URL isn't known until this step.
-5. Optional, for the public report form (`/report/<token>`): create a free Cloudflare account
-   (no card), add a **Turnstile** widget for the Vercel hostname, then set
-   `NEXT_PUBLIC_TURNSTILE_SITE_KEY` on Vercel and `TURNSTILE_SECRET_KEY` on Render. Set both or
-   neither: with only the site key the form shows a check the API ignores; with only the secret
-   every report fails `captcha_failed`. Without them the form relies on a honeypot field and a
-   5-per-hour per-IP limit. Either way, reports trigger at most 30 scans per brand per day.
-
-6. Optional, for social-account and fact-check search: create a free Tavily account at
-   tavily.com (no card; 1,000 searches/month) and set `TAVILY_API_KEY` on Render. Without it those
-   jobs do nothing. `TAVILY_MONTHLY_CAP` (default 900) is a hard stop counted in the
-   `provider_usage` table, so the free allowance can't be overrun; each brand uses ~95/month.
-   Then add each brand's official social accounts and WhatsApp link on the dashboard
-   (**Keywords & accounts**), or its own accounts get reported.
+**Roles are not configured in Clerk.** Role (`owner`/`admin`/`analyst`/`viewer`) is managed in-app
+at `/team` (see `apps/api/src/lib/auth.ts`, `VALID_ROLES`). The org creator becomes `owner`,
+invitees start as `viewer`. **Clerk's own Admin/Member toggle has no effect on this app**, so
+don't "fix" someone's access from the Clerk side.
 
 ## 5. Smoke test
 
-Open the deployed Vercel URL, sign in, confirm the dashboard loads real data (proves the
-browser → Vercel → API-over-HTTPS → Neon path works end to end), then run a discovery scan
-(proves `api` → `scanner` inside the same Render container works, and is a real test of the
-512MB RAM ceiling under actual load).
-
-Live deployment (as of 2026-10-06): web `https://brand-monitor-web-eta.vercel.app`, API
-`https://brand-monitor-api.onrender.com`. Both Render and Vercel auto-deploy on every push to `main`.
+Sign in on the Vercel URL and confirm the dashboard shows real data (browser → Vercel → API →
+Postgres). `/health/jobs` should show a `lastRecheckDispatchAt` within the last 5 minutes. To see
+the scanner work end to end, submit a live URL as a manual finding: its screenshot should load.
 
 ## 6. Operating it — things that bite
 
@@ -150,79 +126,75 @@ uses it for email links *and* as the CORS allowlist (`apps/api/src/server.ts`; `
 frontend request with a CORS error. It also needs setting in Clerk → Developers → Paths →
 *Fallback development host*, or invitation emails link to `localhost:3000`.
 
-**Bandwidth is the binding limit: 5 GB/month of outbound traffic per free workspace.** Past that,
-with no card on file, Render suspends every service until the 1st of the next month. That is what
-stopped production from 2026-09-25 to 2026-10-06 (Render emailed "Workspace suspended — free
-bandwidth limit reached"). It counts traffic our container *initiates* — Neon queries, headless
-Chromium page loads, WHOIS/RDAP, crt.sh — not just responses to users ([Render docs](https://render.com/docs/outbound-bandwidth)).
-The budget is ~165 MB/day. Measured on 2026-10-06 (byte-counting proxy / container net I/O):
+**The VPS is shared** with other apps (cve-monitor, and more to come); new apps' databases go on
+the shared Postgres server (§1). Brand-monitor's container holds headless Chromium; `RECHECK_CONCURRENCY=3` means up to 3
+browsers at once (~0.5–0.7 GB each). Raise it only after checking free RAM in Dokploy →
+Monitoring.
 
-- pg-boss idle polling with its defaults: ~400 MB/day sent to Postgres, on its own over budget.
-  Now tuned to ~30 MB/day — see the comment in `apps/api/src/queue/boss.ts` before changing any
-  interval there (raising `cronMonitorIntervalSeconds` silently stops all cron jobs).
-- A scan of a live site: ~1–1.6 MB received, ~0.1 MB sent; a parked page ~40 KB. Fonts/media are
-  blocked in the scanner, and dormant findings are rechecked hourly (20 min only in their first 3 days).
-- Added 2026-10-07 (estimated, not measured): the NRD feed is ~0.5 MB/day (one zip; up to ~2 MB
-  after a restart, which re-downloads the last 4 days), plus one more idle pg-boss worker. Discovery
-  grew from ~770 to ~1,170 candidates per run (≈1,640 with `kenya`/`ke` keywords), each 4 small
-  DNS queries, roughly 2–4 MB/day in total.
-- Added 2026-10-08 (estimated, not measured): RDAP now succeeds instead of 403ing, so a recheck
-  receives a ~5–10 KB registry record where it used to get a WHOIS reply of similar size, so no
-  real change there. IP RDAP (~6 KB) runs only when a domain's IP changes. Resolved findings are
-  rechecked again (normal cadence: hourly while down, daily once old and live). That's negligible
-  at the current ~12 findings, but each resolved live site costs one full scan a day (~1–1.6 MB).
-- Added 2026-10-19 (measured feed size): the phishing feed is ~35 KB/hour, ~0.8 MB/day. Don't
-  switch it to `feed.json` (~1 MB per download, ~23 MB/day). Matches are rare for a regional brand
-  (0 for Jambojet on the first check), so the scans it triggers are negligible.
-- Added 2026-10-20 (estimated): social search is 3 Tavily calls per brand per day plus 1 a week,
-  each a few KB of JSON, so well under 1 MB/day. It shares one queue/worker between its two
-  schedules on purpose: every extra pg-boss worker is another 60s poller (~2–3 MB/day). Social
-  findings are never scanned, so they add no scanner traffic.
-- Added 2026-10-20 (estimated): the 6 Jambojet core keywords are now paired, adding ~1,440
-  discovery candidates per run (~3,080 total), roughly +3 MB/day of DNS queries.
-- Rate limits (`lib/rateLimit.ts`, in memory, reset on restart): 300 requests/min and 60
-  `/screenshots/` files/min per IP (`/health*` exempt), plus per org 12 manual discovery runs and
-  50 manual submissions per 24h. Discovery runs need analyst or above. Per-IP keys come from
-  X-Forwarded-For and can be spoofed; the per-org limits are the ones that hold.
+**Querying production:** the database has no public port. Use the `postgres-shared` container
+terminal in Dokploy (`psql -U postgres -d brandmonitor`; as superuser it bypasses RLS). To run a
+local script against it, temporarily set an External Port on the service, or open an SSH tunnel,
+and close it afterwards.
 
-Check usage at Render → the service → **Metrics → Outbound Bandwidth** (broken down by traffic type).
-If jobs seem dead, check your email for a suspension notice before anything else.
+**Backups: not set up yet.** Dokploy can schedule `pg_dump` backups to S3-compatible storage
+(service → Backups); a free off-site target with no card is still to be chosen. Until then a lost
+VPS disk loses the data.
 
-**The free instance also sleeps** after 15 minutes without inbound HTTP. pg-boss's internal polling
-doesn't count, so while it sleeps *no scheduled job runs at all*. The UptimeRobot monitor on
-`/health` prevents this; the `/health/jobs` monitor alerts when jobs stall for any reason. A cold
-start takes ~35–50s.
+**Email over SMTP from OVH: not yet confirmed.** Render's free tier blocked outbound SMTP, which is
+why email alerts never worked in production. OVH VPSes normally allow it. Check after the next
+alert: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
 
-**Outbound SMTP is blocked on Render's free tier** (ports 25/465/587; rollout completed by
-2026-09-26). The `SMTP_*` env vars therefore cannot work there: every email delivery fails with
-`Connection timeout` while in-app notifications and the webhook channel still work. Fix = move to
-an HTTPS-API email provider (not done yet). Source: Render changelog, "Free web services will no
-longer allow outbound traffic to SMTP ports".
+**pg-boss polling is still tuned for Render's old 5 GB/month bandwidth cap** (~30 MB/day instead
+of ~400). It's harmless on the VPS; read the comment in `apps/api/src/queue/boss.ts` before
+changing any interval (raising `cronMonitorIntervalSeconds` silently stops all cron jobs). Other
+bandwidth-motivated choices that still stand: dormant findings are rechecked hourly (20 min in
+their first 3 days), fonts/media are blocked in the scanner, and the phishing feed uses the small
+feed (~35 KB/hour), not `feed.json`.
 
-**Neon auto-suspends** when idle; the first connection after a pause often fails — just retry.
+**Rate limits** (`lib/rateLimit.ts`, in memory, reset on restart): 300 requests/min and 60
+`/screenshots/` files/min per IP (`/health*` exempt), plus per org 12 manual discovery runs and 50
+manual submissions per 24h. Discovery runs need analyst or above. Per-IP keys come from
+X-Forwarded-For (`trustProxy`, behind Traefik) and can be spoofed; the per-org limits are the ones
+that hold.
 
-**How to confirm jobs are actually running** (don't trust log silence — the monitor jobs log
-nothing on a normal run). Query pg-boss directly against the production DB:
+**How to confirm jobs are actually running** (don't trust log silence: the monitor jobs log
+nothing on a normal run):
 
-- Registered schedules: `SELECT name, cron FROM pgboss.schedule;` — expect `dispatch-discovery`
+- Fastest: `GET /health/jobs`: 200 with a recent `lastRecheckDispatchAt`, or 503 once jobs have
+  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `phish_feed` / `social_search`
+  (last successful query; `stale` after 24h / 48h / 6h / 48h; social only when `TAVILY_API_KEY` is
+  set) and `tavilyUsage`. `GET /health/jobs?sources=1` also returns 503 when a source is stale.
+  UptimeRobot watches it with email alerts on. Stale since the last restart just means it hasn't
+  succeeded *since that restart*.
+- Registered schedules: `SELECT name, cron FROM pgboss.schedule;`. Expect `dispatch-discovery`
   (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
   `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`),
   `phish-feed-monitor` (`40 * * * *`), and `social-search-monitor` twice (`20 6 * * *` key `social`,
   `50 6 * * 1` key `fact_check`).
-- Fastest check: `GET /health/jobs` — 200 with a recent `lastRecheckDispatchAt`, or 503. It also
-  reports `sources.ct_log` / `sources.nrd` / `sources.phish_feed` / `sources.social_search` (last
-  successful query, `stale` after 24h / 48h / 6h / 48h; social only when `TAVILY_API_KEY` is set),
-  and `tavilyUsage` (searches used this month, as of this process's last search), which
-  don't affect the status code. `GET /health/jobs?sources=1` returns 503 when a source is stale
-  too: point a **second** UptimeRobot monitor at it, so a dead feed alerts without looking like an
-  outage. Stale since the last restart just means it hasn't succeeded *since that restart*.
-- Recent activity: `SELECT name, state, count(*), max(completed_on) FROM pgboss.job WHERE
-  created_on > now() - interval '24 hours' GROUP BY name, state;` — empty means nothing ran.
-  pg-boss v12 deletes completed jobs (no archive table), so for history use the app's own
-  tables: `SELECT date_trunc('day', started_at), count(*) FROM scans GROUP BY 1 ORDER BY 1;`. Zero findings from `app_store` is normal. Zero from `ct_log` is **not** proof
-  nothing exists: crt.sh was down so often that CT monitoring never produced a finding in production.
-  Check `sources` on `/health/jobs` before trusting an empty result.
-- Email health: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
+- Scan history (pg-boss v12 deletes completed jobs, so use the app's tables):
+  `SELECT date_trunc('hour', started_at), count(*), count(error) FROM scans GROUP BY 1 ORDER BY 1 DESC LIMIT 24;`
+  Rechecks follow each finding's cadence, so a quiet hour is normal when nothing is due.
+- Zero findings from `app_store` is normal. Zero from `ct_log` is **not** proof nothing exists:
+  crt.sh fails so often that CT monitoring has never produced a finding in production.
 
 **Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and
 sends real alert emails (using the local SMTP config) to a real inbox, with links to `localhost`.
+
+## 7. History: the free Render + Neon setup (until 2026-11-19)
+
+Until 2026-11-19 the API ran on Render's free tier and Postgres on Neon's free tier. It was
+retired because:
+- **Render's free workspace allows 5 GB/month of outbound bandwidth**, then suspends everything
+  until the 1st. That caused the 2026-09-25 → 10-06 outage, and production stopped again on
+  **2026-10-22** (last scan in Neon 21:44 UTC) and stayed down until the move. No alerts went out
+  in that period.
+- Render's free tier blocks outbound SMTP, so email alerts never worked there.
+- The instance slept after 15 min without inbound HTTP (needed an UptimeRobot keep-alive), had
+  512 MB RAM (`RECHECK_CONCURRENCY=1`), and lost screenshots on every deploy.
+- Neon auto-suspended, so the first connection after idle often failed.
+
+Migration (2026-11-19): data-only `pg_dump` of the `public` schema from Neon (excluding
+`_prisma_migrations`; schema came from the migrations, pg-boss schedules re-register on start),
+restored with `pg_restore --data-only --disable-triggers` as the superuser. All 26 tables / 32,037
+rows matched. Neon and the suspended Render service are kept until ~2026-11-26 as a rollback, then
+deleted.

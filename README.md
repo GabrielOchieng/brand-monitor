@@ -18,7 +18,7 @@ auth, pg-boss vs. Redis, the `Scan` batching model, etc.) — this file covers s
   Clerk's own Admin/Member role is ignored. Also add a webhook in Clerk pointing at
   `/api/webhooks/clerk` (events: organization, user, organizationMembership) and put its signing
   secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
-- Deployed setup (Vercel + Render + Neon, all free): see `DEPLOYMENT.md`.
+- Deployed setup (Vercel for the web app; API, scanner and Postgres on a Dokploy VPS): see `DEPLOYMENT.md`.
 
 ## Setup
 
@@ -81,8 +81,8 @@ background:
   in the header), and/or a webhook if one's configured (`PUT /api/webhook-config` — no
   settings UI yet). More rule kinds (`score_increase`, `new_finding`) exist and work, just
   aren't auto-seeded; add one directly via `alert_rules` until a rules UI exists.
-  **Caveat:** email uses plain SMTP, which Render's free tier blocks — it works locally but
-  fails in the deployed app (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
+  **Caveat:** email uses plain SMTP. It never worked on the old Render host (SMTP blocked);
+  on the VPS it's not yet confirmed (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
 - **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
   resolved`), assignee, and tags are editable from its detail page. `false_positive` stops
   automatic rechecks; `resolved` does **not** (see post-takedown watch below). Notes are a
@@ -111,7 +111,7 @@ background:
 - **Dormant-domain watch**: a registered typosquat with nothing hosted on it yet (a parked
   page, or a cloud platform's default "not deployed" placeholder) is rechecked every 20
   minutes for its first 3 days, then hourly indefinitely — not backing off to daily like a
-  normal finding (hourly rather than faster to fit Render's free bandwidth) — specifically so
+  normal finding (hourly rather than faster, originally to fit Render's free bandwidth) — specifically so
   the moment it starts serving real content gets caught fast. A dedicated `website_activated`
   alert rule (auto-seeded per org, same as the default severity alert) fires the first time
   that happens and only then (a live site whose scan is misread as parked once doesn't re-alert), separately from the regular severity/score alerts.

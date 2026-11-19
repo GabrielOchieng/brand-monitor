@@ -21,7 +21,7 @@ import { tavilyUsageSnapshot } from "./lib/tavily";
 import { allowRequest, allowScreenshot } from "./lib/rateLimit";
 
 async function main() {
-  // trustProxy: Render sits in front of the container, so without it request.ip is the
+  // trustProxy: Traefik (Dokploy) sits in front of the container, so without it request.ip is the
   // proxy's address and the public report form's per-IP limit (routes/publicReports.ts)
   // would be one shared bucket for every visitor.
   const app = Fastify({ logger: true, trustProxy: true });

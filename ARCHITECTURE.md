@@ -18,17 +18,17 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 | Design said | As built | Why |
 |---|---|---|
 | §10: roles come from Clerk org roles | Roles live in Postgres `Membership.role` (`owner/admin/analyst/viewer`). Initial role set from the Clerk webhook (org creator → `owner`, invitees → `viewer`); changed by an owner via `PATCH /api/organization/members/:userId` (the `/team` page). Clerk's own role is ignored. | Clerk charges ~$100/mo for custom roles on a production instance. |
-| Clerk production instance | Clerk **dev** instance, permanently | Clerk production requires a custom domain with DNS control (`*.vercel.app` / `*.onrender.com` are rejected). |
+| Clerk production instance | Clerk **dev** instance, permanently | Clerk production requires a custom domain with DNS control (`*.vercel.app` is rejected); for a small internal tool the dev instance is enough (DEPLOYMENT.md §4). |
 | §12: CT feeds via vendors | crt.sh free JSON API, pull-based polling | A persistent firehose (CertStream) doesn't fit the short-lived-job architecture or the 512MB budget. |
 | §5.3: social / app-store coverage | iOS App Store (iTunes Search API), plus social accounts found through a web search API (Tavily, daily, 3 searches/brand) on Facebook, Instagram, TikTok, X, Telegram and YouTube — scored on the search result (lookalike handle, foreign contact number), never scanned. Weekly PesaCheck fact-check search. Google Play and the Meta Ad Library are **not** covered. | No platform offers a free API to search other people's accounts (checked 2026-10-19): X closed its free tier (Feb 2026, now pay-per-use); Meta's page/Threads search needs business verification + app review; Meta Content Library and TikTok's APIs are research-only; the Meta Ad Library API returns commercial ads only for the EU/UK, so Kenyan scam ads are invisible to it; Google Play has no API. Search engines do index the fakes, and Tavily is the only search API still free with no card (Google CSE closed to new customers, Bing retired, Brave needs a card). |
-| §15: generic cloud stack | Vercel (web) + Render free (API + scanner in ONE container) + Neon (Postgres), strictly $0 | Hard $0 constraint; Oracle Cloud (country block) and GCP ($50 hold) were ruled out. |
+| §15: generic cloud stack | Vercel free (web) + one OVH VPS running Dokploy: API + scanner in ONE container, plus a shared Postgres 18 server (own database + role per app). Since 2026-11-19; before that Render free + Neon free. | The VPS is the only paid item; everything else stays free. Render's free tier kept suspending on its 5 GB/month bandwidth cap and blocked SMTP. |
 | Redis-style queue | pg-boss on Postgres | One fewer service to host. |
 
-### Known limitations / open issues (as of 2026-10-20)
-1. **Render's free workspace has 5 GB/month of outbound bandwidth**; exceeding it suspends every service until the 1st. That caused the Sept 25 → Oct 6 outage. Mitigated 2026-10-06 (pg-boss polling tuned from ~400 to ~30 MB/day, hourly dormant rechecks, fonts/media blocked in the scanner) and `/health/jobs` added for alerting — see DEPLOYMENT.md §6. The instance also sleeps after 15 min without inbound HTTP (UptimeRobot keep-alive on `/health`).
-2. **Email alerts currently fail on Render:** the free tier blocks outbound SMTP (ports 25/465/587). Needs a switch to an HTTPS-API email provider with a free tier. In-app notifications and the webhook channel are unaffected.
+### Known limitations / open issues (as of 2026-11-19)
+1. **No database backups yet.** Postgres lives on the VPS; Dokploy can schedule `pg_dump` to S3-compatible storage, but a free off-site target hasn't been chosen. Production was also down 2026-10-22 → 11-19 (Render suspension) before the move to the VPS — see DEPLOYMENT.md §7.
+2. **Email alerts over SMTP are unconfirmed on the VPS.** They never worked on Render (SMTP blocked). In-app notifications and the webhook channel are unaffected.
 3. **The parked-page detector occasionally misreads a single scan of a live site** (`jambojet.net`'s score swings 45 → 20 → 45). Alerts are protected since 2026-10-20 (`website_activated` fires once per finding; a takedown is confirmed down only after 2 consecutive down scans), but the score still flaps, which would trip a `score_increase` rule if one were enabled.
-4. Scale ceiling: one 512MB container shared by the API and headless Chromium, `RECHECK_CONCURRENCY=1`.
+4. Scale ceiling: one container holds the API and headless Chromium on a VPS (8 GB) shared with other apps, `RECHECK_CONCURRENCY=3`.
 5. Not built: error tracking, Google Play monitoring, Meta Ad Library (its API has no Kenyan commercial ads).
 
 ---
