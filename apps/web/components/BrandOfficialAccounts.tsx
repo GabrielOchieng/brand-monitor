@@ -37,7 +37,7 @@ export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
       setUrls(data.urls);
       return true;
     } catch (err: any) {
-      setError(err.message.includes("not_a_social_account") ? "That isn't a social account or WhatsApp link." : err.message);
+      setError(err.message);
       return false;
     } finally {
       setSaving(false);

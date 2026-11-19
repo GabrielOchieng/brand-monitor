@@ -12,6 +12,18 @@ interface Explanation {
   createdAt: string;
 }
 
+// The API stores a readable sentence since 2026-11-19 (lib/aiExplain.ts describeAiError);
+// rows from before that hold raw SDK output like `400 {"type":"error",...}`.
+function readableAiError(error: string | null): string {
+  if (!error) return "unknown error.";
+  if (/^\d{3}\b|^\{|"type":"error"/.test(error)) {
+    return /credit balance/i.test(error)
+      ? "AI explanations are unavailable: the Anthropic account has run out of credits."
+      : "The AI explanation couldn't be generated. Try again later.";
+  }
+  return error;
+}
+
 // ARCHITECTURE.md §9's guardrail: AI output must be clearly labeled as such, distinct
 // from the deterministic findings above it on the page -- this panel never presents the
 // explanation as if it were itself a scoring signal.
@@ -70,7 +82,7 @@ export function AiExplanationPanel({
       {(!explanation || explanation.status === "failed") && (
         <div className="mt-3">
           {explanation?.status === "failed" && (
-            <p className="text-sm text-red-600">Last attempt failed: {explanation.error}</p>
+            <p className="text-sm text-red-600">Last attempt failed: {readableAiError(explanation.error)}</p>
           )}
           <button onClick={handleGenerate} disabled={generating} className="btn-secondary mt-2">
             {generating ? "Generating…" : "Generate AI explanation"}

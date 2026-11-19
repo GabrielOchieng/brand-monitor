@@ -83,7 +83,7 @@ export default function DashboardPage() {
         setSummary(data);
         setSelectedBrandId(data.brand.id);
       } catch (err: any) {
-        if (String(err.message).includes("404")) {
+        if (err?.status === 404) {
           setNoBrandYet(true);
         } else {
           setError(err.message);

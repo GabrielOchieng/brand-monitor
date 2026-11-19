@@ -7,7 +7,7 @@ import { withTenant } from "../lib/tenant";
 import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
-import { buildExplanationPrompt, generateExplanation } from "../lib/aiExplain";
+import { buildExplanationPrompt, describeAiError, generateExplanation } from "../lib/aiExplain";
 import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
 import { parseSubmittedUrl } from "../lib/submittedUrl";
@@ -451,7 +451,7 @@ export async function findingsRoutes(app: FastifyInstance) {
 
       if (claim.kind === "not_found") return reply.status(404).send({ error: "not_found" });
       if (claim.kind === "not_yet_scanned") return reply.status(400).send({ error: "not_yet_scanned" });
-      if (claim.kind === "rate_limited") return reply.status(429).send({ error: "rate_limited" });
+      if (claim.kind === "rate_limited") return reply.status(429).send({ error: "ai_daily_limit" });
       if (claim.kind === "cached") return reply.send(claim.record);
 
       // We own this pending row -- call the LLM outside any transaction (never hold a
@@ -469,8 +469,9 @@ export async function findingsRoutes(app: FastifyInstance) {
         );
         return reply.send(updated);
       } catch (err: any) {
+        request.log.error({ err, findingId: id }, "AI explanation failed");
         const updated = await withTenant(orgId, (tx) =>
-          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "failed", error: String(err?.message ?? err) } })
+          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "failed", error: describeAiError(err) } })
         );
         return reply.send(updated);
       }

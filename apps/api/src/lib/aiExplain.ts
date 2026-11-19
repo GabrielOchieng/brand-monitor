@@ -77,7 +77,39 @@ function getClient(): Anthropic {
   return client;
 }
 
+class AiNotConfiguredError extends Error {}
+
+// Turns whatever generateExplanation threw into one sentence an analyst can act on. This
+// is what gets stored in ai_explanations.error and shown on the finding page, so it must
+// never be a raw SDK/JSON dump; the route logs the original error for debugging.
+export function describeAiError(err: unknown): string {
+  if (err instanceof AiNotConfiguredError) {
+    return "AI explanations aren't set up: the API server has no ANTHROPIC_API_KEY.";
+  }
+  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+    return "The AI service took too long to answer. Try again.";
+  }
+  if (err instanceof Anthropic.APIConnectionError) {
+    return "Couldn't reach the AI service. Try again in a moment.";
+  }
+  if (err instanceof Anthropic.APIError) {
+    const detail = String(err.message ?? "").toLowerCase();
+    if (detail.includes("credit balance")) {
+      return "AI explanations are unavailable: the Anthropic account has run out of credits.";
+    }
+    if (err.status === 401) return "AI explanations are unavailable: the Anthropic API key is invalid.";
+    if (err.status === 403) return "AI explanations are unavailable: the Anthropic API key isn't allowed to do this.";
+    if (err.status === 404) return "AI explanations are unavailable: the configured model (ANTHROPIC_MODEL) wasn't found.";
+    if (err.status === 429) return "The AI service is rate-limiting requests. Try again in a minute.";
+    if (typeof err.status === "number" && err.status >= 500) {
+      return "The AI service is temporarily unavailable. Try again later.";
+    }
+  }
+  return "The AI explanation couldn't be generated. Try again later.";
+}
+
 export async function generateExplanation(prompt: string): Promise<string> {
+  if (!env.anthropicApiKey) throw new AiNotConfiguredError("ANTHROPIC_API_KEY is not set");
   const message = await getClient().messages.create({
     model: env.anthropicModel,
     max_tokens: 400,

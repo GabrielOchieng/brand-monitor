@@ -64,7 +64,7 @@ export default function ReportsPage() {
       await fn(await getToken());
       await load();
     } catch (e: any) {
-      setError(String(e?.message ?? e).includes("403") ? "Only owners and admins can change the public link." : String(e?.message ?? e));
+      setError(e?.status === 403 ? "Only owners and admins can change the public link." : String(e?.message ?? e));
     }
   }
 

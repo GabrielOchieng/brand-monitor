@@ -65,7 +65,7 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
       });
       setKeywords((prev) => prev.map((p) => (p.id === k.id ? updated : p)));
     } catch (err: any) {
-      setError(err.message.includes("too_many_core_keywords") ? "At most 8 keywords can be paired." : err.message);
+      setError(err.message);
     } finally {
       setTogglingId(null);
     }
