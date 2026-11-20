@@ -134,6 +134,12 @@ background:
   still sees live content (content removal without a registrar suspension leaves the domain
   with the attacker). Pure record-keeping: nothing here ever calls a registrar/hosting
   provider's actual API.
+- **Screenshot address bar** (`lib/addressBar.ts`, since 2026-11-20): headless Chromium has no
+  browser chrome, so each saved finding screenshot gets a drawn strip on top showing the page's
+  final URL (after redirects) and the capture time in UTC, so it stands as evidence of which
+  site it is. Only the saved copy gets it; visual similarity hashes the untouched page image. If
+  drawing fails, the plain screenshot is saved. Existing screenshots get the bar on their next
+  recheck.
 - **Takedown kit** (`lib/takedownKit.ts`, `GET /api/findings/:id/takedown-kit`, `TakedownKit`
   panel inside the tracker): every reporting channel that applies to a finding, each with a
   ready-to-send message built from the evidence (URL, registration, IP/host, score reasons,

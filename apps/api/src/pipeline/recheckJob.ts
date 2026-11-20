@@ -161,7 +161,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
 
   let screenshotPath: string | null = null;
   if (websiteResult && !websiteResult.skipped && websiteResult.screenshotBase64) {
-    screenshotPath = await saveScreenshot(findingId, websiteResult.screenshotBase64);
+    screenshotPath = await saveScreenshot(findingId, websiteResult.screenshotBase64, websiteResult.finalUrl ?? finding.identifier);
   }
 
   // One transaction for the whole write sequence: Scan + its child rows are created

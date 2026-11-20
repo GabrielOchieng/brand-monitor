@@ -5,6 +5,7 @@ import { withTenant } from "../lib/tenant";
 import { fetchFaviconHash } from "../lib/favicon";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeRegionalHashes, serializeRegionalHashes } from "../lib/visualSimilarity";
+import { withAddressBar } from "../lib/addressBar";
 import {
   extractIndicators,
   serializeIndicators,
@@ -116,10 +117,21 @@ export async function ensureBrandScreenshotHash(orgId: string, brandId: string, 
   return serialized;
 }
 
-export async function saveScreenshot(findingId: string, base64: string): Promise<string> {
+// `pageUrl` is drawn as an address bar above the page (lib/addressBar.ts) so the saved
+// screenshot shows which site it is. If drawing fails, the plain screenshot is kept --
+// evidence without a bar beats no evidence.
+export async function saveScreenshot(findingId: string, base64: string, pageUrl?: string): Promise<string> {
   await fs.mkdir(SCREENSHOT_DIR, { recursive: true });
   const filename = `${findingId}.png`;
-  await fs.writeFile(path.join(SCREENSHOT_DIR, filename), Buffer.from(base64, "base64"));
+  let image: Buffer = Buffer.from(base64, "base64");
+  if (pageUrl) {
+    try {
+      image = await withAddressBar(image, pageUrl);
+    } catch (err) {
+      console.warn(`[screenshot] couldn't add the address bar for finding ${findingId}: ${String(err)}`);
+    }
+  }
+  await fs.writeFile(path.join(SCREENSHOT_DIR, filename), image);
   return `/screenshots/${filename}`;
 }
 
