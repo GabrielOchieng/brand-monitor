@@ -1,48 +1,70 @@
 import { withTenant } from "../lib/tenant";
 import { queryAppStore } from "../lib/appStoreSearch";
+import { queryGooglePlay } from "../lib/googlePlaySearch";
+import { googlePlayUrl, isOfficialApp } from "../lib/appListings";
+import { markSourceSuccess } from "../queue/health";
+import { nameResemblesBrand } from "./socialFindings";
 
 export interface AppStoreMonitorJobData {
   brandId: string;
   organizationId: string;
 }
 
-// Complementary to ctMonitorJob.ts's domain-side coverage -- searches Apple's App Store
-// for apps whose title/seller name contains the brand but isn't the known official
-// publisher. No Google Play equivalent: Google has no official public search-by-keyword
-// API, only unofficial scraping (ToS-risky, not worth building against).
+// Complementary to the domain-side sources: searches Apple's App Store and Google Play
+// for apps whose title or publisher looks like the brand and that aren't on the brand's
+// official accounts list (app links are accepted there, lib/appListings.ts). Google Play
+// has no official search API; lib/googlePlaySearch.ts scrapes it, accepted 2026-11-20
+// because Kenya is overwhelmingly Android.
+
+export interface StoreApp {
+  store: "app_store" | "google_play";
+  appId: string;
+  title: string;
+  publisher: string;
+  url: string;
+}
+
+// Both stores' search is relevance-ranked, not literal -- "jambojet" returns dozens of
+// unrelated travel apps -- so only a name that itself resembles the brand counts. Same
+// matcher as social handles: catches "Jambo Jet" and digit look-alikes too.
+export function impersonatingApps(apps: StoreApp[], brandRoot: string, officialUrls: string[]): StoreApp[] {
+  return apps.filter(
+    (a) =>
+      (nameResemblesBrand(a.title, brandRoot) || nameResemblesBrand(a.publisher, brandRoot)) &&
+      !isOfficialApp(officialUrls, a.store, a.appId)
+  );
+}
+
 export async function runAppStoreMonitorJob(data: AppStoreMonitorJobData): Promise<void> {
   const { brandId, organizationId } = data;
 
   const brand = await withTenant(organizationId, (tx) => tx.brand.findUniqueOrThrow({ where: { id: brandId } }));
   const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
 
-  const results = await queryAppStore(brandRoot);
-  if (results === null) return; // App Store search unreachable this round -- next scheduled tick retries
+  const apps: StoreApp[] = [];
+  // App Store search unreachable this round -> skipped; the next scheduled tick retries.
+  const ios = await queryAppStore(brandRoot);
+  for (const a of ios ?? []) {
+    apps.push({ store: "app_store", appId: String(a.trackId), title: a.trackName, publisher: a.sellerName, url: a.trackViewUrl });
+  }
+  const play = await queryGooglePlay(brandRoot);
+  if (play) {
+    markSourceSuccess("google_play");
+    for (const a of play) apps.push({ store: "google_play", appId: a.appId, title: a.title, publisher: a.developer, url: googlePlayUrl(a.appId) });
+  }
 
-  for (const app of results) {
-    // Apple's search is fuzzy, not literal -- only a real substring match in the app's own
-    // title or seller name counts as a candidate impersonation.
-    const matches = app.trackName.toLowerCase().includes(brandRoot) || app.sellerName.toLowerCase().includes(brandRoot);
-    if (!matches) continue;
-
-    // Deliberately no "is this the brand's own official app" exclusion in v1 -- unlike
-    // domains (which have BrandDomain rows to check against), there's no existing
-    // per-brand "known legitimate app" concept. If a brand ever publishes its own real
-    // app, the first time it's flagged an analyst does one manual false_positive/resolved
-    // dismissal -- the unique constraint below then keeps it from ever being recreated,
-    // and the recheck dispatcher's existing status filter stops rechecking it.
+  for (const app of impersonatingApps(apps, brandRoot, brand.officialSocialUrls)) {
     await withTenant(organizationId, async (tx) => {
-      const existing = await tx.finding.findUnique({
-        where: { brandId_identifier: { brandId, identifier: app.trackViewUrl } },
-      });
+      // The unique (brandId, identifier) keeps a dismissed app from being recreated.
+      const existing = await tx.finding.findUnique({ where: { brandId_identifier: { brandId, identifier: app.url } } });
       if (existing) return;
 
       await tx.finding.create({
         data: {
           brandId,
-          identifier: app.trackViewUrl,
+          identifier: app.url,
           type: "url",
-          source: "app_store",
+          source: app.store,
           riskScore: 0,
           severity: "low",
           nextScanAt: new Date(),

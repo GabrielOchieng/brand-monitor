@@ -8,6 +8,7 @@ import { fetchFaviconHash, hammingDistance, FAVICON_MATCH_THRESHOLD } from "../l
 import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch } from "../lib/visualSimilarity";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
+import { isOfficialListing } from "../lib/appListings";
 import { asksRecruitmentFee } from "../lib/recruitmentScam";
 import { computeNextScanAt } from "./cadence";
 import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, findMostSharedIndicator, saveScreenshot } from "./enrichmentShared";
@@ -152,7 +153,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     // removes/renames the offending app, score stays pinned at "high" forever -- a human
     // resolving/false-positiving the finding already handles that the same way it does
     // everywhere else in this app.
-    appStoreImpersonation: finding.source === "app_store",
+    // Except that an app added to the brand's official list since loses it on the next recheck.
+    appStoreImpersonation: (finding.source === "app_store" || finding.source === "google_play") && !isOfficialListing(brand.officialSocialUrls, finding.identifier),
     // Same write-once trust as above.
     phishFeedListed: finding.source === "phish_feed",
     sharedIndicator,

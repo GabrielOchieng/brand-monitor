@@ -254,11 +254,17 @@ background:
   lists its reports; scoring adds `PUBLIC_REPORT` (+15, or +25 at 3+ non-dismissed reports). Spam
   protection: Cloudflare Turnstile when configured (DEPLOYMENT.md §4), honeypot, 5/hour per IP.
   Stored: what the reporter typed, optional email; no IP or device data.
-- **App Store monitoring** (every 4h per brand): searches Apple's iTunes Search API and flags
-  apps whose title or publisher contains the brand name. Source `app_store`, scored `high` on its
-  own via the `APP_STORE_IMPERSONATION` rule. There's no "known official app" allowlist yet — if a
-  brand publishes its own real app, mark that first finding `false_positive` once. iOS only:
-  Google Play has no official search API.
+- **App Store and Google Play monitoring** (every 4h per brand, one job): searches Apple's iTunes
+  Search API and, since 2026-11-20, Google Play's Kenya store (`lib/googlePlaySearch.ts`, the
+  unofficial `google-play-scraper` package: Google has no search API, scraping sits outside its
+  terms, and it breaks when Google changes its pages; failures show as a stale `google_play`
+  source on `/health/jobs`). Flags apps whose title or publisher resembles the brand
+  (`nameResemblesBrand`, so "Jambo Jet" and digit look-alikes count) and that aren't on the brand's
+  official list: App Store and Google Play app links are accepted in **Keywords & accounts → official
+  accounts** (`lib/appListings.ts`, compared by store + app id; Jambojet's is
+  `play.google.com/store/apps/details?id=com.jambojet.booking.twa`). Source `app_store` /
+  `google_play`, scored `high` on its own via `APP_STORE_IMPERSONATION`; an app added to the
+  official list later loses that credit on its next recheck.
 - **Keyword-brand-keyword candidates**: discovery also generates `<kw1><brand><kw2>` for every pair
   of the brand's keywords (no hyphens, high-risk TLDs only) — e.g. `flyjambojetkenya.store` once
   `fly` and `kenya` are keywords. Each keyword adds ~2×(keywords)×12 DNS lookups per run, so

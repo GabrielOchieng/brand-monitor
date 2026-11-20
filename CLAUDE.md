@@ -17,7 +17,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
-  monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
+  and Google Play monitor (`app_store`, `google_play`; one job, Play is scraped -- `pipeline/appStoreMonitorJob.ts`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
   Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), web search (`web_search`,
   same daily job; fake customer-care numbers / recruitment fees / booking pitches on non-social sites --
   `pipeline/webSearchFindings.ts`), manual submission, public
@@ -31,7 +31,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - On the office network, a web filter (Fortinet) answers DNS for known-bad domains with a block page
   (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
-  ct-monitor 30min, app-store-monitor 4h, nrd-monitor 6h, phish-feed-monitor 1h and
+  ct-monitor 30min, app-store-monitor 4h (App Store + Google Play), nrd-monitor 6h, phish-feed-monitor 1h and
   social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)

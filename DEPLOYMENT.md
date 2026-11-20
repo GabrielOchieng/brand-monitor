@@ -163,8 +163,8 @@ that hold.
 nothing on a normal run):
 
 - Fastest: `GET /health/jobs`: 200 with a recent `lastRecheckDispatchAt`, or 503 once jobs have
-  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `phish_feed` / `social_search`
-  (last successful query; `stale` after 24h / 48h / 6h / 48h; social only when `TAVILY_API_KEY` is
+  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `phish_feed` / `google_play` / `social_search`
+  (last successful query; `stale` after 24h / 48h / 6h / 24h / 48h; social only when `TAVILY_API_KEY` is
   set) and `tavilyUsage`. `GET /health/jobs?sources=1` also returns 503 when a source is stale.
   UptimeRobot watches it with email alerts on. Stale since the last restart just means it hasn't
   succeeded *since that restart*.
@@ -176,7 +176,7 @@ nothing on a normal run):
 - Scan history (pg-boss v12 deletes completed jobs, so use the app's tables):
   `SELECT date_trunc('hour', started_at), count(*), count(error) FROM scans GROUP BY 1 ORDER BY 1 DESC LIMIT 24;`
   Rechecks follow each finding's cadence, so a quiet hour is normal when nothing is due.
-- Zero findings from `app_store` is normal. Zero from `ct_log` is **not** proof nothing exists:
+- Zero findings from `app_store` / `google_play` is normal. Zero from `ct_log` is **not** proof nothing exists:
   crt.sh fails so often that CT monitoring has never produced a finding in production.
 
 **Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and

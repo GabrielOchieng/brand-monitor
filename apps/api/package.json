@@ -20,6 +20,7 @@
     "@prisma/client": "^5.20.0",
     "fastify": "^5.0.0",
     "fastify-raw-body": "^5.0.0",
+    "google-play-scraper": "^10.1.4",
     "nodemailer": "^6.9.16",
     "pg-boss": "^12.30.0",
     "sharp": "^0.33.5",

@@ -124,18 +124,18 @@ export function computeScore(input: ScoringInput): ScoringResult {
     events.push({ delta: -40, reason: "Domain matches the brand's own registered/allowlisted domains", ruleCode: "OWN_DOMAIN_DEDUCTION" });
   }
 
-  // App Store findings have no domain of their own to score against -- every one resolves
-  // to the constant "apps.apple.com" hostname, so none of the domain-similarity/favicon/
-  // visual-similarity rules above can ever fire for them. This is the actual signal:
-  // confirmed at discovery time (appStoreMonitorJob.ts) that the listing's name/seller
-  // contains the brand but isn't the known official publisher. Weighted high enough to
-  // reach "high" severity alone -- a confirmed brand-name match on an app store listing is
+  // App store findings (App Store and Google Play) have no domain of their own to score
+  // against -- every one resolves to the store's constant hostname, so none of the
+  // domain-similarity/favicon/visual-similarity rules above can ever fire for them. This is
+  // the actual signal: confirmed at discovery time (appStoreMonitorJob.ts) that the
+  // listing's name/publisher resembles the brand and the app isn't on the brand's official
+  // list. Weighted high enough to reach "high" severity alone -- a confirmed brand-name match on an app store listing is
   // a strong, purposeful signal on its own, unlike a single weak domain-similarity match
   // that needs corroborating evidence to matter.
   if (input.appStoreImpersonation) {
     events.push({
       delta: 60,
-      reason: "App Store listing's name/seller matches the protected brand but isn't the known official publisher",
+      reason: "App store listing's name or publisher resembles the protected brand but it isn't one of the brand's official apps",
       ruleCode: "APP_STORE_IMPERSONATION",
     });
   }

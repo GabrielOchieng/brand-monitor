@@ -55,8 +55,8 @@ export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
     <div className="card mt-3 p-4">
       <div className="label">Official social accounts</div>
       <p className="mt-0.5 text-xs text-ink-subtle">
-        The brand's real accounts and WhatsApp link — social search skips them, and accounts named like the brand that
-        aren't on this list are flagged.
+        The brand's real accounts, WhatsApp link and apps (App Store or Google Play links) — the searches skip them,
+        and accounts or apps named like the brand that aren't on this list are flagged.
       </p>
 
       <ul className="mt-3 space-y-1.5">

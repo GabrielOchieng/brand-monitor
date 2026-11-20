@@ -5,6 +5,7 @@ import { z } from "zod";
 import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
 import { parseSocialUrl } from "../lib/socialUrls";
+import { parseAppListingUrl } from "../lib/appListings";
 
 const CreateBrandSchema = z.object({
   name: z.string().min(1),
@@ -35,6 +36,9 @@ export function canonicalOfficialUrl(raw: string): string | null {
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   const social = parseSocialUrl(withScheme);
   if (social) return social.profileUrl;
+  // The brand's own apps: the app monitors skip them (pipeline/appStoreMonitorJob.ts).
+  const app = parseAppListingUrl(withScheme);
+  if (app) return app.url;
   try {
     const url = new URL(withScheme);
     const host = url.hostname.replace(/^www\./, "");

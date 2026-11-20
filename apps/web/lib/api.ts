@@ -20,7 +20,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   social_search_not_configured: "Social media search isn't set up: the API server has no TAVILY_API_KEY.",
   too_many_core_keywords: "At most 8 keywords can be paired.",
   duplicate_keyword: "That keyword is already on the list.",
-  not_a_social_account: "That isn't a social account or WhatsApp link.",
+  not_a_social_account: "That isn't a social account, WhatsApp link, or App Store / Google Play app link.",
   invalid_assignee: "That person isn't a member of this organization.",
   cannot_demote_last_owner: "The organization needs at least one owner.",
   cannot_change_own_role: "You can't change your own role.",

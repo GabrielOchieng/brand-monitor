@@ -110,6 +110,14 @@ actively complaining, so speed matters. Token storage: encrypted per brand; refr
 
 ## Phase 3: Google Play (W8) — small–medium
 
+**Shipped 2026-11-20** (`lib/googlePlaySearch.ts`, `lib/appListings.ts`, inside
+`pipeline/appStoreMonitorJob.ts`). Changed from the plan below: no `brands.official_app_ids` column —
+App Store and Google Play links go in the existing official accounts list (compared by store + app
+id), which also gives the iOS monitor the official-app exclusion it lacked. Names are matched with
+`nameResemblesBrand` (lookalikes too), Kenya storefront, `google_play` source on `/health/jobs`
+(stale after 24h). Live run: 20 results, only the real FlyJambojet app
+(`com.jambojet.booking.twa`) matched; no fakes listed.
+
 No official search API. Use an unofficial scraper (`google-play-scraper` on npm), which may break
 when Google changes its pages and sits outside Google's terms for automated access: same
 treatment as the App Store monitor (`lib/appStoreSearch.ts`), every 4h, flags apps whose name or
@@ -149,6 +157,6 @@ MX records fires a `mail_ready` alert and scores `MX_CONFIGURED`.
 ## Order
 1. ~~Phase 1~~ (shipped 2026-11-20).
 2. Phase 2: verify Meta access first; build only if a Page token can read comments.
-3. Phase 3.
+3. ~~Phase 3~~ (shipped 2026-11-20).
 4. Phase 4.
 5. Phase 5: apply for CZDS early, since approval takes weeks, even though the build comes last.
