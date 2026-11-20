@@ -166,12 +166,16 @@ background:
   "confirmed" (phishunt's terms). Other free feeds were ruled out on 2026-10-19: OpenPhish's free
   feed forbids commercial use, PhishTank refuses new users (403), URLhaus is mostly malware and
   wants a key, Phishing.Database stopped updating.
-- **Social accounts** (daily, global; needs `TAVILY_API_KEY`): three web searches per brand through
+- **Social accounts** (daily, global; needs `TAVILY_API_KEY`): four web searches per brand through
   Tavily (free 1,000 searches/month, no card) restricted to Facebook, Instagram, TikTok, X, Telegram
-  and YouTube. A hit becomes a `social` finding (source `social_search`) only if it isn't one of the
-  brand's official accounts and either its handle looks like the brand (`@fly.jambojet`,
-  `FlyJambojetUG`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't the
-  brand's. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
+  and YouTube (one in Swahili: "tiketi ofa bei nafuu"), plus two a day by contact numbers already
+  found on the brand's high/critical findings, rotating through them (`numberPivotQueries`). About
+  186 credits/month per brand, so the 900 cap covers ~4 brands. A hit becomes a `social` finding
+  (source `social_search`) only if it isn't one of the brand's official accounts and either its
+  handle or display name looks like the brand (`@fly.jambojet`, `FlyJambojetUG`, and since
+  2026-11-20 one-letter typos and digit look-alikes like `jambotjet01235` / "Jambo Jet Airline",
+  `nameResemblesBrand`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't
+  the brand's. A number-search hit counts even without naming the brand, when it shows that number. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
   title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
   clone site sharing a WhatsApp number link up). Social findings are **never scanned**: the platforms
   block automated access and forbid scraping, so rechecks re-score stored evidence daily with no

@@ -43,7 +43,7 @@ const RESERVED: Record<SocialPlatform, Set<string>> = {
     "login", "login.php", "help", "policies", "privacy", "marketplace", "hashtag", "search", "groups", "gaming",
     "permalink.php", "media", "business", "ads", "home.php", "l.php", "dialog", "plugins", "settings", "notes",
   ]),
-  instagram: new Set(["p", "reel", "reels", "explore", "stories", "accounts", "tv", "direct", "about", "legal", "developer"]),
+  instagram: new Set(["p", "reel", "reels", "explore", "stories", "accounts", "tv", "direct", "about", "legal", "developer", "popular", "web"]),
   tiktok: new Set(["discover", "tag", "music", "search", "foryou", "following", "explore", "live", "embed", "trending"]),
   x: new Set(["i", "search", "hashtag", "home", "explore", "intent", "share", "settings", "messages", "notifications", "login", "tos", "privacy"]),
   telegram: new Set(["joinchat", "share", "addstickers", "addemoji", "proxy", "socks", "iv", "contact"]),

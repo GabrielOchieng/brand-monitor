@@ -33,6 +33,8 @@ describe("parseSocialUrl", () => {
     expect(parseSocialUrl("https://www.tiktok.com/discover/jambo-jet-flights-nairobi-to-kitale")).toBeNull();
     expect(parseSocialUrl("https://x.com/search?q=jambojet")).toBeNull();
     expect(parseSocialUrl("https://www.youtube.com/watch?v=abc")).toBeNull();
+    // Instagram topic page, seen as a search hit 2026-11-20.
+    expect(parseSocialUrl("https://www.instagram.com/popular/mololine-shuttle-online-booking-prices/")).toBeNull();
   });
 
   it("takes an Instagram post's handle from the result title", () => {
