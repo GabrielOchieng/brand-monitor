@@ -162,11 +162,11 @@ describe("classifySocialResult with the 2026-11-20 live results", () => {
 describe("manual social search notification", () => {
   it("says what happened in each case", () => {
     expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 2, newMentions: 0, budgetExhausted: false })).toBe(
-      "Social media search for Jambojet found 2 new accounts. They're scored within a few minutes and appear in Threats."
+      "Search for Jambojet found 2 new possible threats. They're scored within a few minutes and appear in Threats."
     );
-    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 1, newMentions: 0, budgetExhausted: false })).toContain("1 new account.");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 1, newMentions: 0, budgetExhausted: false })).toContain("1 new possible threat.");
     expect(manualSearchMessage("Jambojet", { searchesRun: 4, newFindings: 0, newMentions: 0, budgetExhausted: false })).toBe(
-      "Social media search for Jambojet finished with no new accounts (4 searches)."
+      "Search for Jambojet finished with no new threats (4 searches)."
     );
     expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: true })).toContain("allowance is used up");
     expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false })).toContain("didn't answer");
@@ -205,5 +205,33 @@ describe("posts whose account isn't in the URL (2026-11-20 Mentions screenshot)"
       classifySocialResult({ url: "https://www.tiktok.com/discover/jambo-jet-price-list", title: "Jambo Jet Price List", content: "Jambojet tickets 0712345678" }, brand)
     ).toBeNull();
     expect(classifySocialResult({ url: "https://www.instagram.com/p/DfXyZ", title: "Jambojet flight was lovely", content: "" }, brand)).toBeNull();
+  });
+});
+
+describe("recruitment-fee posts", () => {
+  it("flags a post asking applicants for a fee even with no number", () => {
+    const hit = classifySocialResult(
+      {
+        url: "https://www.facebook.com/groups/482656468591296/posts/3272176726305999",
+        title: "Jambojet cabin crew recruitment",
+        content: "Jambojet is hiring flight attendants. Registration fee KES 2,000, inbox for details.",
+      },
+      brand
+    );
+    expect(hit).not.toBeNull();
+    expect(hit?.indicators).toEqual([]);
+  });
+
+  it("still ignores a job repost without a fee (2026-11-20 live result)", () => {
+    expect(
+      classifySocialResult(
+        {
+          url: "https://www.facebook.com/jobvacancykenya/posts/jambojet-is-hiring-position-captainready-to-take-your-aviation-career-to-new-hei/1121245587319441",
+          title: "Jambojet captain job in Kenya 2026 - Facebook",
+          content: "To apply for the Flight Attendant role, you must have a Cabin Crew Certificate. at least 2 years of cabin crew experience.",
+        },
+        brand
+      )
+    ).toBeNull();
   });
 });

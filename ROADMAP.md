@@ -55,6 +55,17 @@ binds; at that point some searches need to drop to weekly, or the budget split p
 
 ## Phase 1: new searches (W1, W2, S2, W6) — small, ~1–2 days
 
+**Shipped 2026-11-20** (`pipeline/webSearchFindings.ts`, `lib/recruitmentScam.ts`), changed from the
+plan below after a live test: most non-social hits were legitimate travel, job and news sites, so
+instead of scanning every unknown site that names the brand (and keeping an allowlist), a non-social
+result becomes a `web_search` finding only when the result itself names the brand **and** shows a
+foreign number, a brand-like site name, or a recruitment-fee pitch. No `web_search_allowlist` column.
+The booking pitch runs daily, alternating between two wordings (3 web searches/day, ≈276
+credits/month per brand). `RECRUITMENT_FEE` is +30. W1 is only partly closed: a clone on an
+unrelated name whose search result shows no number is still missed. First live run: TikTok
+`@jambojet72` (customer-care pitch with a foreign number, via the social path) and two travel-agent
+pages quoting their own numbers (low-scoring noise); no recruitment-fee scams.
+
 **Customer-care numbers (W2).** Daily search across the general web (no domain filter) for
 `"<brand> customer care number"` / `"<brand> contact" "WhatsApp"`. From each result's title and
 snippet, extract phone/WhatsApp numbers (`lib/indicators.ts`) and drop the brand's own
@@ -136,7 +147,7 @@ MX records fires a `mail_ready` alert and scores `MX_CONFIGURED`.
 ---
 
 ## Order
-1. Phase 1: cheapest, biggest catch.
+1. ~~Phase 1~~ (shipped 2026-11-20).
 2. Phase 2: verify Meta access first; build only if a Page token can read comments.
 3. Phase 3.
 4. Phase 4.

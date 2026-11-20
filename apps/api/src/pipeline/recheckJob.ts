@@ -8,6 +8,7 @@ import { fetchFaviconHash, hammingDistance, FAVICON_MATCH_THRESHOLD } from "../l
 import { computeRegionalHashes, deserializeRegionalHashes, regionalHashesMatch } from "../lib/visualSimilarity";
 import { scanWebsite } from "../lib/scannerClient";
 import { computeScore } from "./scoring";
+import { asksRecruitmentFee } from "../lib/recruitmentScam";
 import { computeNextScanAt } from "./cadence";
 import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, findMostSharedIndicator, saveScreenshot } from "./enrichmentShared";
 import { extractIndicators, withoutOwnIndicators, PAYMENT_INDICATOR_KINDS, type Indicator } from "../lib/indicators";
@@ -157,6 +158,8 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     sharedIndicator,
     hasPaymentDestination: indicators.some((i) => PAYMENT_INDICATOR_KINDS.has(i.kind)),
     publicReportCount,
+    recruitmentFee: asksRecruitmentFee(`${websiteResult?.title ?? ""}
+${websiteResult?.extractedText ?? ""}`, brandRoot),
   });
 
   let screenshotPath: string | null = null;

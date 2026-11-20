@@ -18,7 +18,9 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
   monitor (`app_store`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
-  Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), manual submission, public
+  Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), web search (`web_search`,
+  same daily job; fake customer-care numbers / recruitment fees / booking pitches on non-social sites --
+  `pipeline/webSearchFindings.ts`), manual submission, public
   scam reports (`public_report`, `routes/publicReports.ts` -- the only unauthenticated write route).
   `Finding.source` is a free-text string; `type` is `domain`, `url` or `social`.
 - Rechecks also extract contact/payment details from the page (`lib/indicators.ts` ->

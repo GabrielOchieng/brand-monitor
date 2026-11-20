@@ -206,3 +206,17 @@ describe("computeScore for social accounts", () => {
     expect(computeScore({ ...social, social: { handleImpersonation: true, contactDetails: false } }).severity).toBe("medium");
   });
 });
+
+describe("RECRUITMENT_FEE", () => {
+  it("lifts a fee-charging job post with a foreign number to high", () => {
+    const result = computeScore({ ...base, domain: "tiktok.com", recruitmentFee: true, social: { handleImpersonation: false, contactDetails: true } });
+    expect(result.events.map((e) => e.ruleCode)).toEqual(["SOCIAL_CONTACT_DETAILS", "RECRUITMENT_FEE"]);
+    expect(result.severity).toBe("high");
+  });
+
+  it("puts a fee-charging job page naming the brand at medium", () => {
+    const result = computeScore({ ...base, pageText: "Jambojet cabin crew recruitment", recruitmentFee: true });
+    expect(result.score).toBe(55);
+    expect(result.severity).toBe("medium");
+  });
+});

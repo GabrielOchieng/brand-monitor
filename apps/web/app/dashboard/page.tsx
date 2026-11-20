@@ -449,11 +449,11 @@ export default function DashboardPage() {
               <SearchIcon className="h-5 w-5" />
             </span>
             <div>
-              <div className="text-sm font-medium text-ink">Social media search</div>
+              <div className="text-sm font-medium text-ink">Social media and web search</div>
               <p className="mt-0.5 text-xs text-ink-subtle">
                 {socialState === "queued"
                   ? "Started. You'll get a notification with the result in a few minutes."
-                  : "Search Facebook, Instagram, TikTok, X and Telegram for fake accounts now. Runs daily anyway; owners and admins can run it 3 times a day."}
+                  : "Search Facebook, Instagram, TikTok, X and Telegram for fake accounts, and the web for fake customer-care numbers and job scams, now. Runs daily anyway; owners and admins can run it 3 times a day."}
               </p>
             </div>
           </div>
@@ -462,7 +462,7 @@ export default function DashboardPage() {
             disabled={socialState !== "idle"}
             className="btn-primary mt-4 self-start"
           >
-            {socialState === "starting" ? "Starting…" : socialState === "queued" ? "Search started" : "Search social media"}
+            {socialState === "starting" ? "Starting…" : socialState === "queued" ? "Search started" : "Search now"}
           </button>
         </div>
 

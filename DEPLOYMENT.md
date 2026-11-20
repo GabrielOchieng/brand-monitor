@@ -88,10 +88,10 @@ Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":tr
    Set both or neither: with only the site key the form shows a check the API ignores; with only
    the secret every report fails `captcha_failed`. Without them the form relies on a honeypot
    field and a 5-per-hour per-IP limit. Reports trigger at most 30 scans per brand per day.
-5. Optional, social-account and fact-check search: a free Tavily key (tavily.com, no card,
+5. Optional, social-account, web and fact-check search: a free Tavily key (tavily.com, no card,
    1,000 searches/month; never enable pay-as-you-go) as `TAVILY_API_KEY` on the API. Without it
    those jobs do nothing. `TAVILY_MONTHLY_CAP` (default 900) is a hard stop counted in
-   `provider_usage`; each brand uses ~95/month. Then add each brand's official social accounts
+   `provider_usage`; each brand uses ~276/month (so ~3 brands fit). Then add each brand's official social accounts
    and WhatsApp link on the dashboard (**Keywords & accounts**), or its own accounts get reported.
 
 ## 4. Clerk — deliberately staying on the dev instance

@@ -1,10 +1,10 @@
 import { env } from "../env";
 import { adminPrisma } from "../adminDb";
 
-// Tavily web search (https://docs.tavily.com) -- the discovery source for social accounts
-// and fact-checks (pipeline/socialSearchMonitorJob.ts). Picked 2026-10-19 because it's
-// the only search API checked that is still free with no card: 1,000 credits a month, a
-// basic search costs 1. Google's Custom Search JSON API is closed to new customers, Bing's
+// Tavily web search (https://docs.tavily.com) -- the discovery source for social accounts,
+// web pages (pipeline/webSearchFindings.ts) and fact-checks (pipeline/socialSearchMonitorJob.ts).
+// Picked 2026-10-19 because it's the only search API checked that is still free with no
+// card: 1,000 credits a month, a basic search costs 1. Google's Custom Search JSON API is closed to new customers, Bing's
 // was retired, Brave's free tier now needs a card. Each response is a few KB of JSON.
 //
 // Every call goes through the monthly counter below first, so a bug or a growing brand
@@ -49,7 +49,7 @@ async function reserveCredit(now: Date): Promise<boolean> {
 
 export async function tavilySearch(
   query: string,
-  options: { includeDomains: string[]; timeRange: "week" | "month"; maxResults?: number },
+  options: { includeDomains?: string[]; excludeDomains?: string[]; timeRange: "week" | "month"; maxResults?: number },
   now: Date = new Date()
 ): Promise<TavilySearchOutcome> {
   if (!(await reserveCredit(now))) return { status: "budget_exhausted" };
@@ -61,7 +61,8 @@ export async function tavilySearch(
         query,
         search_depth: "basic",
         max_results: options.maxResults ?? 20,
-        include_domains: options.includeDomains,
+        ...(options.includeDomains ? { include_domains: options.includeDomains } : {}),
+        ...(options.excludeDomains ? { exclude_domains: options.excludeDomains } : {}),
         time_range: options.timeRange,
       }),
       signal: AbortSignal.timeout(30000),

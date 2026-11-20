@@ -30,6 +30,8 @@ export interface ScoringInput {
   hasPaymentDestination?: boolean;
   // Non-dismissed public reports pointing at this finding (routes/publicReports.ts).
   publicReportCount?: number;
+  // Names the brand, talks about hiring and asks applicants for a fee (lib/recruitmentScam.ts).
+  recruitmentFee?: boolean;
   // Set only for a social-media account finding (lib/socialUrls.ts). Its "domain" is the
   // platform's, so none of the domain-name rules apply -- these two replace them.
   social?: { handleImpersonation: boolean; contactDetails: boolean } | null;
@@ -97,6 +99,13 @@ export function computeScore(input: ScoringInput): ScoringResult {
       reason: `Shares ${label} ${value} with ${otherFindings} other finding${otherFindings === 1 ? "" : "s"}`,
       ruleCode: "SHARED_INDICATOR",
     });
+  }
+
+  // Airlines don't charge applicants. Weighted so that with a foreign contact number
+  // (social) or the brand's name on the page (web) it reaches medium-to-high, but a
+  // training school quoting its own course fee next to the brand's name stays below high.
+  if (input.recruitmentFee) {
+    events.push({ delta: 30, reason: "Offers jobs at the brand and asks applicants to pay a fee", ruleCode: "RECRUITMENT_FEE" });
   }
 
   if (input.hasLoginForm) {

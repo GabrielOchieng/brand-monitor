@@ -7,16 +7,18 @@ import { markSourceSuccess } from "../queue/health";
 import { classifySocialResult, recordSocialSighting, socialOwnIndicatorKeys } from "./socialFindings";
 import { labelPendingMentions, mentionFromResult, recordMention } from "./brandMentions";
 import { brandMatcher } from "./nrdMonitorJob";
+import { classifyWebResult, recordWebFinding, webQueries } from "./webSearchFindings";
 
 // Fifth finding source: fake social-media accounts, found through a web search engine
 // (lib/tavily.ts) because no platform offers a free API that searches other people's
 // accounts (X is pay-per-use since Feb 2026, Meta's page search needs business
 // verification + app review, TikTok's is academic-only). Search engines do index these
 // fakes: the 2026-10-19 manual sweep turned up tiktok.com/@fly.jambojet, whose video title
-// carried its WhatsApp number. Daily, per brand: four brand searches (one in Swahili) plus
-// up to NUMBER_PIVOTS_PER_DAY searches by contact numbers already found on the brand's
-// findings -- about 186 of the 1,000 free monthly credits per brand, so the 900-credit cap
-// (TAVILY_MONTHLY_CAP) covers about four brands before the guard stops searches for the
+// carried its WhatsApp number. Daily, per brand: four brand searches (one in Swahili), up
+// to NUMBER_PIVOTS_PER_DAY searches by contact numbers already found on the brand's
+// findings, and three general-web searches for scam content (pipeline/webSearchFindings.ts)
+// -- about 276 of the 1,000 free monthly credits per brand, so the 900-credit cap
+// (TAVILY_MONTHLY_CAP) covers about three brands before the guard stops searches for the
 // rest of the month.
 //
 // Also a weekly fact-check search: PesaCheck (Kenya) regularly debunks fake Jambojet
@@ -105,18 +107,21 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
     ownDomains: [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase()),
   };
 
-  const searches: Array<{ query: string; includeDomains: string[]; pivot?: ReadonlySet<string> }> = [
+  const searches: Array<{ query: string; includeDomains?: string[]; excludeDomains?: string[]; pivot?: ReadonlySet<string> }> = [
     ...socialQueries(brand.name),
     ...numberPivotQueries(await brandPivotNumbers(organizationId, brandId, context.ownKeys)).map((p) => ({
       query: p.query,
       includeDomains: SOCIAL_DOMAINS,
       pivot: new Set([p.number]) as ReadonlySet<string>,
     })),
+    // The whole web except the brand's own sites (pipeline/webSearchFindings.ts). Social
+    // hits among the results take the same path as the social searches' hits.
+    ...webQueries(brand.name).map((w) => ({ query: w.query, excludeDomains: context.ownDomains })),
   ];
 
   const outcome: SocialSearchOutcome = { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false };
-  for (const { query, includeDomains, pivot } of searches) {
-    const search = await tavilySearch(query, { includeDomains, timeRange: "month" });
+  for (const { query, includeDomains, excludeDomains, pivot } of searches) {
+    const search = await tavilySearch(query, { includeDomains, excludeDomains, timeRange: "month" });
     if (search.status === "budget_exhausted") {
       console.warn("[social-search] monthly Tavily cap reached -- skipping until next month");
       outcome.budgetExhausted = true;
@@ -129,6 +134,11 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
     outcome.searchesRun++;
 
     for (const result of search.results) {
+      const web = classifyWebResult(result, context);
+      if (web) {
+        if (await withTenant(organizationId, (tx) => recordWebFinding(tx, brandId, web))) outcome.newFindings++;
+        continue;
+      }
       const candidate = classifySocialResult(result, context, pivot);
       if (!candidate) {
         // Not a threat -- but if it names the brand, it belongs in the mentions feed.
@@ -199,16 +209,16 @@ export async function runSocialSearchMonitorJob(): Promise<void> {
 export function manualSearchMessage(brandName: string, outcome: SocialSearchOutcome): string {
   if (outcome.searchesRun === 0) {
     return outcome.budgetExhausted
-      ? `Social media search for ${brandName} didn't run: this month's search allowance is used up.`
-      : `Social media search for ${brandName} failed: the search service didn't answer. Try again later.`;
+      ? `Search for ${brandName} didn't run: this month's search allowance is used up.`
+      : `Search for ${brandName} failed: the search service didn't answer. Try again later.`;
   }
   if (outcome.newFindings > 0) {
     const n = outcome.newFindings;
     const mentions = outcome.newMentions > 0 ? ` Also ${outcome.newMentions} new mention${outcome.newMentions === 1 ? "" : "s"} in Mentions.` : "";
-    return `Social media search for ${brandName} found ${n} new account${n === 1 ? "" : "s"}. They're scored within a few minutes and appear in Threats.${mentions}`;
+    return `Search for ${brandName} found ${n} new possible threat${n === 1 ? "" : "s"}. They're scored within a few minutes and appear in Threats.${mentions}`;
   }
   const mentions = outcome.newMentions > 0 ? ` ${outcome.newMentions} new mention${outcome.newMentions === 1 ? "" : "s"} added to Mentions.` : "";
-  return `Social media search for ${brandName} finished with no new accounts (${outcome.searchesRun} searches).${mentions}`;
+  return `Search for ${brandName} finished with no new threats (${outcome.searchesRun} searches).${mentions}`;
 }
 
 // The dashboard button's job: one brand, then an in-app notification with the result so

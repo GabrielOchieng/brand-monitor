@@ -6,6 +6,7 @@ import { extractIndicators, withoutOwnIndicators, indicatorKey, type Indicator }
 import { ensureBrandOwnIndicators, findMostSharedIndicator } from "./enrichmentShared";
 import { brandMatcher } from "./nrdMonitorJob";
 import { computeScore } from "./scoring";
+import { asksRecruitmentFee } from "../lib/recruitmentScam";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
 import type { AlertDispatchJobData } from "../queue/alertDispatch";
 
@@ -158,7 +159,10 @@ export function classifySocialResult(
   const mentionsBrand = handleImpersonation || brandMatcher(brand.brandRoot)(text.toLowerCase().replace(/[\s._-]+/g, ""));
   const showsPivotNumber = Boolean(pivotNumbers) && indicators.some((i) => (i.kind === "phone" || i.kind === "whatsapp") && pivotNumbers!.has(i.value));
   if (!mentionsBrand && !showsPivotNumber) return null;
-  if (!handleImpersonation && indicators.length === 0) return null;
+  // A recruitment-fee pitch is a threat even with no number in the snippet: applicants
+  // are told to "inbox for details".
+  const recruitmentFee = asksRecruitmentFee(text, brand.brandRoot);
+  if (!handleImpersonation && indicators.length === 0 && !recruitmentFee) return null;
 
   // A post whose poster we can't tell still counts when it names the brand and gives a
   // number that isn't the brand's ("Jambojet Airways ... Call/WhatsApp +255760113803",
@@ -274,6 +278,8 @@ export async function runSocialRecheck(
     appStoreImpersonation: false,
     sharedIndicator,
     publicReportCount,
+    recruitmentFee: asksRecruitmentFee(`${finding.socialIntel?.title ?? ""}
+${finding.socialIntel?.snippet ?? ""}`, brandRoot),
     social: {
       handleImpersonation:
         !official &&

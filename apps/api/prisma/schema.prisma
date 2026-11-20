@@ -110,7 +110,7 @@ model Finding {
   brand           Brand    @relation(fields: [brandId], references: [id])
   // domain | url | social (a social-media account; identifier is its canonical profile URL)
   type            String   @default("domain")
-  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | phish_feed | public_report | social_search
+  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | phish_feed | public_report | social_search | web_search
   identifier      String // the candidate domain
   riskScore       Int      @default(0) @map("risk_score")
   severity        String   @default("low")

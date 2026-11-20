@@ -176,24 +176,41 @@ background:
 - **Social accounts** (daily, global; needs `TAVILY_API_KEY`): four web searches per brand through
   Tavily (free 1,000 searches/month, no card) restricted to Facebook, Instagram, TikTok, X, Telegram
   and YouTube (one in Swahili: "tiketi ofa bei nafuu"), plus two a day by contact numbers already
-  found on the brand's high/critical findings, rotating through them (`numberPivotQueries`). About
-  186 credits/month per brand, so the 900 cap covers ~4 brands. A hit becomes a `social` finding
+  found on the brand's high/critical findings, rotating through them (`numberPivotQueries`), plus
+  three general-web searches (below). About 276 credits/month per brand, so the 900 cap covers ~3 brands. A hit becomes a `social` finding
   (source `social_search`) only if it isn't one of the brand's official accounts and either its
   handle or display name looks like the brand (`@fly.jambojet`, `FlyJambojetUG`, and since
   2026-11-20 one-letter typos and digit look-alikes like `jambotjet01235` / "Jambo Jet Airline",
   `nameResemblesBrand`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't
   the brand's. A number-search hit counts even without naming the brand, when it shows that number.
-  Owners/admins can also run it for one brand from the dashboard ("Search social media",
+  Owners/admins can also run it for one brand from the dashboard ("Search now",
   `POST /api/pipeline/social-search`, 3/org/day); it runs as a queued job and leaves an in-app
   notification with the result. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
   title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
   clone site sharing a WhatsApp number link up). Social findings are **never scanned**: the platforms
   block automated access and forbid scraping, so rechecks re-score stored evidence daily with no
   network. Scoring: `SOCIAL_HANDLE_IMPERSONATION` (+40) and `SOCIAL_CONTACT_DETAILS` (+30) replace the
-  domain-name rules; both together is high. Manual submissions and public reports of a social link
+  domain-name rules; both together is high. A post that names the brand, talks about hiring and asks
+  applicants for a fee counts as a threat even without a number (`RECRUITMENT_FEE`, below). Manual submissions and public reports of a social link
   become the same kind of finding. A hard cap (`TAVILY_MONTHLY_CAP`, default 900) stops searching
   before the free allowance runs out; usage shows on `/health/jobs`. Official accounts (and the
   official `wa.me` link) are edited on the dashboard under **Keywords & accounts**.
+- **Web search** (since 2026-11-20, part of the same daily job; `pipeline/webSearchFindings.ts`):
+  three Tavily searches of the whole web except the brand's own domains (`exclude_domains`), looking
+  for scam content rather than lookalike names: `"<brand> customer care number"` and
+  `<brand> recruitment cabin crew jobs` daily, and a booking pitch alternating between two wordings.
+  Social hits among the results take the social path above. Any other site becomes a finding (source
+  `web_search`; bare host = `domain`, with a path = `url`; then scanned and scored as usual) only
+  when the result names the brand **and** shows a phone/WhatsApp/payment number that isn't the
+  brand's, or the site's name resembles the brand (including the site name on free builders such as
+  `sites.google.com/view/...`, `*.wixsite.com/...`), or it asks job applicants for a fee. Everything
+  else is dropped: a live test showed most hits are legitimate travel, job and news sites, so there's
+  no allowlist to maintain. Known gaps: a clone on an unrelated name whose search result shows none
+  of these is still missed, and travel agents quoting their own number next to the brand become
+  (low-scoring) findings. Skipped if the brand already tracks the URL or its whole host.
+  `RECRUITMENT_FEE` (+30; `lib/recruitmentScam.ts`) fires on scanned pages and social posts that
+  name the brand, use hiring words (recruitment, vacancies, cabin crew, nafasi za kazi …) and ask for
+  a fee (registration/training/medical fee, "send KES …", ada ya usajili …).
 - **Mentions feed** (`/mentions`, since 2026-11-20; `pipeline/brandMentions.ts`,
   `GET /api/brands/:id/mentions`, table `brand_mentions`): social posts from the same searches
   that name the brand but aren't threats (news, complaints, promotions, general chatter; not

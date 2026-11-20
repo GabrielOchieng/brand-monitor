@@ -239,7 +239,7 @@ export default function MentionsPage() {
           ))}
           {data.mentions.length === 0 && (
             <p className="px-4 py-6 text-sm text-ink-subtle">
-              No mentions yet. They&apos;re collected by the daily social search (or &quot;Search social media&quot; on the dashboard).
+              No mentions yet. They&apos;re collected by the daily social search (or &quot;Search now&quot; on the dashboard).
             </p>
           )}
         </div>
