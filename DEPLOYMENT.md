@@ -110,7 +110,7 @@ Webhook: Clerk dashboard → Developers → Webhooks, endpoint
 instance's secret key → `CLERK_SECRET_KEY` (the same dev keys `apps/web/.env.local` uses).
 
 **Roles are not configured in Clerk.** Role (`owner`/`admin`/`analyst`/`viewer`) is managed in-app
-at `/team` (see `apps/api/src/lib/auth.ts`, `VALID_ROLES`). The org creator becomes `owner`,
+under Settings → Team (see `apps/api/src/lib/auth.ts`, `VALID_ROLES`). The org creator becomes `owner`,
 invitees start as `viewer`. **Clerk's own Admin/Member toggle has no effect on this app**, so
 don't "fix" someone's access from the Clerk side.
 

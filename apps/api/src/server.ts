@@ -11,6 +11,7 @@ import { brandRoutes } from "./routes/brands";
 import { webhookRoutes } from "./routes/webhooks";
 import { notificationsRoutes } from "./routes/notifications";
 import { webhookConfigRoutes } from "./routes/webhookConfig";
+import { alertRuleRoutes } from "./routes/alertRules";
 import { membersRoutes } from "./routes/members";
 import { publicReportRoutes } from "./routes/publicReports";
 import { mentionRoutes } from "./routes/mentions";
@@ -73,6 +74,7 @@ async function main() {
   await app.register(findingsRoutes);
   await app.register(notificationsRoutes);
   await app.register(webhookConfigRoutes);
+  await app.register(alertRuleRoutes);
   await app.register(membersRoutes);
   await app.register(publicReportRoutes);
   await app.register(mentionRoutes);

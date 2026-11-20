@@ -14,7 +14,7 @@ auth, pg-boss vs. Redis, the `Scan` batching model, etc.) — this file covers s
 - Docker Desktop (for Postgres and the containerized Playwright scanner)
 - A Clerk application with Organizations enabled. No custom Clerk roles are needed: roles
   (`owner`/`admin`/`analyst`/`viewer`) live in this app's own `memberships` table — the org
-  creator becomes `owner`, invitees start as `viewer`, and an owner changes roles at `/team`.
+  creator becomes `owner`, invitees start as `viewer`, and an owner changes roles under **Settings → Team**.
   Clerk's own Admin/Member role is ignored. Also add a webhook in Clerk pointing at
   `/api/webhooks/clerk` (events: organization, user, organizationMembership) and put its signing
   secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
@@ -78,9 +78,12 @@ background:
 - **Alerting**: every org gets a default rule (alert on severity crossing into "high") the
   moment it's created (or, for orgs from before this shipped, backfilled by the alerting
   migration). Fires by email (SMTP — see `.env.example`), an in-app notification (bell icon
-  in the header), and/or a webhook if one's configured (`PUT /api/webhook-config` — no
-  settings UI yet). More rule kinds (`score_increase`, `new_finding`) exist and work, just
-  aren't auto-seeded; add one directly via `alert_rules` until a rules UI exists.
+  in the header), and/or a webhook if one's configured. Owners and admins edit both under
+  **Settings → Alerts** (one rule per kind: on/off, channels, threshold; `GET /api/alert-rules`,
+  `PUT /api/alert-rules/:kind`, `routes/alertRules.ts`) and **Settings → Integrations** (webhook URL
+  on/off, signing secret shown to owners/admins only, rotate, send a test; HTTPS to a public host
+  only). Five kinds are seeded per org; `new_finding` and `score_increase` are created the first
+  time they're switched on. Email goes to every member; `public_report` is in-app only.
   **Caveat:** email uses plain SMTP. It never worked on the old Render host (SMTP blocked);
   on the VPS it's not yet confirmed (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
 - **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
@@ -277,7 +280,7 @@ background:
   filters and sort (not just the page, max 5,000) with registrar, IP, hosting org, assignee and a
   link back (`GET /api/findings/export.csv`). Cells starting with `= + - @` are prefixed with `'`
   so attacker-chosen URLs can't run as spreadsheet formulas.
-- **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
+- **Team & roles** (**Settings → Team**; `/team` redirects there): lists org members; owners can change anyone's role (never their own,
   and the last owner can't be demoted). Invite people with Clerk's organization switcher.
 
 ## Web app (since 2026-11-20)
@@ -293,9 +296,12 @@ background:
 - **Finding page**: two columns, evidence (screenshot or social post, score breakdown, AI
   explanation, contacts, reports, related findings) on the left, triage, takedowns and folded
   domain/history details on the right.
-- **Settings** (`/settings`): brand details, discovery keywords, official accounts and apps, the
-  visual reference, add/delete brand (moved off the dashboard). The selected brand is remembered
-  per browser (`lib/selectedBrand.ts`).
+- **Settings** (`/settings?tab=brand|alerts|integrations|team`): **Brand** (details with domain
+  checking (a pasted URL is trimmed to its domain, `invalid_domain` otherwise), discovery keywords
+  with an explicit "paired" switch, official accounts and apps, the public report form link, the
+  visual reference, add/delete brand), **Alerts**, **Integrations** (webhook) and **Team**. Only
+  owners and admins can change them; everyone else sees them read-only (`lib/useMyRole.ts`). The
+  selected brand is remembered per browser (`lib/selectedBrand.ts`).
 - Loading: every page has a skeleton shaped like its content (`loading.tsx` +
   `components/PageSkeletons.tsx`), the threat feed swaps its table for a skeleton while filters,
   sorting or paging load (`components/PendingNavigation.tsx`), and a thin bar at the top shows any

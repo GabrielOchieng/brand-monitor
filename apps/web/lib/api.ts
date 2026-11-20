@@ -24,6 +24,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_assignee: "That person isn't a member of this organization.",
   cannot_demote_last_owner: "The organization needs at least one owner.",
   cannot_change_own_role: "You can't change your own role.",
+  invalid_domain: "That isn't a valid domain. Use the bare domain, like jambojet.com.",
+  webhook_https_only: "The webhook address must start with https://.",
   not_yet_scanned: "This finding hasn't been scanned yet. Its first scan normally runs within about 5 minutes; try again after that.",
 };
 

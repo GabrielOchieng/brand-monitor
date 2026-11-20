@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { TrashIcon } from "./icons";
 import { LoadingRegion, Skeleton } from "./Skeleton";
+import { Toggle } from "./settings/Section";
 
 interface Keyword {
   id: string;
@@ -13,18 +14,18 @@ interface Keyword {
   core: boolean;
 }
 
-export function BrandKeywords({ brandId }: { brandId: string }) {
+const MAX_PAIRED = 8;
+
+export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId: string; brandRoot: string; editable?: boolean }) {
   const { getToken } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[] | null>(null);
   const [newKeyword, setNewKeyword] = useState("");
   const [adding, setAdding] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const token = await getToken();
-    const data = await apiFetch<Keyword[]>(`/api/brands/${brandId}/keywords`, token);
+    const data = await apiFetch<Keyword[]>(`/api/brands/${brandId}/keywords`, await getToken());
     setKeywords(data);
   }, [getToken, brandId]);
 
@@ -43,8 +44,7 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
     setAdding(true);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/brands/${brandId}/keywords`, token, {
+      await apiFetch(`/api/brands/${brandId}/keywords`, await getToken(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword }),
@@ -58,88 +58,103 @@ export function BrandKeywords({ brandId }: { brandId: string }) {
     }
   }
 
-  async function handleToggleCore(k: Keyword) {
-    setTogglingId(k.id);
+  async function setPaired(k: Keyword, core: boolean) {
+    setBusyId(k.id);
     setError(null);
     try {
-      const token = await getToken();
-      const updated = await apiFetch<Keyword>(`/api/brands/${brandId}/keywords/${k.id}`, token, {
+      const updated = await apiFetch<Keyword>(`/api/brands/${brandId}/keywords/${k.id}`, await getToken(), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ core: !k.core }),
+        body: JSON.stringify({ core }),
       });
       setKeywords((prev) => (prev ?? []).map((p) => (p.id === k.id ? updated : p)));
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setTogglingId(null);
+      setBusyId(null);
     }
   }
 
-  async function handleRemove(id: string) {
-    setRemovingId(id);
+  async function remove(k: Keyword) {
+    setBusyId(k.id);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/brands/${brandId}/keywords/${id}`, token, { method: "DELETE" });
-      setKeywords((prev) => (prev ?? []).filter((k) => k.id !== id));
+      await apiFetch(`/api/brands/${brandId}/keywords/${k.id}`, await getToken(), { method: "DELETE" });
+      setKeywords((prev) => (prev ?? []).filter((p) => p.id !== k.id));
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setRemovingId(null);
+      setBusyId(null);
     }
   }
 
+  const paired = keywords?.filter((k) => k.core).map((k) => k.keyword) ?? [];
+
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
-        {keywords === null && (
-          <LoadingRegion label="Loading keywords" className="flex flex-wrap gap-2">
-            {["w-16", "w-20", "w-12", "w-24", "w-14"].map((w, i) => (
-              <Skeleton key={i} className={`h-7 rounded-full ${w}`} />
+      {keywords === null ? (
+        <LoadingRegion label="Loading keywords" className="divide-y divide-line rounded-md border border-line">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center justify-between px-3 py-2.5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-5 w-9 rounded-full" />
+            </div>
+          ))}
+        </LoadingRegion>
+      ) : keywords.length === 0 ? (
+        <p className="rounded-md border border-dashed border-line px-3 py-4 text-center text-xs text-ink-subtle">No keywords yet. Discovery only checks typos of the name.</p>
+      ) : (
+        <div className="overflow-hidden rounded-md border border-line">
+          <div className="flex items-center justify-between border-b border-line bg-elevated/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+            <span>Keyword</span>
+            <span className={editable ? "mr-10" : ""}>
+              Paired {paired.length}/{MAX_PAIRED}
+            </span>
+          </div>
+          <ul className="divide-y divide-line">
+            {keywords.map((k) => (
+              <li key={k.id} className="flex items-center gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-ink">{k.keyword}</div>
+                  <div className="truncate text-xs text-ink-subtle">
+                    {k.keyword}
+                    {brandRoot}.com · {brandRoot}
+                    {k.keyword}.com
+                  </div>
+                </div>
+                <Toggle
+                  checked={k.core}
+                  onChange={(v) => setPaired(k, v)}
+                  disabled={!editable || busyId === k.id || (!k.core && paired.length >= MAX_PAIRED)}
+                  label={`Pair ${k.keyword} with the other paired keywords`}
+                />
+                {editable && (
+                  <button onClick={() => remove(k)} disabled={busyId === k.id} aria-label={`Remove ${k.keyword}`} className="btn-ghost hover:text-red-600">
+                    <TrashIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
             ))}
-          </LoadingRegion>
-        )}
-        {keywords?.map((k) => (
-          <span
-            key={k.id}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
-              k.core ? "border-brand bg-brand-muted text-brand" : "border-line bg-surface text-ink"
-            }`}
-          >
-            <button
-              onClick={() => handleToggleCore(k)}
-              disabled={togglingId === k.id}
-              aria-pressed={k.core}
-              title={k.core ? "Paired with other paired keywords. Click to unpair." : "Click to pair with other paired keywords"}
-            >
-              {k.keyword}
-              {k.core && <span className="ml-1 font-semibold">· paired</span>}
-            </button>
-            <button
-              onClick={() => handleRemove(k.id)}
-              disabled={removingId === k.id}
-              aria-label={`Remove ${k.keyword}`}
-              className="text-ink-subtle hover:text-red-600"
-            >
-              <TrashIcon className="h-3 w-3" />
-            </button>
-          </span>
-        ))}
-        {keywords?.length === 0 && <span className="text-xs text-ink-subtle">No keywords yet.</span>}
-      </div>
+          </ul>
+        </div>
+      )}
 
-      <form onSubmit={handleAdd} className="mt-4 flex gap-2">
-        <input
-          placeholder="Add a keyword (e.g. checkin)"
-          value={newKeyword}
-          onChange={(e) => setNewKeyword(e.target.value)}
-          className="field flex-1"
-        />
-        <button type="submit" disabled={adding} className="btn-secondary shrink-0">
-          {adding ? "Adding…" : "Add"}
-        </button>
-      </form>
+      {paired.length >= 2 && (
+        <p className="mt-2 text-xs text-ink-subtle">
+          Paired keywords are also combined with each other, e.g. {paired[0]}
+          {brandRoot}
+          {paired[1]}.xyz.
+        </p>
+      )}
+
+      {editable && (
+        <form onSubmit={handleAdd} className="mt-4 flex gap-2">
+          <input placeholder="Add a keyword, e.g. checkin" value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} className="field flex-1" aria-label="New keyword" />
+          <button type="submit" disabled={adding || !newKeyword.trim()} className="btn-secondary shrink-0">
+            {adding ? "Adding…" : "Add"}
+          </button>
+        </form>
+      )}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   );

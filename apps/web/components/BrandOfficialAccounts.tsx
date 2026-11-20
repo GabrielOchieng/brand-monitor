@@ -26,7 +26,7 @@ function describeOfficial(url: string) {
 
 // The brand's real social accounts, WhatsApp link and apps. The searches never report
 // these, and their contact numbers count as the brand's own.
-export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
+export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: string; editable?: boolean }) {
   const { getToken } = useAuth();
   const [urls, setUrls] = useState<string[] | null>(null);
   const [newUrl, setNewUrl] = useState("");
@@ -101,16 +101,16 @@ export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
                   <div className="truncate text-sm font-medium text-ink hover:text-brand">{d.primary}</div>
                   <div className="truncate text-xs text-ink-subtle">{d.secondary}</div>
                 </a>
-                <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-red-600">
+                {editable && <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-red-600">
                   <TrashIcon className="h-3.5 w-3.5" />
-                </button>
+                </button>}
               </li>
             );
           })}
         </ul>
       )}
 
-      <form onSubmit={handleAdd} className="mt-4 flex gap-2">
+      {editable && <form onSubmit={handleAdd} className="mt-4 flex gap-2">
         <input
           placeholder="Paste a profile, WhatsApp or app store link"
           value={newUrl}
@@ -121,7 +121,7 @@ export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
         <button type="submit" disabled={saving} className="btn-secondary shrink-0">
           {saving ? "Saving…" : "Add"}
         </button>
-      </form>
+      </form>}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   );

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { NotificationBell } from "./NotificationBell";
-import { ShieldIcon, HomeIcon, ListIcon, UsersIcon, FlagIcon, MessageIcon, SettingsIcon } from "./icons";
+import { ShieldIcon, HomeIcon, ListIcon, FlagIcon, MessageIcon, SettingsIcon } from "./icons";
 
 const navLinkClass = "text-sm font-medium transition-colors";
 // Below `sm`, text nav links would otherwise force the header wider than the viewport
@@ -18,7 +18,6 @@ const NAV = [
   { href: "/threats", label: "Threats", Icon: ListIcon },
   { href: "/mentions", label: "Mentions", Icon: MessageIcon },
   { href: "/reports", label: "Reports", Icon: FlagIcon },
-  { href: "/team", label: "Team", Icon: UsersIcon },
   { href: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
 

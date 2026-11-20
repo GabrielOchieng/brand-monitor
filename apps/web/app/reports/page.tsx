@@ -67,7 +67,7 @@ export default function ReportsPage() {
       await fn(await getToken());
       await load();
     } catch (e: any) {
-      setError(e?.status === 403 ? "Only owners and admins can change the public link." : String(e?.message ?? e));
+      setError(e?.status === 403 ? "Your role can't change reports. Ask an analyst, admin or owner." : String(e?.message ?? e));
     }
   }
 
@@ -82,37 +82,27 @@ export default function ReportsPage() {
       </p>
 
       <section className="card mt-6 p-5">
-        <h2 className="label">Public report link</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="label">Public report form</h2>
+          <Link href="/settings?tab=brand" className="btn-ghost text-xs">
+            Manage in Settings
+          </Link>
+        </div>
         {brands.map((b) => (
           <div key={b.id} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <span className="font-medium text-ink">{b.name}</span>
             {b.reportToken ? (
               <>
-                <input readOnly value={`${origin}/report/${b.reportToken}`} className="field-sm min-w-0 flex-1 font-mono" onFocus={(e) => e.currentTarget.select()} />
+                <input readOnly value={`${origin}/report/${b.reportToken}`} className="field-sm min-w-0 flex-1 font-mono" onFocus={(e) => e.currentTarget.select()} aria-label={`Public report link for ${b.name}`} />
                 <button className="btn-ghost text-xs" onClick={() => navigator.clipboard.writeText(`${origin}/report/${b.reportToken}`)}>
                   Copy
                 </button>
-                <button
-                  className="btn-ghost text-xs"
-                  onClick={() => confirm("Rotate the link? The current one stops working everywhere it's been shared.") && act((t) => apiFetch(`/api/brands/${b.id}/report-token`, t, { method: "POST" }))}
-                >
-                  Rotate
-                </button>
-                <button
-                  className="btn-danger text-xs"
-                  onClick={() => confirm("Turn off the public form for this brand?") && act((t) => apiFetch(`/api/brands/${b.id}/report-token`, t, { method: "DELETE" }))}
-                >
-                  Turn off
-                </button>
               </>
             ) : (
-              <button className="btn-secondary text-xs" onClick={() => act((t) => apiFetch(`/api/brands/${b.id}/report-token`, t, { method: "POST" }))}>
-                Create link
-              </button>
+              <span className="text-ink-subtle">Off</span>
             )}
           </div>
         ))}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </section>
 
       <div className="mt-6 flex gap-2">
@@ -122,6 +112,8 @@ export default function ReportsPage() {
           </button>
         ))}
       </div>
+
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       {loading && (
         <LoadingRegion label="Loading reports" className="mt-3">

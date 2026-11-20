@@ -59,16 +59,20 @@ export function TeamMembers() {
 
   if (loading)
     return (
-      <LoadingRegion label="Loading team" className="mt-6">
+      <LoadingRegion label="Loading team">
         <SkeletonList rows={3} lines={0} />
       </LoadingRegion>
     );
 
   return (
-    <div className="card mt-6 divide-y divide-line">
+    <div className="divide-y divide-line">
       {members.map((m) => (
-        <div key={m.userId} className="flex items-center justify-between gap-4 px-4 py-3">
-          <span className="text-sm text-ink">{m.email}</span>
+        <div key={m.userId} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-semibold uppercase text-brand">{m.email.slice(0, 1)}</span>
+            <span className="truncate text-sm text-ink">{m.email}</span>
+            {m.userId === user?.id && <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] font-medium text-ink-subtle">You</span>}
+          </div>
           {isOwner && m.userId !== user?.id ? (
             <select
               value={m.role}
@@ -77,7 +81,7 @@ export function TeamMembers() {
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {r[0].toUpperCase() + r.slice(1)}
                 </option>
               ))}
             </select>
@@ -86,8 +90,8 @@ export function TeamMembers() {
           )}
         </div>
       ))}
-      {members.length === 0 && <div className="px-4 py-10 text-center text-sm text-ink-subtle">No teammates yet.</div>}
-      {error && <p className="px-4 py-2 text-sm text-red-600">{error}</p>}
+      {members.length === 0 && <div className="py-8 text-center text-sm text-ink-subtle">No teammates yet.</div>}
+      {error && <p className="pt-2 text-sm text-red-600">{error}</p>}
     </div>
   );
 }

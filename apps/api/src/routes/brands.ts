@@ -7,16 +7,26 @@ import { withTenant } from "../lib/tenant";
 import { parseSocialUrl } from "../lib/socialUrls";
 import { parseAppListingUrl } from "../lib/appListings";
 
+// A bare registrable domain. A pasted URL ("https://www.jambojet.com/en/") is trimmed to
+// "jambojet.com" first, so the common mistake just works instead of producing nonsense
+// lookalike candidates.
+export const DomainSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .transform((s) => s.replace(/^[a-z]+:\/\//, "").replace(/[/?#].*$/, "").replace(/^www\./, "").replace(/\.$/, ""))
+  .refine((s) => /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(s), { message: "invalid_domain" });
+
 const CreateBrandSchema = z.object({
-  name: z.string().min(1),
-  primaryDomain: z.string().min(1),
+  name: z.string().trim().min(1).max(100),
+  primaryDomain: DomainSchema,
   keywords: z.array(z.string()).default([]),
   concatKeywords: z.array(z.string()).default([]),
 });
 
 const UpdateBrandSchema = z.object({
-  name: z.string().min(1).optional(),
-  primaryDomain: z.string().min(1).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  primaryDomain: DomainSchema.optional(),
 });
 
 const AddKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
@@ -66,7 +76,10 @@ export async function brandRoutes(app: FastifyInstance) {
     { preHandler: [authenticate, requireRole("owner", "admin")] },
     async (request, reply) => {
       const parsed = CreateBrandSchema.safeParse(request.body);
-      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      if (!parsed.success) {
+        const domainInvalid = Boolean(parsed.error.flatten().fieldErrors.primaryDomain);
+        return reply.status(400).send({ error: domainInvalid ? "invalid_domain" : "invalid_request", details: parsed.error.flatten() });
+      }
       const { name, primaryDomain, keywords, concatKeywords } = parsed.data;
       const orgId = request.auth!.orgId;
 
@@ -96,7 +109,10 @@ export async function brandRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const parsed = UpdateBrandSchema.safeParse(request.body);
-      if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+      if (!parsed.success) {
+        const domainInvalid = Boolean(parsed.error.flatten().fieldErrors.primaryDomain);
+        return reply.status(400).send({ error: domainInvalid ? "invalid_domain" : "invalid_request", details: parsed.error.flatten() });
+      }
       const { name, primaryDomain } = parsed.data;
       const orgId = request.auth!.orgId;
 
