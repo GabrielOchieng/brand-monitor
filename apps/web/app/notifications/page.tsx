@@ -59,13 +59,17 @@ export default function NotificationsPage() {
           <div key={n.id} className={`flex items-center justify-between px-4 py-3 ${n.readAt ? "opacity-50" : ""}`}>
             <div>
               {/* A fact-check links out to the article; a public report that matched no finding
-                  links to the reports list. */}
+                  links to the reports list; anything else (a finished manual social search) to
+                  the threat feed. */}
               {n.link ? (
                 <a href={n.link} target="_blank" rel="noopener noreferrer" className="text-sm text-ink hover:text-brand-hover">
                   {n.message}
                 </a>
               ) : (
-                <Link href={n.findingId ? `/threats/${n.findingId}` : "/reports"} className="text-sm text-ink hover:text-brand-hover">
+                <Link
+                  href={n.findingId ? `/threats/${n.findingId}` : n.reportId ? "/reports" : "/threats"}
+                  className="text-sm text-ink hover:text-brand-hover"
+                >
                   {n.message}
                 </Link>
               )}

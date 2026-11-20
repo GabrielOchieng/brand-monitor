@@ -33,3 +33,7 @@ export const allowDiscoveryRun = createRateLimiter(12, DAY);
 // Per org. Each submission triggers a full scan (~1-1.5 MB), same budget reasoning as
 // PUBLIC_REPORT_DAILY_SCAN_CAP.
 export const allowManualSubmit = createRateLimiter(50, DAY);
+// Per org. A manual social search spends ~6 of Tavily's 1,000 free monthly credits, the same
+// as the daily scheduled run; 3 a day keeps a month of clicking under ~550.
+export const SOCIAL_SEARCH_RUNS_PER_DAY = 3;
+export const allowSocialSearchRun = createRateLimiter(SOCIAL_SEARCH_RUNS_PER_DAY, DAY);

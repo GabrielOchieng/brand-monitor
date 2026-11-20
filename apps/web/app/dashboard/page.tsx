@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
-import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, TagIcon, ChevronDownIcon } from "../../components/icons";
+import { PlusIcon, PencilIcon, TrashIcon, ImageIcon, RadarIcon, FlagIcon, TagIcon, ChevronDownIcon, SearchIcon } from "../../components/icons";
 import { BrandKeywords } from "../../components/BrandKeywords";
 import { BrandOfficialAccounts } from "../../components/BrandOfficialAccounts";
 
@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [submitUrl, setSubmitUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [socialState, setSocialState] = useState<"idle" | "starting" | "queued">("idle");
 
   const loadBrands = useCallback(async () => {
     try {
@@ -102,6 +103,7 @@ export default function DashboardPage() {
 
   async function handleSelectBrand(brandId: string) {
     setRun(null);
+    setSocialState("idle");
     await loadSummary(brandId);
   }
 
@@ -132,6 +134,24 @@ export default function DashboardPage() {
       setRun({ id: runId, status: "running", candidatesTotal: 0, candidatesChecked: 0, findingsCreated: 0, error: null });
     } catch (err: any) {
       setError(err.message);
+    }
+  }
+
+  async function handleSocialSearch() {
+    if (!selectedBrandId) return;
+    setError(null);
+    setSocialState("starting");
+    try {
+      const token = await getToken();
+      await apiFetch("/api/pipeline/social-search", token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: selectedBrandId }),
+      });
+      setSocialState("queued");
+    } catch (err: any) {
+      setError(err.message);
+      setSocialState("idle");
     }
   }
 
@@ -403,7 +423,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="card flex flex-col justify-between p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/15 text-brand">
@@ -423,7 +443,30 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div className="card p-5">
+        <div className="card flex flex-col justify-between p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/15 text-brand">
+              <SearchIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <div className="text-sm font-medium text-ink">Social media search</div>
+              <p className="mt-0.5 text-xs text-ink-subtle">
+                {socialState === "queued"
+                  ? "Started. You'll get a notification with the result in a few minutes."
+                  : "Search Facebook, Instagram, TikTok, X and Telegram for fake accounts now. Runs daily anyway; owners and admins can run it 3 times a day."}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleSocialSearch}
+            disabled={socialState !== "idle"}
+            className="btn-primary mt-4 self-start"
+          >
+            {socialState === "starting" ? "Starting…" : socialState === "queued" ? "Search started" : "Search social media"}
+          </button>
+        </div>
+
+        <div className="card p-5 sm:col-span-2 lg:col-span-1">
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand/15 text-brand">
               <FlagIcon className="h-5 w-5" />

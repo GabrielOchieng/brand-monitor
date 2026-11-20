@@ -16,6 +16,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   ai_daily_limit: "Today's limit of AI explanations has been reached. Try again tomorrow.",
   too_many_submissions: "Your organization has reached today's limit of 50 manual submissions. Try again tomorrow.",
   too_many_discovery_runs: "Your organization has reached today's limit of 12 manual discovery runs. Scheduled discovery still runs every 4 hours.",
+  too_many_social_searches: "Your organization has reached today's limit of 3 manual social media searches. The scheduled search still runs every morning.",
+  social_search_not_configured: "Social media search isn't set up: the API server has no TAVILY_API_KEY.",
   too_many_core_keywords: "At most 8 keywords can be paired.",
   duplicate_keyword: "That keyword is already on the list.",
   not_a_social_account: "That isn't a social account or WhatsApp link.",

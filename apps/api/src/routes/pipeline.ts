@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { fromPrisma } from "pg-boss";
 import { authenticate, requireRole } from "../lib/auth";
-import { allowDiscoveryRun } from "../lib/rateLimit";
+import { allowDiscoveryRun, allowSocialSearchRun } from "../lib/rateLimit";
+import { env } from "../env";
 import { withTenant } from "../lib/tenant";
-import { boss, QUEUE_DISCOVERY } from "../queue/boss";
+import { boss, QUEUE_DISCOVERY, QUEUE_SOCIAL_SEARCH_MONITOR } from "../queue/boss";
 import type { DiscoveryJobData } from "../pipeline/discoveryJob";
 
 export async function pipelineRoutes(app: FastifyInstance) {
@@ -30,6 +31,22 @@ export async function pipelineRoutes(app: FastifyInstance) {
 
     if (!result) return reply.status(404).send({ error: "no_brand" });
     return reply.send({ runId: result.id });
+  });
+
+  // "Search social media now" on the dashboard. Owners/admins only and 3 a day per org:
+  // each run spends Tavily's metered free credits (lib/tavily.ts). Queued, not run inline --
+  // six searches take ~20s; the job leaves an in-app notification when done.
+  app.post("/api/pipeline/social-search", { preHandler: [authenticate, requireRole("owner", "admin")] }, async (request, reply) => {
+    const { brandId } = (request.body ?? {}) as { brandId?: string };
+    const orgId = request.auth!.orgId;
+    if (!env.tavilyApiKey) return reply.status(400).send({ error: "social_search_not_configured" });
+    if (!brandId) return reply.status(400).send({ error: "invalid_request" });
+    const brand = await withTenant(orgId, (tx) => tx.brand.findUnique({ where: { id: brandId }, select: { id: true } }));
+    if (!brand) return reply.status(404).send({ error: "no_brand" });
+    if (!allowSocialSearchRun(orgId)) return reply.status(429).send({ error: "too_many_social_searches" });
+    // singletonKey: a second click while one is queued for this brand doesn't queue another.
+    await boss.send(QUEUE_SOCIAL_SEARCH_MONITOR, { kind: "manual", brandId, organizationId: orgId }, { singletonKey: `manual-social-${brandId}` });
+    return reply.status(202).send({ queued: true });
   });
 
   app.get("/api/pipeline/runs/:id", { preHandler: authenticate }, async (request, reply) => {

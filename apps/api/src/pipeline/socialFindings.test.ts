@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { accountDisplayName, classifySocialResult, nameResemblesBrand } from "./socialFindings";
-import { isFactCheckAboutBrand, numberPivotQueries, socialQueries } from "./socialSearchMonitorJob";
+import { isFactCheckAboutBrand, manualSearchMessage, numberPivotQueries, socialQueries } from "./socialSearchMonitorJob";
 import { parseSocialUrl } from "../lib/socialUrls";
 
 // Jambojet's real official accounts (jambojet.com/official-channels, 2026-10-19).
@@ -156,5 +156,19 @@ describe("classifySocialResult with the 2026-11-20 live results", () => {
     expect(classifySocialResult(result, brand)).toBeNull();
     const hit = classifySocialResult(result, brand, new Set(["+254710492539"]));
     expect(hit?.indicators).toEqual([{ kind: "phone", value: "+254710492539" }]);
+  });
+});
+
+describe("manual social search notification", () => {
+  it("says what happened in each case", () => {
+    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 2, budgetExhausted: false })).toBe(
+      "Social media search for Jambojet found 2 new accounts. They're scored within a few minutes and appear in Threats."
+    );
+    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 1, budgetExhausted: false })).toContain("1 new account.");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 4, newFindings: 0, budgetExhausted: false })).toBe(
+      "Social media search for Jambojet finished with no new accounts (4 searches)."
+    );
+    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, budgetExhausted: true })).toContain("allowance is used up");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, budgetExhausted: false })).toContain("didn't answer");
   });
 });

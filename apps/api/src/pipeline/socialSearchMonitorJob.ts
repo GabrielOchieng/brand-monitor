@@ -80,63 +80,99 @@ async function listBrands() {
   return adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
 }
 
+export interface SocialSearchOutcome {
+  searchesRun: number;
+  newFindings: number;
+  budgetExhausted: boolean;
+}
+
+// One brand's searches. Shared by the daily job and the dashboard's "Search social media
+// now" button (routes/pipeline.ts), which queues a job for a single brand.
+export async function runSocialSearchForBrand(organizationId: string, brandId: string): Promise<SocialSearchOutcome> {
+  const brand = await withTenant(organizationId, (tx) =>
+    tx.brand.findUniqueOrThrow({ where: { id: brandId }, include: { domains: true } })
+  );
+  const context = {
+    brandRoot: brand.primaryDomain.split(".")[0].toLowerCase(),
+    officialSocialUrls: brand.officialSocialUrls,
+    ownKeys: await socialOwnIndicatorKeys(organizationId, brand),
+    ownDomains: [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase()),
+  };
+
+  const searches: Array<{ query: string; includeDomains: string[]; pivot?: ReadonlySet<string> }> = [
+    ...socialQueries(brand.name),
+    ...numberPivotQueries(await brandPivotNumbers(organizationId, brandId, context.ownKeys)).map((p) => ({
+      query: p.query,
+      includeDomains: SOCIAL_DOMAINS,
+      pivot: new Set([p.number]) as ReadonlySet<string>,
+    })),
+  ];
+
+  const outcome: SocialSearchOutcome = { searchesRun: 0, newFindings: 0, budgetExhausted: false };
+  for (const { query, includeDomains, pivot } of searches) {
+    const search = await tavilySearch(query, { includeDomains, timeRange: "month" });
+    if (search.status === "budget_exhausted") {
+      console.warn("[social-search] monthly Tavily cap reached -- skipping until next month");
+      outcome.budgetExhausted = true;
+      break;
+    }
+    if (search.status === "error") {
+      console.warn(`[social-search] "${query}" failed: ${search.error}`);
+      continue;
+    }
+    outcome.searchesRun++;
+
+    for (const result of search.results) {
+      const candidate = classifySocialResult(result, context, pivot);
+      if (!candidate) continue;
+      // Scored on the next recheck (nextScanAt now for anything new) -- same as every
+      // other finding source.
+      const sighting = await withTenant(organizationId, (tx) =>
+        recordSocialSighting(tx, brandId, "social_search", {
+          account: candidate.account,
+          postUrl: candidate.postUrl,
+          title: candidate.title,
+          snippet: candidate.snippet,
+          indicators: candidate.indicators,
+        })
+      );
+      if (sighting.created) outcome.newFindings++;
+    }
+  }
+  if (outcome.newFindings > 0) console.log(`[social-search] ${outcome.newFindings} new social finding(s) for brand ${brandId}`);
+  if (outcome.searchesRun > 0) markSourceSuccess("social_search");
+  return outcome;
+}
+
 export async function runSocialSearchMonitorJob(): Promise<void> {
   if (!env.tavilyApiKey) return;
-  let anySucceeded = false;
-
   for (const { id: brandId, organizationId } of await listBrands()) {
-    const brand = await withTenant(organizationId, (tx) =>
-      tx.brand.findUniqueOrThrow({ where: { id: brandId }, include: { domains: true } })
-    );
-    const context = {
-      brandRoot: brand.primaryDomain.split(".")[0].toLowerCase(),
-      officialSocialUrls: brand.officialSocialUrls,
-      ownKeys: await socialOwnIndicatorKeys(organizationId, brand),
-      ownDomains: [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase()),
-    };
-
-    const searches: Array<{ query: string; includeDomains: string[]; pivot?: ReadonlySet<string> }> = [
-      ...socialQueries(brand.name),
-      ...numberPivotQueries(await brandPivotNumbers(organizationId, brandId, context.ownKeys)).map((p) => ({
-        query: p.query,
-        includeDomains: SOCIAL_DOMAINS,
-        pivot: new Set([p.number]) as ReadonlySet<string>,
-      })),
-    ];
-
-    let created = 0;
-    for (const { query, includeDomains, pivot } of searches) {
-      const outcome = await tavilySearch(query, { includeDomains, timeRange: "month" });
-      if (outcome.status === "budget_exhausted") {
-        console.warn("[social-search] monthly Tavily cap reached -- skipping until next month");
-        return;
-      }
-      if (outcome.status === "error") {
-        console.warn(`[social-search] "${query}" failed: ${outcome.error}`);
-        continue;
-      }
-      anySucceeded = true;
-
-      for (const result of outcome.results) {
-        const candidate = classifySocialResult(result, context, pivot);
-        if (!candidate) continue;
-        // Scored on the next recheck (nextScanAt now for anything new) -- same as every
-        // other finding source.
-        const outcomeForResult = await withTenant(organizationId, (tx) =>
-          recordSocialSighting(tx, brandId, "social_search", {
-            account: candidate.account,
-            postUrl: candidate.postUrl,
-            title: candidate.title,
-            snippet: candidate.snippet,
-            indicators: candidate.indicators,
-          })
-        );
-        if (outcomeForResult.created) created++;
-      }
-    }
-    if (created > 0) console.log(`[social-search] ${created} new social finding(s) for brand ${brandId}`);
+    const outcome = await runSocialSearchForBrand(organizationId, brandId);
+    if (outcome.budgetExhausted) return;
   }
-  if (anySucceeded) markSourceSuccess("social_search");
+}
+
+export function manualSearchMessage(brandName: string, outcome: SocialSearchOutcome): string {
+  if (outcome.searchesRun === 0) {
+    return outcome.budgetExhausted
+      ? `Social media search for ${brandName} didn't run: this month's search allowance is used up.`
+      : `Social media search for ${brandName} failed: the search service didn't answer. Try again later.`;
+  }
+  if (outcome.newFindings > 0) {
+    const n = outcome.newFindings;
+    return `Social media search for ${brandName} found ${n} new account${n === 1 ? "" : "s"}. They're scored within a few minutes and appear in Threats.`;
+  }
+  return `Social media search for ${brandName} finished with no new accounts (${outcome.searchesRun} searches).`;
+}
+
+// The dashboard button's job: one brand, then an in-app notification with the result so
+// the person who clicked knows it finished.
+export async function runManualSocialSearch(organizationId: string, brandId: string): Promise<void> {
+  if (!env.tavilyApiKey) return;
+  const outcome = await runSocialSearchForBrand(organizationId, brandId);
+  const brand = await withTenant(organizationId, (tx) => tx.brand.findUnique({ where: { id: brandId }, select: { name: true } }));
+  const message = manualSearchMessage(brand?.name ?? "this brand", outcome);
+  await withTenant(organizationId, (tx) => tx.notification.create({ data: { organizationId, message } }));
 }
 
 // A fact-check article about the brand becomes an in-app notification linking to it, not a

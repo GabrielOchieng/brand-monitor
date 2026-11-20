@@ -23,7 +23,7 @@ import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
 import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
 import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
-import { runSocialSearchMonitorJob, runFactCheckMonitorJob } from "../pipeline/socialSearchMonitorJob";
+import { runSocialSearchMonitorJob, runFactCheckMonitorJob, runManualSocialSearch } from "../pipeline/socialSearchMonitorJob";
 import { markRecheckDispatched } from "./health";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
@@ -117,10 +117,17 @@ export async function registerQueueWorkers(): Promise<void> {
     await runPhishFeedMonitorJob();
   });
 
-  await boss.work<{ kind?: "social" | "fact_check" }>(QUEUE_SOCIAL_SEARCH_MONITOR, WORKER_POLLING, async ([job]) => {
-    if (job.data?.kind === "fact_check") await runFactCheckMonitorJob();
-    else await runSocialSearchMonitorJob();
-  });
+  // kind "manual" is the dashboard button (routes/pipeline.ts): one brand, then a notification.
+  await boss.work<{ kind?: "social" | "fact_check" | "manual"; brandId?: string; organizationId?: string }>(
+    QUEUE_SOCIAL_SEARCH_MONITOR,
+    WORKER_POLLING,
+    async ([job]) => {
+      if (job.data?.kind === "fact_check") await runFactCheckMonitorJob();
+      else if (job.data?.kind === "manual" && job.data.brandId && job.data.organizationId) {
+        await runManualSocialSearch(job.data.organizationId, job.data.brandId);
+      } else await runSocialSearchMonitorJob();
+    }
+  );
 
   await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();

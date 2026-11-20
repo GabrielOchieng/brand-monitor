@@ -125,7 +125,8 @@ background:
   quota-spent model falls through to the next; see `apps/api/.env.example`) — the button surfaces a clear
   error if it's missing/invalid rather than failing silently.
 - **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
-  manual discovery runs and 50 manual submissions a day. Limits live in memory and reset on restart.
+  manual discovery runs, 50 manual submissions and 3 manual social media searches a day. Limits
+  live in memory and reset on restart.
 - **Takedown tracking**: a finding's detail page lets you log takedown requests (provider —
   e.g. registrar/hosting provider, an optional ticket reference, notes) and track each one's
   status (`requested → acknowledged → completed/rejected`) independently — a finding can have
@@ -181,7 +182,10 @@ background:
   handle or display name looks like the brand (`@fly.jambojet`, `FlyJambojetUG`, and since
   2026-11-20 one-letter typos and digit look-alikes like `jambotjet01235` / "Jambo Jet Airline",
   `nameResemblesBrand`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't
-  the brand's. A number-search hit counts even without naming the brand, when it shows that number. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
+  the brand's. A number-search hit counts even without naming the brand, when it shows that number.
+  Owners/admins can also run it for one brand from the dashboard ("Search social media",
+  `POST /api/pipeline/social-search`, 3/org/day); it runs as a queued job and leaves an in-app
+  notification with the result. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
   title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
   clone site sharing a WhatsApp number link up). Social findings are **never scanned**: the platforms
   block automated access and forbid scraping, so rechecks re-score stored evidence daily with no
