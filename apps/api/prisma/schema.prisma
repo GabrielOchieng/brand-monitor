@@ -65,6 +65,7 @@ model Brand {
   assets       BrandAsset[]
   findings     Finding[]
   pipelineRuns PipelineRun[]
+  mentions     BrandMention[]
 
   @@map("brands")
 }
@@ -507,4 +508,28 @@ model PublicReport {
   @@index([brandId, createdAt])
   @@index([findingId])
   @@map("public_reports")
+}
+
+// Social posts that mention the brand but aren't threats (news, complaints, promotions,
+// general chatter): what the daily social search used to discard (pipeline/brandMentions.ts).
+// Identity is the post URL. category/sentiment are AI labels, null until labelled.
+model BrandMention {
+  id            String   @id @default(cuid())
+  brandId       String   @map("brand_id")
+  brand         Brand    @relation(fields: [brandId], references: [id])
+  url           String
+  platform      String // facebook | instagram | tiktok | x | telegram | youtube
+  handle        String?
+  title         String?
+  snippet       String?
+  category      String? // news | complaint | promotion | general
+  sentiment     String? // positive | neutral | negative
+  // Failed labelling attempts; labelling stops retrying a mention after a few.
+  labelAttempts Int      @default(0) @map("label_attempts")
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([brandId, url])
+  @@index([brandId, firstSeenAt])
+  @@map("brand_mentions")
 }

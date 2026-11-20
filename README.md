@@ -194,6 +194,16 @@ background:
   become the same kind of finding. A hard cap (`TAVILY_MONTHLY_CAP`, default 900) stops searching
   before the free allowance runs out; usage shows on `/health/jobs`. Official accounts (and the
   official `wa.me` link) are edited on the dashboard under **Keywords & accounts**.
+- **Mentions feed** (`/mentions`, since 2026-11-20; `pipeline/brandMentions.ts`,
+  `GET /api/brands/:id/mentions`, table `brand_mentions`): social posts from the same searches
+  that name the brand but aren't threats (news, complaints, promotions, general chatter; not
+  official accounts), which used to be discarded. No extra search credits. After each search run
+  one AI call (`generateText`, the same Gemini chain as explanations) labels up to 25 new mentions
+  with a category (news / complaint / promotion / general) and a sentiment; the answer format is one
+  compact line per post because Gemini's thinking eats the token cap. A failed labelling leaves
+  them unlabelled for the next run (3 attempts). The page shows last-7-days counts and filters.
+  It's a sample (~30–40 posts a run from the past month's indexed posts), not social listening, and
+  the official account's posts can slip in when a title doesn't carry the handle.
 - **Fact-checks** (weekly, same key): one search per brand on pesacheck.org. A new article about the
   brand raises an in-app notification linking to it (no finding: the article isn't the threat).
   PesaCheck's RSS feed only holds ~15 articles (about a day), so searching is the reliable route.

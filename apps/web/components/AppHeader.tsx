@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { NotificationBell } from "./NotificationBell";
-import { ShieldIcon, HomeIcon, ListIcon, UsersIcon, FlagIcon } from "./icons";
+import { ShieldIcon, HomeIcon, ListIcon, UsersIcon, FlagIcon, MessageIcon } from "./icons";
 
 const navLinkClass = "text-sm font-medium text-ink-subtle transition-colors hover:text-ink";
 // Below `sm`, text nav links would otherwise force the header wider than the viewport
@@ -40,6 +40,10 @@ export function AppHeader() {
             <ListIcon className="h-5 w-5" />
           </Link>
           <Link href="/threats" className={navTextLinkClass}>Threats</Link>
+          <Link href="/mentions" className={navIconLinkClass} aria-label="Mentions">
+            <MessageIcon className="h-5 w-5" />
+          </Link>
+          <Link href="/mentions" className={navTextLinkClass}>Mentions</Link>
           <Link href="/team" className={navIconLinkClass} aria-label="Team">
             <UsersIcon className="h-5 w-5" />
           </Link>

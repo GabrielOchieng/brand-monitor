@@ -13,6 +13,7 @@ import { notificationsRoutes } from "./routes/notifications";
 import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { membersRoutes } from "./routes/members";
 import { publicReportRoutes } from "./routes/publicReports";
+import { mentionRoutes } from "./routes/mentions";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
@@ -74,6 +75,7 @@ async function main() {
   await app.register(webhookConfigRoutes);
   await app.register(membersRoutes);
   await app.register(publicReportRoutes);
+  await app.register(mentionRoutes);
 
   app.get("/health", async () => ({ ok: true }));
   // 503 when the scheduled jobs have stalled -- see queue/health.ts. Point the alerting

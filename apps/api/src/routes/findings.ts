@@ -7,7 +7,7 @@ import { withTenant } from "../lib/tenant";
 import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
-import { buildExplanationPrompt, describeAiError, generateExplanation } from "../lib/aiExplain";
+import { buildExplanationPrompt, describeAiError, generateText } from "../lib/aiExplain";
 import { buildTakedownKit } from "../lib/takedownKit";
 import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
@@ -464,7 +464,7 @@ export async function findingsRoutes(app: FastifyInstance) {
       // normally 1-3s -- well inside a normal HTTP timeout. Revisit only if real usage
       // shows p95 latency creeping past ~8-10s.
       try {
-        const { text: response, model } = await generateExplanation(claim.record.prompt, (failedModel, err) =>
+        const { text: response, model } = await generateText(claim.record.prompt, (failedModel, err) =>
           request.log.warn({ err, findingId: id, model: failedModel }, "AI model failed, trying the next one")
         );
         const updated = await withTenant(orgId, (tx) =>

@@ -161,14 +161,14 @@ describe("classifySocialResult with the 2026-11-20 live results", () => {
 
 describe("manual social search notification", () => {
   it("says what happened in each case", () => {
-    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 2, budgetExhausted: false })).toBe(
+    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 2, newMentions: 0, budgetExhausted: false })).toBe(
       "Social media search for Jambojet found 2 new accounts. They're scored within a few minutes and appear in Threats."
     );
-    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 1, budgetExhausted: false })).toContain("1 new account.");
-    expect(manualSearchMessage("Jambojet", { searchesRun: 4, newFindings: 0, budgetExhausted: false })).toBe(
+    expect(manualSearchMessage("Jambojet", { searchesRun: 6, newFindings: 1, newMentions: 0, budgetExhausted: false })).toContain("1 new account.");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 4, newFindings: 0, newMentions: 0, budgetExhausted: false })).toBe(
       "Social media search for Jambojet finished with no new accounts (4 searches)."
     );
-    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, budgetExhausted: true })).toContain("allowance is used up");
-    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, budgetExhausted: false })).toContain("didn't answer");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: true })).toContain("allowance is used up");
+    expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false })).toContain("didn't answer");
   });
 });

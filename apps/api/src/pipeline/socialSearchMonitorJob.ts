@@ -5,6 +5,7 @@ import { tavilySearch, type TavilyResult } from "../lib/tavily";
 import { SOCIAL_SEARCH_DOMAINS } from "../lib/socialUrls";
 import { markSourceSuccess } from "../queue/health";
 import { classifySocialResult, recordSocialSighting, socialOwnIndicatorKeys } from "./socialFindings";
+import { labelPendingMentions, mentionFromResult, recordMention } from "./brandMentions";
 import { brandMatcher } from "./nrdMonitorJob";
 
 // Fifth finding source: fake social-media accounts, found through a web search engine
@@ -83,6 +84,8 @@ async function listBrands() {
 export interface SocialSearchOutcome {
   searchesRun: number;
   newFindings: number;
+  // Non-threat posts naming the brand, for the mentions feed (pipeline/brandMentions.ts).
+  newMentions: number;
   budgetExhausted: boolean;
 }
 
@@ -108,7 +111,7 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
     })),
   ];
 
-  const outcome: SocialSearchOutcome = { searchesRun: 0, newFindings: 0, budgetExhausted: false };
+  const outcome: SocialSearchOutcome = { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false };
   for (const { query, includeDomains, pivot } of searches) {
     const search = await tavilySearch(query, { includeDomains, timeRange: "month" });
     if (search.status === "budget_exhausted") {
@@ -124,7 +127,12 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
 
     for (const result of search.results) {
       const candidate = classifySocialResult(result, context, pivot);
-      if (!candidate) continue;
+      if (!candidate) {
+        // Not a threat -- but if it names the brand, it belongs in the mentions feed.
+        const mention = mentionFromResult(result, context);
+        if (mention && (await withTenant(organizationId, (tx) => recordMention(tx, brandId, mention)))) outcome.newMentions++;
+        continue;
+      }
       // Scored on the next recheck (nextScanAt now for anything new) -- same as every
       // other finding source.
       const sighting = await withTenant(organizationId, (tx) =>
@@ -140,7 +148,10 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
     }
   }
   if (outcome.newFindings > 0) console.log(`[social-search] ${outcome.newFindings} new social finding(s) for brand ${brandId}`);
+  if (outcome.newMentions > 0) console.log(`[social-search] ${outcome.newMentions} new mention(s) for brand ${brandId}`);
   if (outcome.searchesRun > 0) markSourceSuccess("social_search");
+  // One AI call labels the new (and any still-unlabelled) mentions; a failure only delays it.
+  await labelPendingMentions(organizationId, brandId, brand.name);
   return outcome;
 }
 
@@ -160,9 +171,11 @@ export function manualSearchMessage(brandName: string, outcome: SocialSearchOutc
   }
   if (outcome.newFindings > 0) {
     const n = outcome.newFindings;
-    return `Social media search for ${brandName} found ${n} new account${n === 1 ? "" : "s"}. They're scored within a few minutes and appear in Threats.`;
+    const mentions = outcome.newMentions > 0 ? ` Also ${outcome.newMentions} new mention${outcome.newMentions === 1 ? "" : "s"} in Mentions.` : "";
+    return `Social media search for ${brandName} found ${n} new account${n === 1 ? "" : "s"}. They're scored within a few minutes and appear in Threats.${mentions}`;
   }
-  return `Social media search for ${brandName} finished with no new accounts (${outcome.searchesRun} searches).`;
+  const mentions = outcome.newMentions > 0 ? ` ${outcome.newMentions} new mention${outcome.newMentions === 1 ? "" : "s"} added to Mentions.` : "";
+  return `Social media search for ${brandName} finished with no new accounts (${outcome.searchesRun} searches).${mentions}`;
 }
 
 // The dashboard button's job: one brand, then an in-app notification with the result so

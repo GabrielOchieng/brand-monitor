@@ -97,7 +97,7 @@ function isAuthError(err: unknown): boolean {
   return err.status === 401 || err.status === 403 || detail.includes("api key not valid") || detail.includes("invalid api key");
 }
 
-// Turns whatever generateExplanation threw into one sentence an analyst can act on. This
+// Turns whatever generateText threw into one sentence an analyst can act on. This
 // is what gets stored in ai_explanations.error and shown on the finding page, so it must
 // never be a raw provider/JSON dump; the route logs the original error for debugging.
 export function describeAiError(err: unknown): string {
@@ -126,36 +126,51 @@ export function describeAiError(err: unknown): string {
   return "The AI explanation couldn't be generated. Try again later.";
 }
 
-async function callModel(model: string, prompt: string, timeoutMs: number): Promise<string> {
+async function callModel(model: string, prompt: string, timeoutMs: number, maxTokens: number): Promise<string> {
   const res = await fetch(`${env.aiBaseUrl.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.aiApiKey}` },
-    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "user", content: prompt }] }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new AiHttpError(res.status, (await res.text()).slice(0, 2000));
-  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
-  const text = data.choices?.[0]?.message?.content?.trim();
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string | null }; finish_reason?: string }> };
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content?.trim();
   if (!text) throw new Error(`no text content in ${model} response`);
+  // Cut off at the token cap (thinking models spend most of it before answering): a partial
+  // answer is wrong, not short, so treat it as a failure and let the next model try.
+  if (choice?.finish_reason === "length") throw new Error(`${model} response was cut off at the token limit`);
   return text;
 }
 
 // Tries each model in env.aiModels in order and returns the first answer, with the model
 // that produced it. Any failure moves on to the next model except a key problem (every
 // model would fail the same way). Throws the last error if none answers.
-export async function generateExplanation(
+// Background callers (mention labelling) aren't holding an HTTP request open, so they can
+// pass a longer budget and a bigger token cap than the inline explanation route.
+export interface GenerateOptions {
+  maxTokens?: number;
+  perModelTimeoutMs?: number;
+  totalBudgetMs?: number;
+}
+
+export async function generateText(
   prompt: string,
-  onFallback?: (model: string, err: unknown) => void
+  onFallback?: (model: string, err: unknown) => void,
+  options: GenerateOptions = {}
 ): Promise<{ text: string; model: string }> {
   if (!env.aiApiKey) throw new AiNotConfiguredError("AI_API_KEY is not set");
   if (env.aiModels.length === 0) throw new Error("AI_MODEL lists no models");
-  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const maxTokens = options.maxTokens ?? MAX_TOKENS;
+  const perModelTimeout = options.perModelTimeoutMs ?? PER_MODEL_TIMEOUT_MS;
+  const deadline = Date.now() + (options.totalBudgetMs ?? TOTAL_BUDGET_MS);
   let lastErr: unknown;
   for (const model of env.aiModels) {
     const remaining = deadline - Date.now();
     if (remaining < 3_000) break;
     try {
-      return { text: await callModel(model, prompt, Math.min(PER_MODEL_TIMEOUT_MS, remaining)), model };
+      return { text: await callModel(model, prompt, Math.min(perModelTimeout, remaining), maxTokens), model };
     } catch (err) {
       if (isAuthError(err)) throw err;
       lastErr = err;

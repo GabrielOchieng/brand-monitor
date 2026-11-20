@@ -286,6 +286,7 @@ export async function brandRoutes(app: FastifyInstance) {
         await tx.brandKeyword.deleteMany({ where: { brandId: id } });
         await tx.brandAsset.deleteMany({ where: { brandId: id } });
         await tx.pipelineRun.deleteMany({ where: { brandId: id } });
+        await tx.brandMention.deleteMany({ where: { brandId: id } });
         await tx.brand.delete({ where: { id } });
 
         return { findingIds };

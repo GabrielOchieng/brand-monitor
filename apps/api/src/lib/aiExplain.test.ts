@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { env } from "../env";
-import { AiHttpError, describeAiError, generateExplanation } from "./aiExplain";
+import { AiHttpError, describeAiError, generateText } from "./aiExplain";
 
 describe("describeAiError", () => {
   it("maps an invalid key, including Gemini's 400 form", () => {
@@ -29,7 +29,7 @@ describe("describeAiError", () => {
   });
 });
 
-describe("generateExplanation fallback chain", () => {
+describe("generateText fallback chain", () => {
   const saved = { key: env.aiApiKey, models: env.aiModels };
   afterEach(() => {
     env.aiApiKey = saved.key;
@@ -54,7 +54,7 @@ describe("generateExplanation fallback chain", () => {
     env.aiModels = ["a", "b", "c", "d"];
     const calls = stubFetch({ a: fail(503), b: fail(429), c: ok("explained"), d: ok("unused") });
     const seen: string[] = [];
-    await expect(generateExplanation("p", (m) => seen.push(m))).resolves.toEqual({ text: "explained", model: "c" });
+    await expect(generateText("p", (m) => seen.push(m))).resolves.toEqual({ text: "explained", model: "c" });
     expect(calls).toEqual(["a", "b", "c"]);
     expect(seen).toEqual(["a", "b"]);
   });
@@ -63,7 +63,7 @@ describe("generateExplanation fallback chain", () => {
     env.aiApiKey = "k";
     env.aiModels = ["a", "b"];
     const calls = stubFetch({ a: fail(400, "API key not valid"), b: ok("unused") });
-    await expect(generateExplanation("p")).rejects.toBeInstanceOf(AiHttpError);
+    await expect(generateText("p")).rejects.toBeInstanceOf(AiHttpError);
     expect(calls).toEqual(["a"]);
   });
 
@@ -71,7 +71,7 @@ describe("generateExplanation fallback chain", () => {
     env.aiApiKey = "k";
     env.aiModels = ["a", "b"];
     stubFetch({ a: fail(503), b: fail(404) });
-    const err = await generateExplanation("p").catch((e) => e);
+    const err = await generateText("p").catch((e) => e);
     expect(describeAiError(err)).toMatch(/AI_MODEL/);
   });
 });

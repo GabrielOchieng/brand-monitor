@@ -148,3 +148,12 @@ export function DownloadIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function MessageIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className={className}>
+      <path d="M4.5 5.5h15v10h-8l-4.5 3.5v-3.5h-2.5Z" strokeLinejoin="round" />
+      <path d="M8 9.5h8M8 12.5h5" strokeLinecap="round" />
+    </svg>
+  );
+}
