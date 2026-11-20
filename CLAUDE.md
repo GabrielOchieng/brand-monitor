@@ -62,6 +62,9 @@ Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DE
    the last live one, losing takedown evidence). Agreed later plan: move them to Cloudinary's free
    plan (25 credits/month, no card, no overage) and keep one screenshot per scan.
 
+Detection gaps on web and social (vs. enterprise tools) and the phased plan to close them:
+`ROADMAP.md`. Update it when a phase ships.
+
 ## How to work with the owner
 - **Never commit or push unless told "commit and push"** (or equivalent). End commit messages with the
   Co-Authored-By trailer your system provides.
