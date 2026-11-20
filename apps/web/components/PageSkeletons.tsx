@@ -115,11 +115,24 @@ export function ListPageSkeleton({ label, rows = 6 }: { label: string; rows?: nu
 export function SettingsSkeleton() {
   return (
     <LoadingRegion label="Loading settings">
-      <SkeletonPageHeader withSubtitle />
-      <div className="mt-6 space-y-6">
-        <SkeletonCard lines={2} />
-        <SkeletonCard lines={3} />
-        <SkeletonCard lines={4} />
+      <Skeleton className="h-7 w-32" />
+      <div className="mt-6 grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
+        <div className="space-y-6">
+          <Skeleton className="h-9 w-full" />
+          {[6, 2, 1].map((n, g) => (
+            <div key={g} className="hidden space-y-2 lg:block">
+              <Skeleton className="h-3 w-16" />
+              {Array.from({ length: n }, (_, i) => (
+                <Skeleton key={i} className="h-6 w-40" />
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+          <SkeletonCard lines={3} className="mt-5" />
+        </div>
       </div>
     </LoadingRegion>
   );

@@ -1,27 +1,23 @@
 import type { ReactNode } from "react";
 
-// One settings block: what it is on the left, the controls in a card on the right.
+// One settings panel. The settings page shows a single one at a time, chosen in its
+// sidebar, so this is a heading, a short explanation and the controls in a card.
 export function Section({
   title,
   description,
   danger,
-  action,
   children,
 }: {
   title: string;
   description: ReactNode;
   danger?: boolean;
-  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className={`grid gap-4 border-t pt-8 first:border-t-0 first:pt-0 lg:grid-cols-[17rem_1fr] lg:gap-10 ${danger ? "border-red-100" : "border-line"}`}>
-      <div>
-        <h2 className={`text-sm font-semibold ${danger ? "text-red-700" : "text-ink"}`}>{title}</h2>
-        <div className="mt-1 text-xs leading-relaxed text-ink-subtle">{description}</div>
-        {action && <div className="mt-3">{action}</div>}
-      </div>
-      <div className="card min-w-0 p-5">{children}</div>
+    <section>
+      <h2 className={`text-lg font-semibold tracking-tight ${danger ? "text-red-700" : "text-ink"}`}>{title}</h2>
+      <div className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-subtle">{description}</div>
+      <div className={`card mt-5 min-w-0 p-5 sm:p-6 ${danger ? "border-red-200" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -65,5 +61,5 @@ export function Toggle({
 }
 
 export function ReadOnlyNote() {
-  return <p className="mb-4 rounded-md border border-line bg-elevated/60 px-3 py-2 text-xs text-ink-subtle">Only owners and admins can change these.</p>;
+  return <p className="mb-5 rounded-md border border-line bg-elevated/60 px-3 py-2 text-xs text-ink-subtle">Only owners and admins can change these settings.</p>;
 }

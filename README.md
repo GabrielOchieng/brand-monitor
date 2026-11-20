@@ -296,7 +296,8 @@ background:
 - **Finding page**: two columns, evidence (screenshot or social post, score breakdown, AI
   explanation, contacts, reports, related findings) on the left, triage, takedowns and folded
   domain/history details on the right.
-- **Settings** (`/settings?tab=brand|alerts|integrations|team`): **Brand** (details with domain
+- **Settings** (`/settings?section=<id>`): a sidebar lists every setting and only the chosen one is
+  shown (a dropdown on phones; old `?tab=` links still work). **Brand** (details with domain
   checking (a pasted URL is trimmed to its domain, `invalid_domain` otherwise), discovery keywords
   with an explicit "paired" switch, official accounts and apps, the public report form link, the
   visual reference, add/delete brand), **Alerts**, **Integrations** (webhook) and **Team**. Only
