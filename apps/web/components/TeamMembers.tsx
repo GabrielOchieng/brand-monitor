@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
+import { LoadingRegion, SkeletonList } from "./Skeleton";
 
 // Mirrors apps/api/src/lib/auth.ts's VALID_ROLES -- no shared package export exists for
 // this (unlike TakedownStatusSchema), since role lives purely in the API's own Membership
@@ -56,7 +57,12 @@ export function TeamMembers() {
     }
   }
 
-  if (loading) return <p className="mt-6 text-sm text-ink-subtle">Loading…</p>;
+  if (loading)
+    return (
+      <LoadingRegion label="Loading team" className="mt-6">
+        <SkeletonList rows={3} lines={0} />
+      </LoadingRegion>
+    );
 
   return (
     <div className="card mt-6 divide-y divide-line">

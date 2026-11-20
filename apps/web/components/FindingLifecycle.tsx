@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
+import { fullDate, statusLabel, timeAgo } from "../lib/format";
 
 const STATUSES = ["new", "investigating", "confirmed", "false_positive", "resolved"] as const;
 
@@ -116,8 +117,9 @@ export function FindingLifecycle({
   }
 
   return (
-    <section className="card mt-6 p-5">
-      <div className="grid gap-4 sm:grid-cols-3">
+    <section className="card p-5">
+      <h2 className="label">Triage</h2>
+      <div className="mt-3 grid gap-3">
         <div>
           <label className="label">Status</label>
           <select
@@ -128,7 +130,7 @@ export function FindingLifecycle({
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s.replace("_", " ")}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
@@ -164,16 +166,16 @@ export function FindingLifecycle({
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
-      <div className="mt-6">
+      <div className="mt-5 border-t border-line pt-4">
         <h3 className="label">Notes</h3>
         <ul className="mt-2 space-y-2">
           {notes.map((n) => (
             <li key={n.id} className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
               <div>{n.body}</div>
-              <div className="mt-1 text-xs text-ink-subtle">{new Date(n.createdAt).toLocaleString()}</div>
+              <div className="mt-1 text-xs text-ink-subtle" title={fullDate(n.createdAt)}>{timeAgo(n.createdAt)}</div>
             </li>
           ))}
-          {notes.length === 0 && <li className="text-sm text-ink-subtle">No notes yet.</li>}
+          {notes.length === 0 && <li className="text-xs text-ink-subtle">No notes yet.</li>}
         </ul>
         <form onSubmit={handleAddNote} className="mt-3 flex gap-2">
           <input

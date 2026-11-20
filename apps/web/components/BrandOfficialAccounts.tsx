@@ -4,32 +4,53 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { TrashIcon } from "./icons";
+import { TargetIcon } from "./ThreatsTable";
+import { LoadingRegion, Skeleton } from "./Skeleton";
+import { describeTarget } from "../lib/format";
 
-// The brand's real social accounts (and official WhatsApp link). Social search never
-// reports these, and their contact numbers count as the brand's own.
+// A WhatsApp link isn't a profile, so describeTarget has no name for it.
+function describeOfficial(url: string) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "wa.me" || host === "api.whatsapp.com") {
+      const number = host === "wa.me" ? u.pathname.replace(/\//g, "") : u.searchParams.get("phone") ?? "";
+      return { primary: `+${number.replace(/^\+/, "")}`, secondary: "WhatsApp", platform: "WhatsApp", type: "social" };
+    }
+  } catch {
+    // fall through
+  }
+  const t = describeTarget(url, "social");
+  return { ...t, type: "social" };
+}
+
+// The brand's real social accounts, WhatsApp link and apps. The searches never report
+// these, and their contact numbers count as the brand's own.
 export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
   const { getToken } = useAuth();
-  const [urls, setUrls] = useState<string[]>([]);
+  const [urls, setUrls] = useState<string[] | null>(null);
   const [newUrl, setNewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const token = await getToken();
-    const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, token);
+    const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, await getToken());
     setUrls(data.urls);
   }, [getToken, brandId]);
 
   useEffect(() => {
-    load().catch(() => {});
+    setUrls(null);
+    load().catch((err) => {
+      setUrls([]);
+      setError(err.message);
+    });
   }, [load]);
 
   async function save(next: string[]) {
     setSaving(true);
     setError(null);
     try {
-      const token = await getToken();
-      const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, token, {
+      const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, await getToken(), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls: next }),
@@ -48,40 +69,54 @@ export function BrandOfficialAccounts({ brandId }: { brandId: string }) {
     e.preventDefault();
     const url = newUrl.trim();
     if (!url) return;
-    if (await save([...urls, url])) setNewUrl("");
+    if (await save([...(urls ?? []), url])) setNewUrl("");
   }
 
   return (
-    <div className="card mt-3 p-4">
-      <div className="label">Official social accounts</div>
-      <p className="mt-0.5 text-xs text-ink-subtle">
-        The brand's real accounts, WhatsApp link and apps (App Store or Google Play links) — the searches skip them,
-        and accounts or apps named like the brand that aren't on this list are flagged.
-      </p>
+    <div>
+      {urls === null ? (
+        <LoadingRegion label="Loading official accounts" className="divide-y divide-line rounded-md border border-line">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+              <Skeleton className="h-8 w-8" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          ))}
+        </LoadingRegion>
+      ) : urls.length === 0 ? (
+        <p className="rounded-md border border-dashed border-line px-3 py-4 text-center text-xs text-ink-subtle">
+          None yet. Until the real accounts are listed, the searches may report them as fakes.
+        </p>
+      ) : (
+        <ul className="divide-y divide-line rounded-md border border-line">
+          {urls.map((u) => {
+            const d = describeOfficial(u);
+            return (
+              <li key={u} className="flex items-center gap-3 px-3 py-2.5">
+                <TargetIcon type={d.type} platform={d.platform} />
+                <a href={u} target="_blank" rel="noreferrer" className="min-w-0 flex-1" title={u}>
+                  <div className="truncate text-sm font-medium text-ink hover:text-brand">{d.primary}</div>
+                  <div className="truncate text-xs text-ink-subtle">{d.secondary}</div>
+                </a>
+                <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-red-600">
+                  <TrashIcon className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-      <ul className="mt-3 space-y-1.5">
-        {urls.map((u) => (
-          <li key={u} className="flex items-center justify-between gap-2 text-xs">
-            <span className="break-all font-mono text-ink">{u}</span>
-            <button
-              onClick={() => save(urls.filter((x) => x !== u))}
-              disabled={saving}
-              aria-label={`Remove ${u}`}
-              className="shrink-0 text-ink-subtle hover:text-red-600"
-            >
-              <TrashIcon className="h-3 w-3" />
-            </button>
-          </li>
-        ))}
-        {urls.length === 0 && <li className="text-xs text-ink-subtle">None yet.</li>}
-      </ul>
-
-      <form onSubmit={handleAdd} className="mt-3 flex gap-2">
+      <form onSubmit={handleAdd} className="mt-4 flex gap-2">
         <input
-          placeholder="e.g. https://www.tiktok.com/@flyjambojet or https://wa.me/254..."
+          placeholder="Paste a profile, WhatsApp or app store link"
           value={newUrl}
           onChange={(e) => setNewUrl(e.target.value)}
-          className="field-sm flex-1"
+          className="field flex-1"
+          aria-label="Official account link"
         />
         <button type="submit" disabled={saving} className="btn-secondary shrink-0">
           {saving ? "Saving…" : "Add"}

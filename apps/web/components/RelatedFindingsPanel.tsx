@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
+import { SkeletonCard } from "./Skeleton";
 
 interface RelatedFinding {
   id: string;
@@ -40,10 +41,13 @@ export function RelatedFindingsPanel({ findingId }: { findingId: string }) {
     })();
   }, [getToken, findingId]);
 
-  if (!data) return null;
+  if (!data) return <SkeletonCard lines={2} />;
+  // No registrar or registration date (social accounts, app listings, unscanned pages):
+  // there is nothing to compare, so the panel stays out of the way.
+  if (!data.matchedOn) return null;
 
   return (
-    <section className="card mt-6 p-5">
+    <section className="card p-5">
       <h2 className="label">Related findings (possible campaign)</h2>
       {!data.matchedOn ? (
         <p className="mt-2 text-sm text-ink-subtle">

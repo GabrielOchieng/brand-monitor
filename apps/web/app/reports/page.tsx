@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
+import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { SeverityBadge } from "../../components/SeverityBadge";
 
 interface Brand {
@@ -54,7 +55,9 @@ export default function ReportsPage() {
     setLoading(false);
   }, [getToken, status]);
 
+  // A new status tab shows the skeleton; a refresh after an action keeps the list on screen.
   useEffect(() => {
+    setLoading(true);
     load();
   }, [load]);
 
@@ -120,9 +123,13 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {loading && <p className="mt-4 text-sm text-ink-subtle">Loading…</p>}
+      {loading && (
+        <LoadingRegion label="Loading reports" className="mt-3">
+          <SkeletonList rows={4} lines={2} />
+        </LoadingRegion>
+      )}
 
-      <div className="card mt-3 divide-y divide-line">
+      <div className={`card mt-3 divide-y divide-line ${loading ? "hidden" : ""}`}>
         {reports.map((r) => (
           <div key={r.id} className="px-4 py-3 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">

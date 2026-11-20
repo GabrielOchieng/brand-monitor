@@ -128,7 +128,7 @@ export function TakedownTracker({
   }
 
   return (
-    <section className="card mt-6 p-5">
+    <section className="card p-5">
       <h2 className="label">Takedown requests</h2>
 
       {siteLive && takedowns.some((t) => t.status === "completed") && (

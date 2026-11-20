@@ -60,8 +60,8 @@ npm run dev:api   # http://localhost:4000 -- also boots the in-process job queue
 npm run dev:web   # http://localhost:3000
 ```
 
-Sign in (or create an organization) at `localhost:3000`, then open `/dashboard`. If your org
-has no brand yet, a short form lets you create one. Click **Run discovery** to kick off an
+Sign in (or create an organization) at `localhost:3000`, then open `/dashboard` (**Overview**). If
+your org has no brand yet, a short form lets you create one. Click **Run discovery** to kick off an
 immediate pass, or just wait — the same detection loop also runs continuously in the
 background:
 
@@ -100,7 +100,7 @@ background:
   404/410/451; a failed scan doesn't count or break the streak), seeing live content again fires the auto-seeded
   `site_reactivated` alert, logs a history entry, and moves a resolved finding back to `new`.
   On that scan it replaces the severity and `website_activated` alerts rather than adding to them.
-- **Manual submission**: paste a URL on the dashboard to report a suspicious page discovery
+- **Manual submission**: "Add a suspicious link" on the Overview page to report a suspicious page discovery
   can't reach on its own — most notably a fake social-media profile, since platforms like
   Instagram/Facebook have no discovery API to search (see `ARCHITECTURE.md`). A bare domain
   is treated like any discovered domain (full WHOIS/DNS/favicon enrichment, ongoing
@@ -183,7 +183,7 @@ background:
   2026-11-20 one-letter typos and digit look-alikes like `jambotjet01235` / "Jambo Jet Airline",
   `nameResemblesBrand`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't
   the brand's. A number-search hit counts even without naming the brand, when it shows that number.
-  Owners/admins can also run it for one brand from the dashboard ("Search now",
+  Owners/admins can also run it for one brand from the Overview page ("Search social & web",
   `POST /api/pipeline/social-search`, 3/org/day); it runs as a queued job and leaves an in-app
   notification with the result. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
   title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
@@ -194,7 +194,7 @@ background:
   applicants for a fee counts as a threat even without a number (`RECRUITMENT_FEE`, below). Manual submissions and public reports of a social link
   become the same kind of finding. A hard cap (`TAVILY_MONTHLY_CAP`, default 900) stops searching
   before the free allowance runs out; usage shows on `/health/jobs`. Official accounts (and the
-  official `wa.me` link) are edited on the dashboard under **Keywords & accounts**.
+  official `wa.me` link) are edited under **Settings → Official accounts and apps**.
 - **Web search** (since 2026-11-20, part of the same daily job; `pipeline/webSearchFindings.ts`):
   three Tavily searches of the whole web except the brand's own domains (`exclude_domains`), looking
   for scam content rather than lookalike names: `"<brand> customer care number"` and
@@ -260,8 +260,8 @@ background:
   terms, and it breaks when Google changes its pages; failures show as a stale `google_play`
   source on `/health/jobs`). Flags apps whose title or publisher resembles the brand
   (`nameResemblesBrand`, so "Jambo Jet" and digit look-alikes count) and that aren't on the brand's
-  official list: App Store and Google Play app links are accepted in **Keywords & accounts → official
-  accounts** (`lib/appListings.ts`, compared by store + app id; Jambojet's is
+  official list: App Store and Google Play app links are accepted in **Settings → Official accounts and
+  apps** (`lib/appListings.ts`, compared by store + app id; Jambojet's is
   `play.google.com/store/apps/details?id=com.jambojet.booking.twa`). Source `app_store` /
   `google_play`, scored `high` on its own via `APP_STORE_IMPERSONATION`; an app added to the
   official list later loses that credit on its next recheck.
@@ -279,6 +279,27 @@ background:
   so attacker-chosen URLs can't run as spreadsheet formulas.
 - **Team & roles** (`/team`): lists org members; owners can change anyone's role (never their own,
   and the last owner can't be demoted). Invite people with Clerk's organization switcher.
+
+## Web app (since 2026-11-20)
+
+- **Overview** (`/dashboard`): open threats by severity and new this week, a **Needs attention**
+  list (open high/critical findings, untriaged first), takedowns in progress, detection-source
+  health (from `/health/jobs`) and recent activity. Discovery, the social & web search and
+  "Add a suspicious link" are buttons at the top. Data: `GET /api/dashboard/summary`
+  (`openBySeverity`, `newThisWeek`, `attention`, `openTakedowns`).
+- **Threats** (`/threats`): open findings by default (`status=open` = not false positive or
+  resolved; "All" shows everything). Filters apply as they change; targets are shown by name
+  (`@handle` + platform, app id, host + path) with readable source names (`lib/format.ts`).
+- **Finding page**: two columns, evidence (screenshot or social post, score breakdown, AI
+  explanation, contacts, reports, related findings) on the left, triage, takedowns and folded
+  domain/history details on the right.
+- **Settings** (`/settings`): brand details, discovery keywords, official accounts and apps, the
+  visual reference, add/delete brand (moved off the dashboard). The selected brand is remembered
+  per browser (`lib/selectedBrand.ts`).
+- Loading: every page has a skeleton shaped like its content (`loading.tsx` +
+  `components/PageSkeletons.tsx`), the threat feed swaps its table for a skeleton while filters,
+  sorting or paging load (`components/PendingNavigation.tsx`), and a thin bar at the top shows any
+  navigation in flight (`components/NavProgress.tsx`).
 
 ## What to expect
 

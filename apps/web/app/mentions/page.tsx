@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { ExternalLinkIcon } from "../../components/icons";
+import { LoadingRegion, Skeleton, SkeletonList } from "../../components/Skeleton";
+import { cleanSnippet, fullDate, timeAgo } from "../../lib/format";
 
 interface Brand {
   id: string;
@@ -153,6 +155,25 @@ export default function MentionsPage() {
         )}
       </div>
 
+      {!summary && !error && (
+        <LoadingRegion label="Loading summary" className="card mt-6 flex flex-wrap gap-10 p-5">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-8 w-12" />
+          </div>
+          {[3, 5].map((n, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-3 w-20" />
+              <div className="flex gap-2">
+                {Array.from({ length: n }, (_, j) => (
+                  <Skeleton key={j} className="h-6 w-20" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </LoadingRegion>
+      )}
+
       {summary && (
         <section className="card mt-6 grid gap-4 p-5 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
           <div>
@@ -211,16 +232,20 @@ export default function MentionsPage() {
       </div>
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-      {!data && !error && <p className="mt-4 text-sm text-ink-subtle">Loading…</p>}
+      {(loading || !data) && !error && (
+        <LoadingRegion label="Loading mentions" className="mt-3">
+          <SkeletonList rows={5} lines={2} />
+        </LoadingRegion>
+      )}
 
-      {data && (
+      {data && !loading && (
         <div className="card mt-3 divide-y divide-line">
           {data.mentions.map((m) => (
             <article key={m.id} className="px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
                 <span className="font-medium text-ink">{PLATFORM_LABEL[m.platform] ?? m.platform}</span>
                 {m.handle && <span className="font-mono">@{m.handle}</span>}
-                <span>· first seen {new Date(m.firstSeenAt).toLocaleDateString()}</span>
+                <span title={fullDate(m.firstSeenAt)}>· found {timeAgo(m.firstSeenAt)}</span>
                 <span className="ml-auto flex gap-1.5">
                   {m.category ? (
                     <span className="rounded border border-line px-1.5 py-0.5">{capitalize(m.category)}</span>
@@ -234,7 +259,7 @@ export default function MentionsPage() {
                 <span className="min-w-0 break-words">{m.title ?? m.url}</span>
                 <ExternalLinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               </a>
-              {m.snippet && <p className="mt-1 line-clamp-3 text-ink-muted">{m.snippet}</p>}
+              {cleanSnippet(m.snippet, m.title) && <p className="mt-1 line-clamp-3 text-ink-muted">{cleanSnippet(m.snippet, m.title)}</p>}
             </article>
           ))}
           {data.mentions.length === 0 && (

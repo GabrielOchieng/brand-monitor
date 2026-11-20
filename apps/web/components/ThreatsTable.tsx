@@ -6,17 +6,18 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { SeverityBadge } from "./SeverityBadge";
-import { ChevronDownIcon } from "./icons";
+import { PendingLink, usePendingNavigation } from "./PendingNavigation";
+import { ChevronDownIcon, GlobeIcon, AtIcon, PhoneIcon, LinkIcon } from "./icons";
+import { describeTarget, fullDate, sourceLabel, statusLabel, STATUS_PILL, timeAgo } from "../lib/format";
 import type { FindingRow } from "../app/threats/page";
 
 const STATUSES = ["new", "investigating", "confirmed", "false_positive", "resolved"] as const;
 
-const STATUS_STYLES: Record<string, string> = {
-  new: "text-ink-muted",
-  investigating: "text-brand",
-  confirmed: "text-amber-700",
-  false_positive: "text-ink-subtle line-through decoration-gray-400",
-  resolved: "text-emerald-600",
+const SEVERITY_EDGE: Record<string, string> = {
+  critical: "bg-critical",
+  high: "bg-high",
+  medium: "bg-medium",
+  low: "bg-transparent",
 };
 
 interface Member {
@@ -25,17 +26,29 @@ interface Member {
   role: string;
 }
 
+export function TargetIcon({ type, platform }: { type: string; platform: string | null }) {
+  const Icon = type === "domain" ? GlobeIcon : platform === "Google Play" || platform === "App Store" ? PhoneIcon : type === "social" ? AtIcon : LinkIcon;
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-elevated text-ink-subtle">
+      <Icon className="h-4 w-4" />
+    </span>
+  );
+}
+
 export function ThreatsTable({
   findings,
   sortLinks,
   currentSort,
+  showBrand,
 }: {
   findings: FindingRow[];
   sortLinks: { riskScore: string; firstDetectedAt: string };
   currentSort: { sortBy: string; sortDir: string };
+  showBrand: boolean;
 }) {
   const { getToken } = useAuth();
   const router = useRouter();
+  const { navigate } = usePendingNavigation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [members, setMembers] = useState<Member[]>([]);
   const [bulkStatus, setBulkStatus] = useState("");
@@ -43,10 +56,6 @@ export function ThreatsTable({
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The server re-runs on router.refresh() and passes a NEW findings array, but React
-  // may reuse this same component instance rather than remounting it -- without this,
-  // a stale selection could silently survive and reference rows that just changed
-  // status or left the current filter view.
   useEffect(() => {
     setSelectedIds(new Set());
   }, [findings]);
@@ -58,7 +67,7 @@ export function ThreatsTable({
         const data = await apiFetch<Member[]>("/api/organization/members", token);
         setMembers(data);
       } catch {
-        // bulk-assign dropdown just stays empty on failure -- non-critical
+        // Only feeds the bulk "Assign to" list -- that select just stays empty.
       }
     })();
   }, [getToken]);
@@ -109,37 +118,27 @@ export function ThreatsTable({
   function SortHeader({ column, children }: { column: keyof typeof sortLinks; children: React.ReactNode }) {
     const active = currentSort.sortBy === column;
     return (
-      <Link href={sortLinks[column]} className={`inline-flex items-center gap-1 hover:text-ink-muted ${active ? "text-ink-muted" : ""}`}>
+      <PendingLink href={sortLinks[column]} className={`inline-flex items-center gap-1 hover:text-ink-muted ${active ? "text-ink-muted" : ""}`}>
         {children}
         <ChevronDownIcon className={`h-3 w-3 transition-transform ${active && currentSort.sortDir === "asc" ? "rotate-180" : ""} ${active ? "opacity-100" : "opacity-0"}`} />
-      </Link>
+      </PendingLink>
     );
   }
 
   return (
-    <div className="mt-6">
+    <div>
       {selectedIds.size > 0 && (
-        <div className="card mb-3 flex flex-wrap items-center gap-3 border-brand/40 bg-brand/10 px-4 py-2.5 text-sm">
+        <div className="card mb-3 flex flex-wrap items-center gap-3 border-brand/40 bg-brand/5 px-4 py-2.5 text-sm">
           <span className="font-medium text-ink">{selectedIds.size} selected</span>
-          <select
-            value={bulkStatus}
-            onChange={(e) => setBulkStatus(e.target.value)}
-            disabled={applying}
-            className="field-sm"
-          >
+          <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} disabled={applying} className="field-sm">
             <option value="">Set status…</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s.replace("_", " ")}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
-          <select
-            value={bulkAssigneeId}
-            onChange={(e) => setBulkAssigneeId(e.target.value)}
-            disabled={applying}
-            className="field-sm"
-          >
+          <select value={bulkAssigneeId} onChange={(e) => setBulkAssigneeId(e.target.value)} disabled={applying} className="field-sm">
             <option value="">Assign to…</option>
             <option value="unassigned">Unassigned</option>
             {members.map((m) => (
@@ -148,12 +147,11 @@ export function ThreatsTable({
               </option>
             ))}
           </select>
-          <button
-            onClick={applyBulkAction}
-            disabled={applying || (!bulkStatus && !bulkAssigneeId)}
-            className="btn-primary px-3 py-1.5 text-xs"
-          >
+          <button onClick={applyBulkAction} disabled={applying || (!bulkStatus && !bulkAssigneeId)} className="btn-primary px-3 py-1.5 text-xs">
             {applying ? "Applying…" : "Apply"}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="btn-ghost text-xs">
+            Cancel
           </button>
           {error && <span className="text-red-600">{error}</span>}
         </div>
@@ -163,69 +161,81 @@ export function ThreatsTable({
         <table className="w-full text-sm">
           <thead className="text-left text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
             <tr className="border-b border-line">
-              <th className="w-10 px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={(e) => toggleAll(e.target.checked)}
-                  aria-label="Select all"
-                  className="accent-brand"
-                />
+              <th className="w-10 py-3 pl-5 pr-2">
+                <input type="checkbox" checked={allSelected} onChange={(e) => toggleAll(e.target.checked)} aria-label="Select all" className="accent-brand" />
               </th>
-              <th className="px-4 py-3">Target</th>
-              <th className="px-4 py-3">Severity</th>
-              <th className="px-4 py-3">
-                <SortHeader column="riskScore">Score</SortHeader>
+              <th className="px-3 py-3">Target</th>
+              <th className="px-3 py-3">
+                <SortHeader column="riskScore">Risk</SortHeader>
               </th>
-              <th className="px-4 py-3">Source</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">
-                <SortHeader column="firstDetectedAt">First detected</SortHeader>
+              <th className="hidden px-3 py-3 md:table-cell">Source</th>
+              <th className="hidden px-3 py-3 sm:table-cell">Status</th>
+              <th className="hidden px-3 py-3 sm:table-cell">
+                <SortHeader column="firstDetectedAt">Found</SortHeader>
               </th>
             </tr>
           </thead>
           <tbody>
-            {findings.map((f) => (
-              <tr key={f.id} className="border-b border-line/60 last:border-0 hover:bg-elevated/60">
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(f.id)}
-                    onChange={(e) => toggleOne(f.id, e.target.checked)}
-                    aria-label={`Select ${f.identifier}`}
-                    className="accent-brand"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  {f.type !== "domain" && (
-                    <span className="mr-2 rounded border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
-                      {f.type === "social" ? "Social" : "URL"}
-                    </span>
-                  )}
-                  <Link
-                    href={`/threats/${f.id}`}
-                    title={f.identifier}
-                    className="inline-block max-w-[28rem] truncate align-bottom font-mono text-[13px] text-ink hover:text-brand-hover"
-                  >
-                    {f.identifier}
-                  </Link>
-                  {f.brandName && <span className="ml-2 text-xs text-ink-subtle">({f.brandName})</span>}
-                </td>
-                <td className="px-4 py-3">
-                  <SeverityBadge severity={f.severity} />
-                </td>
-                <td className="px-4 py-3 font-mono tabular-nums text-ink">{f.riskScore}</td>
-                <td className="px-4 py-3 text-ink-subtle">{f.source}</td>
-                <td className={`px-4 py-3 font-medium capitalize ${STATUS_STYLES[f.status] ?? "text-ink-muted"}`}>
-                  {f.status.replace("_", " ")}
-                </td>
-                <td className="px-4 py-3 text-ink-subtle">{new Date(f.firstDetectedAt).toLocaleString()}</td>
-              </tr>
-            ))}
+            {findings.map((f) => {
+              const target = describeTarget(f.identifier, f.type);
+              return (
+                <tr
+                  key={f.id}
+                  onClick={(e) => {
+                    // The whole row opens the finding; the checkbox and links keep their own behaviour.
+                    if ((e.target as HTMLElement).closest("a, input, button")) return;
+                    navigate(`/threats/${f.id}`);
+                  }}
+                  className="group relative cursor-pointer border-b border-line/70 last:border-0 hover:bg-elevated/50"
+                >
+                  <td className="relative py-3 pl-5 pr-2">
+                    <span className={`absolute inset-y-0 left-0 w-[3px] ${SEVERITY_EDGE[f.severity] ?? "bg-transparent"}`} aria-hidden />
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(f.id)}
+                      onChange={(e) => toggleOne(f.id, e.target.checked)}
+                      aria-label={`Select ${target.primary}`}
+                      className="accent-brand"
+                    />
+                  </td>
+                  <td className="w-full max-w-0 px-3 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <TargetIcon type={f.type} platform={target.platform} />
+                      <div className="min-w-0">
+                        <Link
+                          href={`/threats/${f.id}`}
+                          title={f.identifier}
+                          className="block truncate font-medium text-ink group-hover:text-brand"
+                        >
+                          {target.primary}
+                        </Link>
+                        <div className="truncate text-xs text-ink-subtle" title={f.identifier}>
+                          {[target.secondary, showBrand ? f.brandName : null].filter(Boolean).join(" · ") || "Domain"}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <SeverityBadge severity={f.severity} />
+                      <span className="hidden font-mono text-xs tabular-nums text-ink-subtle sm:inline">{f.riskScore}</span>
+                    </div>
+                  </td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 text-ink-muted md:table-cell">{sourceLabel(f.source)}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 sm:table-cell">
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_PILL[f.status] ?? STATUS_PILL.new}`}>{statusLabel(f.status)}</span>
+                  </td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 text-ink-subtle sm:table-cell" title={fullDate(f.firstDetectedAt)}>
+                    {timeAgo(f.firstDetectedAt)}
+                  </td>
+                </tr>
+              );
+            })}
             {findings.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-ink-subtle">
-                  No findings match these filters.
+                <td colSpan={6} className="px-4 py-14 text-center">
+                  <div className="text-sm font-medium text-ink">No findings match these filters</div>
+                  <div className="mt-1 text-xs text-ink-subtle">Try another status or severity, or clear the filters.</div>
                 </td>
               </tr>
             )}

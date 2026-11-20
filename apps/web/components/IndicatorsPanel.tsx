@@ -27,7 +27,7 @@ export function IndicatorsPanel({ indicators }: { indicators: FindingIndicatorVi
   const sharedCount = indicators.filter((i) => i.sharedWith.length > 0).length;
 
   return (
-    <section className="card mt-6 p-5">
+    <section className="card p-5">
       <h2 className="label">Contact &amp; payment details on the page</h2>
       <p className="mt-2 text-sm text-ink-muted">
         {sharedCount > 0

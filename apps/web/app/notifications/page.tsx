@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
+import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 
 interface Notification {
   id: string;
@@ -52,9 +53,13 @@ export default function NotificationsPage() {
         </button>
       </div>
 
-      {loading && <p className="mt-4 text-sm text-ink-subtle">Loading…</p>}
+      {loading && (
+        <LoadingRegion label="Loading notifications" className="mt-6">
+          <SkeletonList rows={6} lines={1} />
+        </LoadingRegion>
+      )}
 
-      <div className="card mt-6 divide-y divide-line">
+      <div className={`card mt-6 divide-y divide-line ${loading ? "hidden" : ""}`}>
         {notifications.map((n) => (
           <div key={n.id} className={`flex items-center justify-between px-4 py-3 ${n.readAt ? "opacity-50" : ""}`}>
             <div>

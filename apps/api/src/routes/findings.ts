@@ -37,7 +37,8 @@ const EXPORT_MAX_ROWS = 5000;
 // either just yields zero rows via the brand_id IN (...) policy join, never a leak.
 function findingsWhere(q: z.infer<typeof FindingsQuerySchema>): Prisma.FindingWhereInput {
   return {
-    ...(q.status ? { status: q.status } : {}),
+    // "open": everything still needing attention -- the threat feed's default view.
+    ...(q.status === "open" ? { status: { notIn: ["false_positive", "resolved"] } } : q.status ? { status: q.status } : {}),
     ...(q.severity ? { severity: q.severity } : {}),
     ...(q.brandId ? { brandId: q.brandId } : {}),
     ...(q.assigneeId ? { assigneeId: q.assigneeId === "unassigned" ? null : q.assigneeId } : {}),
@@ -46,7 +47,7 @@ function findingsWhere(q: z.infer<typeof FindingsQuerySchema>): Prisma.FindingWh
 }
 
 const FindingsQuerySchema = z.object({
-  status: FindingStatusSchema.optional(),
+  status: z.union([FindingStatusSchema, z.literal("open")]).optional(),
   severity: SeveritySchema.optional(),
   assigneeId: z.string().min(1).optional(), // the literal "unassigned" means assigneeId: null
   brandId: z.string().min(1).optional(),
@@ -737,10 +738,46 @@ export async function findingsRoutes(app: FastifyInstance) {
       // rather than trusting a cached hash blindly.
       const visualBaseline = await tx.brandAsset.findFirst({ where: { brandId: brand.id, type: "screenshot" } });
 
+      // What the dashboard leads with: open findings only (not false positives or resolved),
+      // what arrived this week, the open high/critical ones to look at first, and takedowns
+      // still waiting on a provider.
+      const CLOSED = ["false_positive", "resolved"];
+      const openBySeverity = { low: 0, medium: 0, high: 0, critical: 0 } as Record<string, number>;
+      for (const f of findings) if (!CLOSED.includes(f.status)) openBySeverity[f.severity] = (openBySeverity[f.severity] ?? 0) + 1;
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const newThisWeek = findings.filter((f) => f.firstDetectedAt >= weekAgo).length;
+      const attention = findings
+        .filter((f) => !CLOSED.includes(f.status) && (f.severity === "critical" || f.severity === "high"))
+        .sort((x, y) => Number(y.status === "new") - Number(x.status === "new") || y.riskScore - x.riskScore || y.firstDetectedAt.getTime() - x.firstDetectedAt.getTime())
+        .slice(0, 6)
+        .map((f) => ({
+          id: f.id,
+          identifier: f.identifier,
+          type: f.type,
+          source: f.source,
+          severity: f.severity,
+          riskScore: f.riskScore,
+          status: f.status,
+          firstDetectedAt: f.firstDetectedAt,
+        }));
+      const openTakedowns = await tx.takedown.findMany({
+        where: { status: { in: ["requested", "acknowledged"] }, finding: { brandId: brand.id } },
+        orderBy: { requestedAt: "asc" },
+        take: 5,
+        select: { id: true, provider: true, status: true, requestedAt: true, finding: { select: { id: true, identifier: true, type: true } } },
+      });
+      const openTakedownCount = await tx.takedown.count({ where: { status: { in: ["requested", "acknowledged"] }, finding: { brandId: brand.id } } });
+
       return {
         brand: { id: brand.id, name: brand.name, primaryDomain: brand.primaryDomain, hasVisualBaseline: Boolean(visualBaseline) },
         totalFindings: findings.length,
         bySeverity,
+        openBySeverity,
+        openTotal: Object.values(openBySeverity).reduce((a, b) => a + b, 0),
+        newThisWeek,
+        attention,
+        openTakedowns,
+        openTakedownCount,
         lastRun,
       };
     });
