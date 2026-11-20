@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import { chromium } from "playwright";
 import { z } from "zod";
 import { isScanAllowed } from "./robots";
+import { extractScriptLinks, isFirstPartyScript } from "./scriptLinks";
 import { isBlockedIp } from "./ssrfGuard";
 
 const PORT = Number(process.env.PORT ?? 3100);
@@ -41,6 +42,12 @@ const PARKING_KEYWORDS = [
 
 const BLOCKED_RESOURCE_TYPES = new Set(["font", "media"]);
 const MAX_LINKS = 300;
+// Caps for reading the site's own JavaScript (scriptLinks.ts). Bundles are read from the
+// responses the page already downloaded -- nothing is fetched twice.
+const MAX_SCRIPTS = 30;
+const MAX_SCRIPT_BYTES = 3_000_000;
+const MAX_TOTAL_SCRIPT_BYTES = 10_000_000;
+const SCRIPT_READ_TIMEOUT_MS = 3_000;
 
 const app = Fastify({ logger: true });
 
@@ -94,6 +101,27 @@ app.post("/scan", async (request, reply) => {
       }
     });
 
+    // The site's own script files, read as they arrive. A booking flow's WhatsApp link
+    // often exists only in JS (scriptLinks.ts).
+    const scriptBodies: Promise<string>[] = [];
+    let scriptBytes = 0;
+    page.on("response", (res) => {
+      if (res.request().resourceType() !== "script" || scriptBodies.length >= MAX_SCRIPTS) return;
+      if (!isFirstPartyScript(res.url(), [target.hostname, new URL(page.url() === "about:blank" ? url : page.url()).hostname])) return;
+      const length = Number(res.headers()["content-length"] ?? 0);
+      if (length > MAX_SCRIPT_BYTES) return;
+      scriptBodies.push(
+        res
+          .text()
+          .then((body) => {
+            if (body.length > MAX_SCRIPT_BYTES || scriptBytes + body.length > MAX_TOTAL_SCRIPT_BYTES) return "";
+            scriptBytes += body.length;
+            return body;
+          })
+          .catch(() => "")
+      );
+    });
+
     const response = await page.goto(url, { timeout: NAV_TIMEOUT_MS, waitUntil: "domcontentloaded" });
     const httpStatus = response?.status() ?? null;
     if (settleMs) await page.waitForTimeout(settleMs);
@@ -136,6 +164,14 @@ app.post("/scan", async (request, reply) => {
       )
       .catch(() => [] as string[]);
 
+    const inlineScripts = await page
+      .$eval("script:not([src])", (els) => els.map((e: { textContent: string | null }) => e.textContent ?? ""))
+      .catch(() => [] as string[]);
+    // A body still downloading when the shared timeout fires counts as empty; the rest are kept.
+    const scriptTimeout = new Promise<string>((resolve) => setTimeout(() => resolve(""), SCRIPT_READ_TIMEOUT_MS));
+    const externalScripts = await Promise.all(scriptBodies.map((body) => Promise.race([body, scriptTimeout])));
+    const scriptLinks = extractScriptLinks([...inlineScripts, ...externalScripts]);
+
     const screenshotBuffer = await page.screenshot({ fullPage: false }).catch(() => null);
 
     await context.close();
@@ -152,6 +188,8 @@ app.post("/scan", async (request, reply) => {
       // no outbound bandwidth.
       indicatorText: (extractedText ?? "").slice(0, 50000),
       links,
+      // Contact links found only inside the site's own JavaScript (scriptLinks.ts).
+      scriptLinks,
       hasLoginForm: hasPasswordField,
       hasPaymentForm: hasPaymentKeyword || hasPaymentInput,
       looksParked,

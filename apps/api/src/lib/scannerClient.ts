@@ -12,6 +12,9 @@ export interface ScanResult {
   // never stored as-is.
   indicatorText?: string;
   links?: string[];
+  // Contact links found only inside the site's own JavaScript, e.g. a WhatsApp link a
+  // booking flow opens on click (apps/scanner/src/scriptLinks.ts).
+  scriptLinks?: string[];
   hasLoginForm?: boolean;
   hasPaymentForm?: boolean;
   looksParked?: boolean;

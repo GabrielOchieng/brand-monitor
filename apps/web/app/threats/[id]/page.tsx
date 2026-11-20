@@ -5,6 +5,7 @@ import { FindingLifecycle } from "../../../components/FindingLifecycle";
 import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
 import { TakedownTracker } from "../../../components/TakedownTracker";
 import { RelatedFindingsPanel } from "../../../components/RelatedFindingsPanel";
+import { ScreenshotImage } from "../../../components/ScreenshotImage";
 import { IndicatorsPanel, type FindingIndicatorView } from "../../../components/IndicatorsPanel";
 
 interface FindingDetail {
@@ -177,12 +178,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
       {finding.type !== "social" && finding.websiteIntel?.screenshotPath && (
         <section className="card mt-6 p-5">
           <h2 className="label">Screenshot</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${API_URL}${finding.websiteIntel.screenshotPath}`}
-            alt={`Screenshot of ${finding.identifier}`}
-            className="mt-3 max-w-full rounded-md border border-line"
-          />
+          <ScreenshotImage src={`${API_URL}${finding.websiteIntel.screenshotPath}`} alt={`Screenshot of ${finding.identifier}`} />
         </section>
       )}
 

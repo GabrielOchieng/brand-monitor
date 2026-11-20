@@ -58,7 +58,9 @@ non-superuser on 2026-11-19.
 - Domain `brand-monitor-api.gabrielochieng.com` → container port **4000**, HTTPS via Let's
   Encrypt (Dokploy's Traefik). DNS: A record `brand-monitor-api` → `198.245.56.186`.
 - Volume `brand-monitor-screenshots` → `/app/apps/api/screenshots` (finding screenshots; served at
-  `/screenshots/`).
+  `/screenshots/`). Mounts only apply after a redeploy. Verify in the container terminal:
+  `grep screenshots /proc/mounts` must print a line. On 2026-11-20 it printed nothing (the volume
+  wasn't mounted, so every deploy had wiped all screenshots); mounted and verified the same day.
 - Environment: see `apps/api/.env.production.example`. The database URLs use the internal host:
   ```
   DATABASE_URL=postgresql://brandmonitor:<pw>@infra-postgresshared-zdz0e1:5432/brandmonitor

@@ -114,7 +114,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     const ownKeys = await ensureBrandOwnIndicators(organizationId, brand.id, brand.primaryDomain);
     const ownDomains = [brand.primaryDomain, ...brand.domains.map((d) => d.domain)].map((d) => d.toLowerCase());
     indicators = withoutOwnIndicators(
-      extractIndicators(websiteResult.indicatorText ?? websiteResult.extractedText ?? "", websiteResult.links ?? []),
+      extractIndicators(websiteResult.indicatorText ?? websiteResult.extractedText ?? "", [...(websiteResult.links ?? []), ...(websiteResult.scriptLinks ?? [])]),
       ownKeys,
       ownDomains
     );

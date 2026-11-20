@@ -173,7 +173,10 @@ background:
   brand raises an in-app notification linking to it (no finding: the article isn't the threat).
   PesaCheck's RSS feed only holds ~15 articles (about a day), so searching is the reliable route.
 - **Contact & payment details** (every successful scan): the scanner returns the page's link hrefs
-  and up to 50k chars of text, and `lib/indicators.ts` extracts phone numbers (Kenyan forms
+  and up to 50k chars of text, plus contact links found only in the site's own JavaScript
+  (`apps/scanner/src/scriptLinks.ts`: `wa.me`, `api.whatsapp.com`, `t.me`, `tel:` patterns in
+  first-party scripts, e.g. a WhatsApp link a fake booking flow opens on "Book Now"; never bare
+  digit runs). `lib/indicators.ts` extracts phone numbers (Kenyan forms
   normalized to `+254…`), WhatsApp (`wa.me`, `api.whatsapp.com`), M-Pesa paybill/till, emails,
   Telegram handles and crypto wallets into `finding_indicators`. The brand's own contacts (read
   from its homepage, cached 45 days as a `contact_indicators` BrandAsset) and emails at its own

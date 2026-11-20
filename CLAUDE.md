@@ -57,6 +57,10 @@ Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DE
    The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Keywords can be marked paired
    (`concat_term_core`) in the Keywords panel since 2026-10-20; Jambojet's 6 core words are paired in prod.
 5. Smaller: no error tracking; rate limits are in-memory only (`lib/rateLimit.ts`).
+6. Screenshots live on a Dokploy volume (mounted 2026-11-20; before that every deploy wiped them),
+   not backed up, and each scan overwrites the finding's only screenshot (a dead page can replace
+   the last live one, losing takedown evidence). Agreed later plan: move them to Cloudinary's free
+   plan (25 credits/month, no card, no overage) and keep one screenshot per scan.
 
 ## How to work with the owner
 - **Never commit or push unless told "commit and push"** (or equivalent). End commit messages with the

@@ -151,7 +151,7 @@ export async function ensureBrandOwnIndicators(orgId: string, brandId: string, p
     return deserializeIndicatorKeys(existing?.hash);
   }
 
-  const serialized = serializeIndicators(extractIndicators(text, result.links ?? []));
+  const serialized = serializeIndicators(extractIndicators(text, [...(result.links ?? []), ...(result.scriptLinks ?? [])]));
   await withTenant(orgId, (tx) =>
     tx.brandAsset.create({ data: { brandId, type: "contact_indicators", sourceUrl: `https://${primaryDomain}`, hash: serialized } })
   );
