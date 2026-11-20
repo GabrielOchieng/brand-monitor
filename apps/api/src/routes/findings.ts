@@ -8,6 +8,7 @@ import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
 import { buildExplanationPrompt, describeAiError, generateExplanation } from "../lib/aiExplain";
+import { buildTakedownKit } from "../lib/takedownKit";
 import { TakedownStatusSchema, FindingStatusSchema, SeveritySchema } from "@brand-monitor/shared";
 import { normalizeRegistrar, CORRELATION_WINDOW_DAYS } from "../pipeline/correlation";
 import { parseSubmittedUrl } from "../lib/submittedUrl";
@@ -559,6 +560,48 @@ export async function findingsRoutes(app: FastifyInstance) {
       tx.takedown.findMany({ where: { findingId: id }, orderBy: { createdAt: "asc" } })
     );
     return reply.send(takedowns);
+  });
+
+  // Ready-to-send reports for every channel that applies to this finding (lib/takedownKit.ts).
+  app.get("/api/findings/:id/takedown-kit", { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const data = await withTenant(request.auth!.orgId, async (tx) => {
+      const finding = await tx.finding.findUnique({
+        where: { id },
+        include: {
+          brand: { select: { name: true, primaryDomain: true } },
+          domainIntel: true,
+          websiteIntel: { select: { title: true, screenshotPath: true } },
+          socialIntel: true,
+        },
+      });
+      if (!finding) return null;
+      const [scoreEvents, indicators] = await Promise.all([
+        finding.lastScanId
+          ? tx.findingScoreEvent.findMany({ where: { scanId: finding.lastScanId, delta: { gt: 0 } }, orderBy: { createdAt: "asc" } })
+          : Promise.resolve([]),
+        tx.findingIndicator.findMany({ where: { findingId: id }, orderBy: [{ kind: "asc" }, { lastSeenAt: "desc" }] }),
+      ]);
+      return { finding, scoreEvents, indicators };
+    });
+    if (!data) return reply.status(404).send({ error: "not_found" });
+    const { finding, scoreEvents, indicators } = data;
+
+    // Screenshots are served by this API (server.ts /screenshots/), so the public link is
+    // this request's own origin -- trustProxy makes protocol/host the external ones.
+    const screenshotUrl = finding.websiteIntel?.screenshotPath ? `${request.protocol}://${request.host}${finding.websiteIntel.screenshotPath}` : null;
+
+    const channels = buildTakedownKit({
+      finding: { identifier: finding.identifier, type: finding.type, firstDetectedAt: finding.firstDetectedAt },
+      brand: finding.brand,
+      domainIntel: finding.domainIntel,
+      websiteIntel: finding.websiteIntel,
+      socialIntel: finding.socialIntel,
+      reasons: scoreEvents.map((e) => e.reason),
+      indicators: indicators.map((i) => ({ kind: i.kind, value: i.value })),
+      screenshotUrl,
+    });
+    return reply.send({ channels });
   });
 
   app.post(

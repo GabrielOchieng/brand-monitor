@@ -134,6 +134,17 @@ background:
   still sees live content (content removal without a registrar suspension leaves the domain
   with the attacker). Pure record-keeping: nothing here ever calls a registrar/hosting
   provider's actual API.
+- **Takedown kit** (`lib/takedownKit.ts`, `GET /api/findings/:id/takedown-kit`, `TakedownKit`
+  panel inside the tracker): every reporting channel that applies to a finding, each with a
+  ready-to-send message built from the evidence (URL, registration, IP/host, score reasons,
+  contact numbers, screenshot link): registrar abuse email (asks for clientHold; ICANN Lookup
+  when the registry gave no contact), hosting provider (Vercel/Cloudflare web forms, otherwise
+  the host's abuse email), Google Safe Browsing (browser warnings while takedowns are pending),
+  Safaricom 333 SMS for Kenyan numbers, WhatsApp in-app report per number, KE-CIRT/CC email,
+  and for social findings the platform's impersonation report. Domain-only channels are
+  skipped for URL and social findings. The analyst sends each one (the sign-off is a
+  `[Your name]` placeholder); nothing is sent automatically. "Mark as reported" logs a tracker
+  row per channel, so requested/resolved times show which channel actually works.
 - **Certificate Transparency monitoring** (every 30 min per brand): searches crt.sh for any
   logged TLS certificate whose hostname contains the brand name, so it catches squats that no
   generated pattern would (`secure-jambojet-portal.xyz`). The brand's own domains/subdomains are

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { TakedownStatusSchema } from "@brand-monitor/shared";
 import { apiFetch } from "../lib/api";
+import { TakedownKit, type KitChannel } from "./TakedownKit";
 
 const TAKEDOWN_STATUSES = TakedownStatusSchema.options;
 
@@ -39,6 +40,7 @@ export function TakedownTracker({
   const [form, setForm] = useState({ provider: "", reference: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [kit, setKit] = useState<KitChannel[]>([]);
 
   const load = useCallback(async () => {
     const token = await getToken();
@@ -48,7 +50,36 @@ export function TakedownTracker({
 
   useEffect(() => {
     load().catch(() => {});
-  }, [load]);
+    (async () => {
+      const token = await getToken();
+      const data = await apiFetch<{ channels: KitChannel[] }>(`/api/findings/${findingId}/takedown-kit`, token);
+      setKit(data.channels);
+    })().catch(() => {});
+  }, [load, getToken, findingId]);
+
+  // First time each provider label was logged, for the kit's "Reported" markers.
+  const reportedAt: Record<string, string> = {};
+  for (const t of takedowns) {
+    if (!reportedAt[t.provider] || t.requestedAt < reportedAt[t.provider]) reportedAt[t.provider] = t.requestedAt;
+  }
+
+  async function handleMarkReported(channel: KitChannel) {
+    setError(null);
+    try {
+      const token = await getToken();
+      await apiFetch(`/api/findings/${findingId}/takedowns`, token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: channel.trackerLabel,
+          notes: `Reported via takedown kit${channel.to ? ` to ${channel.to}` : channel.openUrl && !channel.openUrl.startsWith("mailto:") ? ` (${channel.openUrl})` : ""}`.slice(0, 5000),
+        }),
+      });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +138,9 @@ export function TakedownTracker({
         </p>
       )}
 
+      <TakedownKit channels={kit} reportedAt={reportedAt} onMarkReported={handleMarkReported} />
+
+      {takedowns.length > 0 && <h3 className="mt-5 text-sm font-medium text-ink">Logged reports</h3>}
       <ul className="mt-3 space-y-2">
         {takedowns.map((t) => (
           <li key={t.id} className="rounded-md border border-line bg-surface px-4 py-3 text-sm">
