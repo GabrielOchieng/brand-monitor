@@ -38,6 +38,9 @@ export function socialQueries(brandName: string): Array<{ query: string; include
 
 export const NUMBER_PIVOTS_PER_DAY = 2;
 
+// A run brings up to ~80 new mentions; 4 labelling calls of 25 cover that.
+const MAX_LABEL_BATCHES_PER_RUN = 4;
+
 // A scam number found on one finding usually also appears on the operator's other pages.
 // Searching by it finds fakes that never name the brand in a way a search for the brand
 // would rank. Rotates through the brand's numbers, NUMBER_PIVOTS_PER_DAY a day.
@@ -135,23 +138,53 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
       }
       // Scored on the next recheck (nextScanAt now for anything new) -- same as every
       // other finding source.
-      const sighting = await withTenant(organizationId, (tx) =>
-        recordSocialSighting(tx, brandId, "social_search", {
+      const sighting = await withTenant(organizationId, async (tx) => {
+        const recorded = await recordSocialSighting(tx, brandId, "social_search", {
           account: candidate.account,
           postUrl: candidate.postUrl,
           title: candidate.title,
           snippet: candidate.snippet,
           indicators: candidate.indicators,
-        })
-      );
+        });
+        // A post an earlier run filed as a mention (before the rules could tell it was a
+        // threat) moves to the threat feed rather than showing in both.
+        await tx.brandMention.deleteMany({ where: { brandId, url: candidate.postUrl } });
+        return recorded;
+      });
       if (sighting.created) outcome.newFindings++;
     }
   }
+  // Stored mentions get the current threat rules too, from their saved title/snippet (no
+  // search credits): a rule improvement then reaches posts filed as mentions before it,
+  // without waiting for the search to happen to return them again.
+  const stored = await withTenant(organizationId, (tx) =>
+    tx.brandMention.findMany({ where: { brandId }, select: { id: true, url: true, title: true, snippet: true } })
+  );
+  for (const m of stored) {
+    const candidate = classifySocialResult({ url: m.url, title: m.title, content: m.snippet }, context);
+    if (!candidate) continue;
+    const sighting = await withTenant(organizationId, async (tx) => {
+      const recorded = await recordSocialSighting(tx, brandId, "social_search", {
+        account: candidate.account,
+        postUrl: candidate.postUrl,
+        title: candidate.title,
+        snippet: candidate.snippet,
+        indicators: candidate.indicators,
+      });
+      await tx.brandMention.delete({ where: { id: m.id } });
+      return recorded;
+    });
+    if (sighting.created) outcome.newFindings++;
+  }
+
   if (outcome.newFindings > 0) console.log(`[social-search] ${outcome.newFindings} new social finding(s) for brand ${brandId}`);
   if (outcome.newMentions > 0) console.log(`[social-search] ${outcome.newMentions} new mention(s) for brand ${brandId}`);
   if (outcome.searchesRun > 0) markSourceSuccess("social_search");
-  // One AI call labels the new (and any still-unlabelled) mentions; a failure only delays it.
-  await labelPendingMentions(organizationId, brandId, brand.name);
+  // Label the new (and any still-unlabelled) mentions, one AI call per batch of 25, until
+  // none are left or MAX_LABEL_BATCHES_PER_RUN is reached; a failure only delays it.
+  for (let i = 0; i < MAX_LABEL_BATCHES_PER_RUN; i++) {
+    if ((await labelPendingMentions(organizationId, brandId, brand.name)) === 0) break;
+  }
   return outcome;
 }
 

@@ -1,7 +1,7 @@
 import { fromPrisma } from "pg-boss";
 import type { Prisma } from "@prisma/client";
 import { withTenant } from "../lib/tenant";
-import { parseSocialUrl, normalizeHandle, type SocialAccount } from "../lib/socialUrls";
+import { parseSocialUrl, postAsAccount, normalizeHandle, type SocialAccount } from "../lib/socialUrls";
 import { extractIndicators, withoutOwnIndicators, indicatorKey, type Indicator } from "../lib/indicators";
 import { ensureBrandOwnIndicators, findMostSharedIndicator } from "./enrichmentShared";
 import { brandMatcher } from "./nrdMonitorJob";
@@ -147,18 +147,24 @@ export function classifySocialResult(
   brand: { brandRoot: string; officialSocialUrls: string[]; ownKeys: ReadonlySet<string>; ownDomains: string[] },
   pivotNumbers?: ReadonlySet<string>
 ): SocialCandidate | null {
-  const account = parseSocialUrl(result.url, result.title);
-  if (!account || isOfficialAccount(brand.officialSocialUrls, account)) return null;
+  const parsed = parseSocialUrl(result.url, result.title, result.content);
+  if (parsed && isOfficialAccount(brand.officialSocialUrls, parsed)) return null;
 
   const title = result.title?.trim() || null;
   const snippet = result.content?.trim() || null;
   const text = `${title ?? ""}\n${snippet ?? ""}`;
-  const handleImpersonation = accountImpersonatesBrand(account, brand.brandRoot, title, result.url);
+  const handleImpersonation = parsed ? accountImpersonatesBrand(parsed, brand.brandRoot, title, result.url) : false;
   const indicators = withoutOwnIndicators(extractIndicators(text), brand.ownKeys, brand.ownDomains);
   const mentionsBrand = handleImpersonation || brandMatcher(brand.brandRoot)(text.toLowerCase().replace(/[\s._-]+/g, ""));
   const showsPivotNumber = Boolean(pivotNumbers) && indicators.some((i) => (i.kind === "phone" || i.kind === "whatsapp") && pivotNumbers!.has(i.value));
   if (!mentionsBrand && !showsPivotNumber) return null;
   if (!handleImpersonation && indicators.length === 0) return null;
+
+  // A post whose poster we can't tell still counts when it names the brand and gives a
+  // number that isn't the brand's ("Jambojet Airways ... Call/WhatsApp +255760113803",
+  // 2026-11-20): the finding is keyed on the post itself.
+  const account = parsed ?? postAsAccount(result.url);
+  if (!account) return null;
 
   return { account, postUrl: result.url, title, snippet, indicators, handleImpersonation };
 }

@@ -35,7 +35,7 @@ export function mentionFromResult(result: SearchResultLike, brand: { brandRoot: 
   }
   const platform = socialPlatformForHost(host);
   if (!platform) return null;
-  const account = parseSocialUrl(result.url, result.title);
+  const account = parseSocialUrl(result.url, result.title, result.content);
   if (account && isOfficialAccount(brand.officialSocialUrls, account)) return null;
 
   const title = result.title?.trim() || null;

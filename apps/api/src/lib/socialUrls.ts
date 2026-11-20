@@ -72,9 +72,17 @@ export function socialPlatformForHost(hostname: string): SocialPlatform | null {
   return HOST_PLATFORM[host] ?? null;
 }
 
-// `title` is the search result's title, used only where the URL itself has no handle
-// (an Instagram post at /p/<id> is titled "Name (@handle) • Instagram ...").
-export function parseSocialUrl(raw: string, title?: string | null): SocialAccount | null {
+// The poster's handle as a search result's text states it, for URLs that don't carry one
+// (an Instagram post at /p/<id>): "Name (@handle) • Instagram ..." in the title, or
+// "Author: @handle (Name)" in the snippet -- seen 2026-11-20 on a reel titled only
+// "Jambo Jet Airline on Instagram", which was the fake @jambotjet01235.
+function handleFromResultText(title?: string | null, snippet?: string | null): string | null {
+  return title?.match(/\(@([a-z0-9._]+)\)/i)?.[1] ?? snippet?.match(/\bAuthor:\s*@([a-z0-9._]+)/i)?.[1] ?? null;
+}
+
+// `title` and `snippet` are the search result's, used only where the URL itself has no
+// handle.
+export function parseSocialUrl(raw: string, title?: string | null, snippet?: string | null): SocialAccount | null {
   let url: URL;
   try {
     url = new URL(raw);
@@ -103,8 +111,8 @@ export function parseSocialUrl(raw: string, title?: string | null): SocialAccoun
     }
     case "instagram": {
       if (first && !RESERVED.instagram.has(first.toLowerCase())) return account(platform, first);
-      const fromTitle = title?.match(/\(@([a-z0-9._]+)\)/i)?.[1];
-      return fromTitle ? account(platform, fromTitle) : null;
+      const fromText = handleFromResultText(title, snippet);
+      return fromText ? account(platform, fromText) : null;
     }
     case "tiktok": {
       if (!first.startsWith("@")) return null;
@@ -130,6 +138,30 @@ export function parseSocialUrl(raw: string, title?: string | null): SocialAccoun
       return null;
     }
   }
+}
+
+// First path segments of pages that collect many people's posts (TikTok /discover,
+// Instagram /explore): a number on one isn't any single poster's.
+const AGGREGATE_PAGES = new Set(["discover", "tag", "explore", "search", "hashtag", "popular", "topics", "music", "trending"]);
+
+// A single post whose account we can't tell (an Instagram /p/ link with no handle in the
+// result text, a Facebook group post), as a stand-in "account" keyed on the post's own URL,
+// so a scam post can still become a finding. Null for aggregate pages.
+export function postAsAccount(raw: string): SocialAccount | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  const platform = socialPlatformForHost(url.hostname);
+  if (!platform) return null;
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments.length < 2 || AGGREGATE_PAGES.has(segments[0].toLowerCase())) return null;
+  // Facebook keeps the post id in the query for some links (permalink.php?story_fbid=...).
+  const keepQuery = platform === "facebook" && /\.php$/.test(segments[segments.length - 1]);
+  const profileUrl = `${url.protocol}//${url.hostname.toLowerCase().replace(/^(m|mobile|web)\./, "www.")}${url.pathname.replace(/\/+$/, "")}${keepQuery ? url.search : ""}`;
+  return { platform, handle: null, profileUrl };
 }
 
 // Handles are compared with separators stripped: "fly.jambojet", "fly_jambojet" and

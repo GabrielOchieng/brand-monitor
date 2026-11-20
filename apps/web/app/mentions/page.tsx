@@ -25,7 +25,10 @@ interface Mention {
 
 interface MentionsResponse {
   mentions: Mention[];
-  nextCursor: string | null;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
   summary: { days: number; total: number; byCategory: Record<string, number>; bySentiment: Record<string, number> };
 }
 
@@ -58,10 +61,17 @@ export default function MentionsPage() {
   const { getToken, isLoaded, orgId } = useAuth();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [brandId, setBrandId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ category: "", sentiment: "", platform: "" });
+  const [filters, setFiltersState] = useState({ category: "", sentiment: "", platform: "" });
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<MentionsResponse | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A new filter or brand starts again from page 1.
+  function setFilters(next: typeof filters) {
+    setFiltersState(next);
+    setPage(1);
+  }
 
   useEffect(() => {
     if (!isLoaded || !orgId) return;
@@ -76,42 +86,39 @@ export default function MentionsPage() {
     })();
   }, [isLoaded, orgId, getToken]);
 
-  const query = useCallback(
-    (cursor?: string) => {
-      const qs = new URLSearchParams();
-      if (filters.category) qs.set("category", filters.category);
-      if (filters.sentiment) qs.set("sentiment", filters.sentiment);
-      if (filters.platform) qs.set("platform", filters.platform);
-      if (cursor) qs.set("cursor", cursor);
-      const s = qs.toString();
-      return `/api/brands/${brandId}/mentions${s ? `?${s}` : ""}`;
-    },
-    [brandId, filters]
-  );
+  const query = useCallback(() => {
+    const qs = new URLSearchParams();
+    if (filters.category) qs.set("category", filters.category);
+    if (filters.sentiment) qs.set("sentiment", filters.sentiment);
+    if (filters.platform) qs.set("platform", filters.platform);
+    if (page > 1) qs.set("page", String(page));
+    const s = qs.toString();
+    return `/api/brands/${brandId}/mentions${s ? `?${s}` : ""}`;
+  }, [brandId, filters, page]);
 
   useEffect(() => {
     if (!brandId) return;
+    let cancelled = false;
     (async () => {
       setError(null);
+      setLoading(true);
       try {
-        setData(await apiFetch<MentionsResponse>(query(), await getToken()));
+        const next = await apiFetch<MentionsResponse>(query(), await getToken());
+        if (!cancelled) setData(next);
       } catch (err: any) {
-        setError(err.message);
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [brandId, query, getToken]);
 
-  async function loadMore() {
-    if (!data?.nextCursor) return;
-    setLoadingMore(true);
-    try {
-      const more = await apiFetch<MentionsResponse>(query(data.nextCursor), await getToken());
-      setData({ ...more, mentions: [...data.mentions, ...more.mentions] });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoadingMore(false);
-    }
+  function goTo(p: number) {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const summary = data?.summary;
@@ -128,7 +135,15 @@ export default function MentionsPage() {
           </p>
         </div>
         {brands.length > 1 && (
-          <select value={brandId ?? ""} onChange={(e) => setBrandId(e.target.value)} className="field-sm" aria-label="Brand">
+          <select
+            value={brandId ?? ""}
+            onChange={(e) => {
+              setBrandId(e.target.value);
+              setPage(1);
+            }}
+            className="field-sm"
+            aria-label="Brand"
+          >
             {brands.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -230,10 +245,25 @@ export default function MentionsPage() {
         </div>
       )}
 
-      {data?.nextCursor && (
-        <button onClick={loadMore} disabled={loadingMore} className="btn-secondary mt-4">
-          {loadingMore ? "Loading…" : "Load more"}
-        </button>
+      {data && data.total > 0 && (
+        <nav className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pages">
+          <span className="text-ink-subtle tabular-nums">
+            {(data.page - 1) * data.pageSize + 1}–{Math.min(data.page * data.pageSize, data.total)} of {data.total}
+          </span>
+          {data.totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => goTo(page - 1)} disabled={loading || page <= 1} className="btn-secondary">
+                Previous
+              </button>
+              <span className="tabular-nums text-ink-muted">
+                Page {data.page} of {data.totalPages}
+              </span>
+              <button onClick={() => goTo(page + 1)} disabled={loading || page >= data.totalPages} className="btn-secondary">
+                Next
+              </button>
+            </div>
+          )}
+        </nav>
       )}
     </div>
   );

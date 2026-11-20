@@ -172,3 +172,38 @@ describe("manual social search notification", () => {
     expect(manualSearchMessage("Jambojet", { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false })).toContain("didn't answer");
   });
 });
+
+describe("posts whose account isn't in the URL (2026-11-20 Mentions screenshot)", () => {
+  it("reads the poster from the snippet's 'Author: @handle' and flags the fake", () => {
+    const hit = classifySocialResult(
+      {
+        url: "https://www.instagram.com/reel/DfSozggxTiu",
+        title: "Jambo Jet Airline on Instagram",
+        content: "# Jambo Jet Airline on Instagram [Image: Video by Jambo Jet Airline] - Author: @jambotjet01235 (Jambo Jet Airline) - Likes: 0",
+      },
+      brand
+    );
+    expect(hit?.account.profileUrl).toBe("https://www.instagram.com/jambotjet01235");
+    expect(hit?.handleImpersonation).toBe(true);
+  });
+
+  it("flags a brand post with a foreign number even when the poster is unknown, keyed on the post", () => {
+    const hit = classifySocialResult(
+      {
+        url: "https://www.instagram.com/p/DfAbC123/?igsh=xyz",
+        title: "keanya airways ni moja ya mashirika mazuri sana kuwahi ...",
+        content: "Call/whatsapp: +255760113803 +255655113803 amjtravels.tz@gmail.com. Jambojet Airways Affordable, reliable & convenient flights across Kenya",
+      },
+      brand
+    );
+    expect(hit?.account).toEqual({ platform: "instagram", handle: null, profileUrl: "https://www.instagram.com/p/DfAbC123" });
+    expect(hit?.indicators.map((i) => i.value)).toEqual(expect.arrayContaining(["+255760113803", "+255655113803"]));
+  });
+
+  it("doesn't turn an aggregate page or a numberless post into a finding", () => {
+    expect(
+      classifySocialResult({ url: "https://www.tiktok.com/discover/jambo-jet-price-list", title: "Jambo Jet Price List", content: "Jambojet tickets 0712345678" }, brand)
+    ).toBeNull();
+    expect(classifySocialResult({ url: "https://www.instagram.com/p/DfXyZ", title: "Jambojet flight was lovely", content: "" }, brand)).toBeNull();
+  });
+});

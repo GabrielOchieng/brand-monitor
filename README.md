@@ -203,7 +203,13 @@ background:
   compact line per post because Gemini's thinking eats the token cap. A failed labelling leaves
   them unlabelled for the next run (3 attempts). The page shows last-7-days counts and filters.
   It's a sample (~30–40 posts a run from the past month's indexed posts), not social listening, and
-  the official account's posts can slip in when a title doesn't carry the handle.
+  the official account's posts can slip in when a title doesn't carry the handle. Each run labels up
+  to 4 batches, and re-checks every stored mention against the current threat rules (no search
+  credits): one that now counts as a threat moves to the threat feed. The page is paged, 20 a page.
+  Since 2026-11-20 a post's account is also read from the snippet's "Author: @handle", and a post
+  with no identifiable account still becomes a social finding (keyed on the post URL,
+  `postAsAccount`) when it names the brand and gives a number that isn't the brand's; aggregate
+  pages (TikTok /discover, /explore, ...) never do.
 - **Fact-checks** (weekly, same key): one search per brand on pesacheck.org. A new article about the
   brand raises an in-app notification linking to it (no finding: the article isn't the threat).
   PesaCheck's RSS feed only holds ~15 articles (about a day), so searching is the reliable route.
