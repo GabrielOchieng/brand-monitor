@@ -116,11 +116,13 @@ background:
   alert rule (auto-seeded per org, same as the default severity alert) fires the first time
   that happens and only then (a live site whose scan is misread as parked once doesn't re-alert), separately from the regular severity/score alerts.
 - **AI explanation**: a "Generate AI explanation" button on a finding's detail page asks
-  Claude to narrate its deterministic score/evidence in plain English — the score itself is
+  an LLM (Google Gemini's free tier by default) to narrate its deterministic score/evidence in plain English — the score itself is
   never set or influenced by the model, only explained after the fact (see `ARCHITECTURE.md`
   §9). Explanations are cached per scan (never regenerated for an unchanged scan) and
-  rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) since each call spends
-  real Anthropic budget. Requires `ANTHROPIC_API_KEY` in `.env` — the button surfaces a clear
+  rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) to stay inside the
+  provider's free quota. Requires `AI_API_KEY` in `.env` (any OpenAI-compatible provider via
+  `AI_BASE_URL`; `AI_MODEL` is a comma-separated fallback chain, so an overloaded or
+  quota-spent model falls through to the next; see `apps/api/.env.example`) — the button surfaces a clear
   error if it's missing/invalid rather than failing silently.
 - **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
   manual discovery runs and 50 manual submissions a day. Limits live in memory and reset on restart.

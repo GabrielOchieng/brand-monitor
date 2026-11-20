@@ -13,7 +13,6 @@
     "db:sync-app-role-password": "tsx scripts/syncAppRolePassword.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.124.0",
     "@brand-monitor/shared": "*",
     "@clerk/backend": "^1.13.0",
     "@fastify/cors": "^10.0.0",

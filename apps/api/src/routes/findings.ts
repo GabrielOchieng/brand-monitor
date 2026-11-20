@@ -401,7 +401,7 @@ export async function findingsRoutes(app: FastifyInstance) {
 
         // Sliding 24h window (not a calendar-day bucket) counting every attempt,
         // including failures -- a retry storm against an unexplained scan still spends
-        // real Anthropic budget even when it doesn't produce a usable result, so it must
+        // the AI provider's free quota even when it doesn't produce a usable result, so it must
         // still count. RLS already scopes this count to the calling org.
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const usedToday = await tx.aiExplanation.count({ where: { createdAt: { gte: since } } });
@@ -427,7 +427,7 @@ export async function findingsRoutes(app: FastifyInstance) {
           // status "failed", or an abandoned stale "pending" -- retry.
           const retried = await tx.aiExplanation.update({
             where: { scanId: lastScanId },
-            data: { status: "pending", prompt, model: env.anthropicModel, error: null },
+            data: { status: "pending", prompt, model: env.aiModels[0], error: null },
           });
           return { kind: "claimed", record: retried };
         }
@@ -437,7 +437,7 @@ export async function findingsRoutes(app: FastifyInstance) {
           // same not-yet-explained scan will fail on the scanId unique constraint below,
           // rather than both calling the LLM.
           const created = await tx.aiExplanation.create({
-            data: { scanId: lastScanId, findingId: finding.id, prompt, model: env.anthropicModel, status: "pending" },
+            data: { scanId: lastScanId, findingId: finding.id, prompt, model: env.aiModels[0], status: "pending" },
           });
           return { kind: "claimed", record: created };
         } catch (err: any) {
@@ -463,9 +463,11 @@ export async function findingsRoutes(app: FastifyInstance) {
       // normally 1-3s -- well inside a normal HTTP timeout. Revisit only if real usage
       // shows p95 latency creeping past ~8-10s.
       try {
-        const response = await generateExplanation(claim.record.prompt);
+        const { text: response, model } = await generateExplanation(claim.record.prompt, (failedModel, err) =>
+          request.log.warn({ err, findingId: id, model: failedModel }, "AI model failed, trying the next one")
+        );
         const updated = await withTenant(orgId, (tx) =>
-          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "succeeded", response } })
+          tx.aiExplanation.update({ where: { id: claim.record.id }, data: { status: "succeeded", response, model } })
         );
         return reply.send(updated);
       } catch (err: any) {

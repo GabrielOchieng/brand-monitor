@@ -48,10 +48,16 @@ export const env = {
   smtpPass: process.env.SMTP_PASS ?? "",
   smtpFrom: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
   webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  // A narration task fed pre-computed evidence, not open-ended reasoning -- doesn't need
-  // a larger model.
-  anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
+  // AI explanations (lib/aiExplain.ts) via any OpenAI-compatible Chat Completions API.
+  // Default is Google Gemini's free tier (key from aistudio.google.com, no card). A
+  // narration task fed pre-computed evidence -- a small "flash" model is enough.
+  aiBaseUrl: process.env.AI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai",
+  aiApiKey: process.env.AI_API_KEY ?? "",
+  // Comma-separated fallback chain, tried in order (lib/aiExplain.ts).
+  aiModels: (process.env.AI_MODEL ?? "gemini-2.5-flash,gemini-flash-lite-latest,gemini-3.5-flash")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean),
   // Per-org cost guardrail for Stage E's AI explanations -- see routes/findings.ts.
   aiExplanationDailyLimit: Number(process.env.AI_EXPLANATION_DAILY_LIMIT ?? 100),
   // How many recheck jobs (each launching a Chromium instance via the scanner) run at

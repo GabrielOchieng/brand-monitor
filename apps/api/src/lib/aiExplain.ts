@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../env";
 
 // Truncated because websiteIntel.extractedText is scraped, attacker-controlled page text
@@ -64,58 +63,104 @@ export function buildExplanationPrompt(ctx: ExplanationContext): string {
   return lines.join("\n");
 }
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!client) {
-    // maxRetries/timeout deliberately lower than the SDK defaults -- this call sits
-    // inline in a request handler (a deliberate, documented deviation from this
-    // codebase's usual "slow external I/O goes in a pg-boss job" rule -- see
-    // routes/findings.ts), not a background job, so it must fail fast rather than
-    // silently retrying for minutes inside one HTTP request.
-    client = new Anthropic({ apiKey: env.anthropicApiKey, maxRetries: 1, timeout: 15_000 });
-  }
-  return client;
-}
+// The model is called through the OpenAI-compatible Chat Completions API, which Google
+// Gemini, Groq, OpenRouter and others all serve -- switching provider is an env change
+// (AI_BASE_URL / AI_API_KEY / AI_MODEL), not a code change. Default is Gemini's free tier.
+//
+// AI_MODEL is a comma-separated fallback chain: free-tier models regularly answer 503 "high
+// demand" (seen live 2026-11-20 on gemini-flash-latest while gemini-2.5-flash answered fine)
+// or 429 once their own daily quota is spent, and quotas are per model, so the next model
+// in the list usually works.
+//
+// This call sits inline in a request handler (a deliberate, documented deviation from this
+// codebase's usual "slow external I/O goes in a pg-boss job" rule -- see routes/findings.ts),
+// so the whole chain shares one time budget rather than each model getting a full timeout.
+const PER_MODEL_TIMEOUT_MS = 20_000;
+const TOTAL_BUDGET_MS = 45_000;
+// Generous because Gemini's Flash models "think" by default and thinking tokens count
+// against this cap -- a tight cap returns an empty answer. The prompt keeps the visible
+// answer to 3-5 sentences.
+const MAX_TOKENS = 4096;
 
 class AiNotConfiguredError extends Error {}
 
+export class AiHttpError extends Error {
+  constructor(readonly status: number, readonly body: string) {
+    super(`AI provider returned HTTP ${status}`);
+  }
+}
+
+function isAuthError(err: unknown): boolean {
+  if (!(err instanceof AiHttpError)) return false;
+  const detail = err.body.toLowerCase();
+  // Gemini answers a bad key with 400 "API key not valid", not 401.
+  return err.status === 401 || err.status === 403 || detail.includes("api key not valid") || detail.includes("invalid api key");
+}
+
 // Turns whatever generateExplanation threw into one sentence an analyst can act on. This
 // is what gets stored in ai_explanations.error and shown on the finding page, so it must
-// never be a raw SDK/JSON dump; the route logs the original error for debugging.
+// never be a raw provider/JSON dump; the route logs the original error for debugging.
 export function describeAiError(err: unknown): string {
   if (err instanceof AiNotConfiguredError) {
-    return "AI explanations aren't set up: the API server has no ANTHROPIC_API_KEY.";
+    return "AI explanations aren't set up: the API server has no AI_API_KEY.";
   }
-  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+  if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
     return "The AI service took too long to answer. Try again.";
   }
-  if (err instanceof Anthropic.APIConnectionError) {
+  if (err instanceof TypeError && /fetch failed/i.test(err.message)) {
     return "Couldn't reach the AI service. Try again in a moment.";
   }
-  if (err instanceof Anthropic.APIError) {
-    const detail = String(err.message ?? "").toLowerCase();
-    if (detail.includes("credit balance")) {
-      return "AI explanations are unavailable: the Anthropic account has run out of credits.";
+  if (err instanceof AiHttpError) {
+    const detail = err.body.toLowerCase();
+    // Gemini answers a bad key with 400 "API key not valid", not 401.
+    if (err.status === 401 || detail.includes("api key not valid") || detail.includes("invalid api key")) {
+      return "AI explanations are unavailable: the AI_API_KEY is invalid.";
     }
-    if (err.status === 401) return "AI explanations are unavailable: the Anthropic API key is invalid.";
-    if (err.status === 403) return "AI explanations are unavailable: the Anthropic API key isn't allowed to do this.";
-    if (err.status === 404) return "AI explanations are unavailable: the configured model (ANTHROPIC_MODEL) wasn't found.";
-    if (err.status === 429) return "The AI service is rate-limiting requests. Try again in a minute.";
-    if (typeof err.status === "number" && err.status >= 500) {
-      return "The AI service is temporarily unavailable. Try again later.";
+    if (err.status === 403) return "AI explanations are unavailable: the AI_API_KEY isn't allowed to do this.";
+    if (err.status === 404) return "AI explanations are unavailable: none of the models in AI_MODEL were found.";
+    if (err.status === 429) {
+      return "The AI service's free quota is used up for now (rate limit or daily cap). Try again later.";
     }
+    if (err.status >= 500) return "The AI service is overloaded or down for every configured model. Try again later.";
   }
   return "The AI explanation couldn't be generated. Try again later.";
 }
 
-export async function generateExplanation(prompt: string): Promise<string> {
-  if (!env.anthropicApiKey) throw new AiNotConfiguredError("ANTHROPIC_API_KEY is not set");
-  const message = await getClient().messages.create({
-    model: env.anthropicModel,
-    max_tokens: 400,
-    messages: [{ role: "user", content: prompt }],
+async function callModel(model: string, prompt: string, timeoutMs: number): Promise<string> {
+  const res = await fetch(`${env.aiBaseUrl.replace(/\/+$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.aiApiKey}` },
+    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, messages: [{ role: "user", content: prompt }] }),
+    signal: AbortSignal.timeout(timeoutMs),
   });
-  const textBlock = message.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") throw new Error("no text content in Anthropic response");
-  return textBlock.text;
+  if (!res.ok) throw new AiHttpError(res.status, (await res.text()).slice(0, 2000));
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error(`no text content in ${model} response`);
+  return text;
+}
+
+// Tries each model in env.aiModels in order and returns the first answer, with the model
+// that produced it. Any failure moves on to the next model except a key problem (every
+// model would fail the same way). Throws the last error if none answers.
+export async function generateExplanation(
+  prompt: string,
+  onFallback?: (model: string, err: unknown) => void
+): Promise<{ text: string; model: string }> {
+  if (!env.aiApiKey) throw new AiNotConfiguredError("AI_API_KEY is not set");
+  if (env.aiModels.length === 0) throw new Error("AI_MODEL lists no models");
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  let lastErr: unknown;
+  for (const model of env.aiModels) {
+    const remaining = deadline - Date.now();
+    if (remaining < 3_000) break;
+    try {
+      return { text: await callModel(model, prompt, Math.min(PER_MODEL_TIMEOUT_MS, remaining)), model };
+    } catch (err) {
+      if (isAuthError(err)) throw err;
+      lastErr = err;
+      onFallback?.(model, err);
+    }
+  }
+  throw lastErr;
 }
