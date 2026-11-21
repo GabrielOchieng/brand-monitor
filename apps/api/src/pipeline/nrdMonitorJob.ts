@@ -2,6 +2,7 @@ import { adminPrisma } from "../adminDb";
 import { withTenant } from "../lib/tenant";
 import { fetchNrdList } from "../lib/nrdFeed";
 import { fetchHageziNrd } from "../lib/hageziNrd";
+import { fetchIscRecentDomains } from "../lib/iscRecentDomains";
 import { checkDnsExistence } from "../lib/dnsCheck";
 import { markSourceSuccess } from "../queue/health";
 import { typoVariants } from "./permutations";
@@ -65,6 +66,24 @@ export async function runNrdMonitorJob(now: Date = new Date()): Promise<void> {
   }
 
   await runHagezi(brands, now);
+  await runIsc(brands);
+}
+
+// Third feed (lib/iscRecentDomains.ts): ~3 MB, so it is simply re-read every run (every 6h)
+// rather than tracked by date; already-known domains are skipped by createFindings.
+async function runIsc(brands: { id: string; organizationId: string }[]): Promise<void> {
+  if (brands.length === 0) return;
+  const contexts = await Promise.all(brands.map((b) => loadBrandMatch(b.id, b.organizationId)));
+  const result = await fetchIscRecentDomains((d) => contexts.some((c) => c.keep(d)));
+  if (result.status === "error") {
+    console.warn(`[nrd-isc] download failed: ${result.error}`);
+    return;
+  }
+  for (const ctx of contexts) {
+    await createFindings(ctx, result.matched.filter(ctx.keep), "isc_recent");
+  }
+  console.log(`[nrd-isc] scanned ${result.total} domains first seen ${result.firstSeen}, ${result.matched.length} matched a brand`);
+  markSourceSuccess("isc_recent");
 }
 
 // Second, larger feed (lib/hageziNrd.ts). One streamed pass checks every brand at once.

@@ -42,7 +42,7 @@ keeps every organization's data apart. The live test brand is Jambojet (`jamboje
 
 1. **Sources create findings.** Each source (below) creates a bare, unscored *finding* when it
    sees something new. A finding has a `type` (`domain`, `url` or `social`) and a free-text
-   `source` (`discovery`, `ct_log`, `nrd`, `nrd_hagezi`, `phish_feed`, `app_store`, `google_play`,
+   `source` (`discovery`, `ct_log`, `nrd`, `nrd_hagezi`, `isc_recent`, `phish_feed`, `app_store`, `google_play`,
    `social_search`, `web_search`, `manual`, `public_report`).
 2. **The recheck job enriches and scores it.** Every 5 minutes a dispatcher picks up findings
    that are due and runs `pipeline/recheckJob.ts` on each: registry lookup, DNS, hosting
@@ -71,7 +71,7 @@ registered in `apps/api/src/queue/dispatch.ts` and the queues are declared in `q
 | Recheck (enrich + score) | dispatcher every 5 min, then per finding cadence | per finding | `pipeline/recheckJob.ts` |
 | CT log monitor | every 30 min | per brand | `pipeline/ctMonitorJob.ts` |
 | App Store + Google Play | every 4h | per brand | `pipeline/appStoreMonitorJob.ts` |
-| Newly-registered domains (whoisds every 6h, hagezi once a day) | every 6h | global | `pipeline/nrdMonitorJob.ts` |
+| Newly-registered domains (whoisds and SANS ISC every 6h, hagezi once a day) | every 6h | global | `pipeline/nrdMonitorJob.ts` |
 | Phishing feed | hourly | global | `pipeline/phishFeedMonitorJob.ts` |
 | Social + web search | daily (or on demand, 3/org/day) | global | `pipeline/socialSearchMonitorJob.ts` |
 | Fact-check search | weekly | global | same job, separate schedule |
@@ -117,6 +117,15 @@ and `jambojetonlinebooking.site`. It's one maintainer's project and Stamus warns
 few days, so whoisds stays on as well. A download failure or a suspiciously short file (under
 100k lines) is logged as `[nrd-hagezi] … failed` and the source goes stale on `/health/jobs`
 after 48h. Commercial-use terms of the underlying Stamus data aren't stated.
+
+**SANS ISC recent domains** (`lib/iscRecentDomains.ts`, same job, since 2026-11-21). The SANS
+Internet Storm Center publishes every domain it first saw the previous day, compiled from CT
+logs and ICANN zone files (~335k a day, gTLDs only, so no `.co.ke`), as one ~3 MB gzipped file
+refreshed hourly. Read every run and matched the same way, source `isc_recent`. Because part of
+it comes from CT, it partly fills the gap crt.sh left. Set `ISC_CONTACT` so ISC can identify our
+client in the User-Agent, as it asks. Terms: an ISC diary (2025-11-05) allows commercial use
+with attribution and no resale, but the API page links a non-commercial licence, so this is
+still to be confirmed with ISC. Data courtesy of the SANS Internet Storm Center.
 
 **Phishing feed** (`lib/phishFeed.ts`). Every hour, downloads phishunt.io's public feed of active
 phishing URLs (CC0, ~800 URLs, aggregating OpenPhish, PhishTank, urlscan, Google Safe Browsing
@@ -417,6 +426,7 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email alerts |
 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_EXPLANATION_DAILY_LIMIT` | AI explanations and mention labelling |
 | `TAVILY_API_KEY`, `TAVILY_MONTHLY_CAP` | Social and web search |
+| `ISC_CONTACT` | Contact shown to SANS ISC in the User-Agent (optional) |
 | `TURNSTILE_SECRET_KEY` | Spam protection on the public report form |
 | `RECHECK_CONCURRENCY` | Parallel rechecks (default 3) |
 

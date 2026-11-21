@@ -163,7 +163,7 @@ that hold.
 nothing on a normal run):
 
 - Fastest: `GET /health/jobs`: 200 with a recent `lastRecheckDispatchAt`, or 503 once jobs have
-  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `nrd_hagezi` / `phish_feed` / `google_play` / `social_search`
+  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `nrd_hagezi` / `isc_recent` / `phish_feed` / `google_play` / `social_search`
   (last successful query; `stale` after 24h / 48h / 6h / 24h / 48h; social only when `TAVILY_API_KEY` is
   set) and `tavilyUsage`. `GET /health/jobs?sources=1` also returns 503 when a source is stale.
   UptimeRobot watches it with email alerts on. Stale since the last restart just means it hasn't

@@ -73,5 +73,8 @@ export const env = {
   // Tavily web search for social-account and fact-check discovery (lib/tavily.ts). Empty =
   // those jobs don't run. The cap stays under the free plan's 1,000 credits/month.
   tavilyApiKey: process.env.TAVILY_API_KEY ?? "",
+  // Contact (email or URL) sent in the User-Agent to SANS ISC's recent-domains feed, which
+  // asks automated clients to identify themselves (lib/iscRecentDomains.ts). Optional.
+  iscContact: process.env.ISC_CONTACT ?? "",
   tavilyMonthlyCap: Number(process.env.TAVILY_MONTHLY_CAP ?? 900),
 };

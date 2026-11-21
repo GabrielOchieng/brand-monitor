@@ -9,6 +9,7 @@ const SOURCE_LABELS: Record<string, string> = {
   ct_log: "Certificate logs",
   nrd: "New-domain feed",
   nrd_hagezi: "New-domain feed (hagezi)",
+  isc_recent: "New domains (SANS ISC)",
   app_store: "App Store",
   google_play: "Google Play",
   phish_feed: "Phishing feed",
