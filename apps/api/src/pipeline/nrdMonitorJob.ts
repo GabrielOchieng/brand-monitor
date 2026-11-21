@@ -8,8 +8,8 @@ import { markSourceSuccess } from "../queue/health";
 import { typoVariants } from "./permutations";
 
 // Third domain source, alongside discoveryJob.ts (guess names, DNS-check them) and
-// ctMonitorJob.ts (search CT logs). Added after flyjambojetkenya.store went undetected:
-// no guessing pattern produced it and crt.sh was down. A registration feed needs neither.
+// ctMonitorJob.ts (read CT logs). Added after flyjambojetkenya.store went undetected:
+// no guessing pattern produced it and crt.sh (the old CT source) was down.
 //
 // One download serves every brand, so this is a single global job, not a per-brand
 // fan-out like the others.
@@ -105,9 +105,9 @@ async function runHagezi(brands: { id: string; organizationId: string }[], now: 
   markSourceSuccess("nrd_hagezi");
 }
 
-type BrandMatch = { brandId: string; organizationId: string; keep: (domain: string) => boolean };
+export type BrandMatch = { brandId: string; organizationId: string; keep: (domain: string) => boolean };
 
-async function loadBrandMatch(brandId: string, organizationId: string): Promise<BrandMatch> {
+export async function loadBrandMatch(brandId: string, organizationId: string): Promise<BrandMatch> {
   const brand = await withTenant(organizationId, (tx) =>
     tx.brand.findUniqueOrThrow({ where: { id: brandId }, include: { domains: true } })
   );
@@ -118,7 +118,7 @@ async function loadBrandMatch(brandId: string, organizationId: string): Promise<
   return { brandId, organizationId, keep: (d) => matches(d) && !isOwn(d) };
 }
 
-async function createFindings({ brandId, organizationId }: BrandMatch, domains: string[], source: string): Promise<void> {
+export async function createFindings({ brandId, organizationId }: BrandMatch, domains: string[], source: string): Promise<void> {
   for (const domain of domains) {
     await withTenant(organizationId, async (tx) => {
       const existing = await tx.finding.findUnique({ where: { brandId_identifier: { brandId, identifier: domain } } });

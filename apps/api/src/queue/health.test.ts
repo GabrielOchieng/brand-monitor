@@ -33,7 +33,7 @@ describe("sourcesHealth", () => {
   });
 
   it("gives a fresh process its full window before calling a never-succeeded source stale", () => {
-    expect(sourcesHealth(now, {}, ago(2 * H)).ok).toBe(true);
+    expect(sourcesHealth(now, {}, ago(0.5 * H)).ok).toBe(true); // ct_log's window is 1h
     expect(sourcesHealth(now, {}, ago(49 * H)).ok).toBe(false);
   });
 });

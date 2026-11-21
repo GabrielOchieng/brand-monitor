@@ -33,7 +33,10 @@ export const WORKER_POLLING = { pollingIntervalSeconds: 60 } as const;
 
 export const QUEUE_DISCOVERY = "discovery";
 export const QUEUE_RECHECK = "recheck";
-export const QUEUE_CT_MONITOR = "ct-monitor";
+// Global since 2026-11-21 (CT names tiles, pipeline/ctMonitorJob.ts). The old per-brand
+// crt.sh queues are removed at boot by ensureQueues.
+export const QUEUE_CT_MONITOR = "ct-tiles-monitor";
+const RETIRED_QUEUES = ["dispatch-ct-monitor", "ct-monitor"];
 export const QUEUE_APP_STORE_MONITOR = "app-store-monitor";
 export const QUEUE_NRD_MONITOR = "nrd-monitor";
 export const QUEUE_PHISH_FEED_MONITOR = "phish-feed-monitor";
@@ -42,7 +45,6 @@ export const QUEUE_PHISH_FEED_MONITOR = "phish-feed-monitor";
 export const QUEUE_SOCIAL_SEARCH_MONITOR = "social-search-monitor";
 export const QUEUE_DISPATCH_DISCOVERY = "dispatch-discovery";
 export const QUEUE_DISPATCH_RECHECK = "dispatch-recheck";
-export const QUEUE_DISPATCH_CT_MONITOR = "dispatch-ct-monitor";
 export const QUEUE_DISPATCH_APP_STORE_MONITOR = "dispatch-app-store-monitor";
 export const QUEUE_ALERT_DISPATCH = "alert-dispatch";
 
@@ -69,17 +71,22 @@ async function ensureExclusiveQueue(name: string, options: Omit<Parameters<typeo
 }
 
 export async function ensureQueues(): Promise<void> {
+  for (const name of RETIRED_QUEUES) {
+    if (await boss.getQueue(name)) {
+      await boss.unschedule(name);
+      await boss.deleteQueue(name);
+    }
+  }
   await ensureExclusiveQueue(QUEUE_DISCOVERY, { retryLimit: 1 });
   await ensureExclusiveQueue(QUEUE_RECHECK, { expireInSeconds: 300, retryLimit: 1 });
-  await ensureExclusiveQueue(QUEUE_CT_MONITOR, { retryLimit: 1 });
   await ensureExclusiveQueue(QUEUE_APP_STORE_MONITOR, { retryLimit: 1 });
   // Global (not per-brand) and scheduled directly, no dispatcher -- see nrdMonitorJob.ts.
   await boss.createQueue(QUEUE_NRD_MONITOR, { retryLimit: 0 });
+  await boss.createQueue(QUEUE_CT_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_PHISH_FEED_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_SOCIAL_SEARCH_MONITOR, { retryLimit: 0 });
   await boss.createQueue(QUEUE_DISPATCH_DISCOVERY);
   await boss.createQueue(QUEUE_DISPATCH_RECHECK);
-  await boss.createQueue(QUEUE_DISPATCH_CT_MONITOR);
   await boss.createQueue(QUEUE_DISPATCH_APP_STORE_MONITOR);
   // Standard policy (no exclusivity needed): dedup for alerts happens at the
   // AlertDelivery-row level (see queue/alertDispatch.ts), not the job-queue level --

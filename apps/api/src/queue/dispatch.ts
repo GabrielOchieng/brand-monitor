@@ -14,12 +14,11 @@ import {
   QUEUE_SOCIAL_SEARCH_MONITOR,
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
-  QUEUE_DISPATCH_CT_MONITOR,
   QUEUE_DISPATCH_APP_STORE_MONITOR,
 } from "./boss";
 import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob";
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
-import { runCtMonitorJob, type CtMonitorJobData } from "../pipeline/ctMonitorJob";
+import { runCtMonitorJob } from "../pipeline/ctMonitorJob";
 import { runAppStoreMonitorJob, type AppStoreMonitorJobData } from "../pipeline/appStoreMonitorJob";
 import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
 import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
@@ -90,19 +89,8 @@ export async function registerQueueWorkers(): Promise<void> {
     markRecheckDispatched();
   });
 
-  await boss.work<CtMonitorJobData>(QUEUE_CT_MONITOR, WORKER_POLLING, async ([job]) => {
-    await runCtMonitorJob(job.data);
-  });
-
-  // No PipelineRun-equivalent tracking row to make atomic with the enqueue (unlike
-  // dispatchDiscoveryForBrand) -- a plain inline loop, same shape as the recheck
-  // dispatcher above.
-  await boss.work(QUEUE_DISPATCH_CT_MONITOR, WORKER_POLLING, async () => {
-    const brands = await listAllBrandsForDispatch();
-    for (const { brandId, organizationId } of brands) {
-      const data: CtMonitorJobData = { brandId, organizationId };
-      await boss.send(QUEUE_CT_MONITOR, data, { singletonKey: brandId });
-    }
+  await boss.work(QUEUE_CT_MONITOR, WORKER_POLLING, async () => {
+    await runCtMonitorJob();
   });
 
   await boss.work<AppStoreMonitorJobData>(QUEUE_APP_STORE_MONITOR, WORKER_POLLING, async ([job]) => {
@@ -141,9 +129,9 @@ export async function registerQueueWorkers(): Promise<void> {
 export async function scheduleDispatchers(): Promise<void> {
   await boss.schedule(QUEUE_DISPATCH_DISCOVERY, "0 */4 * * *");
   await boss.schedule(QUEUE_DISPATCH_RECHECK, "*/5 * * * *");
-  // Every 30 min, deliberately conservative -- crt.sh documents no formal rate limit, but
-  // it's a free, shared, community-run service; nothing requires hammering it either.
-  await boss.schedule(QUEUE_DISPATCH_CT_MONITOR, "*/30 * * * *");
+  // Every 5 min: certificates are logged continuously, and each run reads only the names
+  // tiles added since the last one (~360 small files per log per run on LE Sycamore).
+  await boss.schedule(QUEUE_CT_MONITOR, "2-59/5 * * * *");
   // Every 4h, matching discovery's own cadence -- app store listings change far more
   // slowly than DNS registrations (Apple's review process alone takes time), so a faster
   // cadence has no real freshness benefit. Well within the ~20 req/min iTunes rate limit

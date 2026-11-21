@@ -1,73 +1,152 @@
-import { withTenant } from "../lib/tenant";
-import { queryCtLog } from "../lib/ctLog";
-import { checkDnsExistence } from "../lib/dnsCheck";
+import { adminPrisma } from "../adminDb";
+import { env } from "../env";
+import {
+  fetchLogList,
+  fetchNamesTile,
+  fetchTreeSize,
+  matchNamesTile,
+  NoNamesTilesError,
+  RateLimitedError,
+  selectTiledLogs,
+  TILE_WIDTH,
+  type TiledLog,
+} from "../lib/ctNamesTiles";
 import { markSourceSuccess } from "../queue/health";
+import { createFindings, loadBrandMatch } from "./nrdMonitorJob";
 
-export interface CtMonitorJobData {
-  brandId: string;
-  organizationId: string;
+// Reads every newly logged certificate name from the CT logs that publish names tiles
+// (lib/ctNamesTiles.ts) and turns brand matches into `ct_log` findings. One global job every
+// 5 minutes: one read of each log serves every brand. Replaced the per-brand crt.sh search,
+// which was down far more often than up and never produced a production finding.
+//
+// Complementary to discoveryJob.ts (guessed names) and the new-domain feeds: a certificate
+// shows up within minutes of issuance, usually before a phishing site goes live, and also
+// catches lookalike subdomains on platforms that issue per-site certificates.
+
+// Enough to keep up with the busiest log (LE Sycamore, ~360 tiles per 5 minutes) with room
+// to catch up after a restart. Behind by more than MAX_BACKLOG_TILES (~half a day on
+// Sycamore; a long outage), the gap is skipped rather than downloaded.
+const MAX_TILES_PER_RUN = 2000;
+const MAX_BACKLOG_TILES = 20_000;
+// Per log; logs are read in parallel. At 4, a 5-minute backlog (~360 tiles) took ~110s from
+// Nairobi -- fine for steady state, slow for catching up.
+const TILE_CONCURRENCY = 6;
+const RUN_BUDGET_MS = 4 * 60 * 1000; // stop before the next 5-minute tick
+
+// The log list changes a few times a year; names-tile support is probed once per log.
+const LOG_LIST_TTL_MS = 6 * 60 * 60 * 1000;
+const NAMES_PROBE_TTL_MS = 24 * 60 * 60 * 1000;
+let logListCache: { at: number; logs: TiledLog[] } | null = null;
+const namesSupport = new Map<string, { supported: boolean; at: number }>();
+
+async function currentLogs(now: number): Promise<TiledLog[]> {
+  if (!logListCache || now - logListCache.at > LOG_LIST_TTL_MS) {
+    logListCache = { at: now, logs: selectTiledLogs(await fetchLogList(), env.ctLogOperators, new Date(now)) };
+  }
+  return logListCache.logs;
 }
 
-// Complementary to discoveryJob.ts, not a replacement -- that one guesses plausible names
-// and DNS-checks them; this one searches real, publicly-logged certificate issuances for
-// anything containing the brand name, catching squats regardless of what naming pattern
-// they follow. See lib/ctLog.ts for why crt.sh (pull) was chosen over CertStream (a
-// persistent firehose connection this app's architecture and RAM budget don't fit).
-export async function runCtMonitorJob(data: CtMonitorJobData): Promise<void> {
-  const { brandId, organizationId } = data;
+type LogResult = { log: TiledLog; ok: boolean; tiles: number; entries: number; matched: string[]; note?: string };
 
-  const brand = await withTenant(organizationId, (tx) =>
-    tx.brand.findUniqueOrThrow({ where: { id: brandId }, include: { domains: true } })
-  );
+async function readLog(log: TiledLog, keep: (h: string) => boolean, deadline: number): Promise<LogResult> {
+  const result: LogResult = { log, ok: false, tiles: 0, entries: 0, matched: [] };
+  const fullTiles = Math.floor((await fetchTreeSize(log)) / TILE_WIDTH);
+  if (fullTiles === 0) return { ...result, ok: true };
 
-  const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
-  const ownDomains = [brand.primaryDomain.toLowerCase(), ...brand.domains.map((d) => d.domain.toLowerCase())];
-  const isOwnDomain = (host: string) => ownDomains.some((d) => host === d || host.endsWith(`.${d}`));
-
-  const hostnames = await queryCtLog(brandRoot);
-  if (hostnames === null) return; // crt.sh unreachable this round -- next scheduled tick retries
-  markSourceSuccess("ct_log");
-
-  for (const hostname of hostnames) {
-    // Defensive re-check: one crt.sh row's name_value can bundle unrelated SANs alongside
-    // the real match (a multi-domain cert) -- ctLog.ts already splits per-line, but this
-    // guards against any line that slipped through without actually containing the brand.
-    if (!hostname.includes(brandRoot)) continue;
-    if (isOwnDomain(hostname)) continue;
-
-    await withTenant(organizationId, async (tx) => {
-      const existing = await tx.finding.findUnique({ where: { brandId_identifier: { brandId, identifier: hostname } } });
-      if (existing) return;
-
-      // Deliberately created regardless of current DNS resolution, unlike
-      // discoveryJob.ts's guessed candidates -- a real, publicly-logged certificate
-      // issuance is itself stronger signal than a guessed name resolving via DNS.
-      // Requiring live DNS on top of that would silently drop a domain that's between
-      // issuance and DNS propagation, or one that's briefly dormant. The existing
-      // dormant-cadence recheck machinery already handles a not-yet-resolving finding
-      // correctly from here (see cadence.ts / recheckJob.ts).
-      const finding = await tx.finding.create({
-        data: {
-          brandId,
-          identifier: hostname,
-          type: "domain",
-          source: "ct_log",
-          riskScore: 0,
-          severity: "low",
-          nextScanAt: new Date(),
-        },
-      });
-
-      // Same "confirmed resolving right now is the only proof we'll ever have at this
-      // exact instant" reasoning as discoveryJob.ts -- but skip writing DomainIntel at all
-      // if it doesn't resolve yet (not even a currentlyResolves: false row), exactly like
-      // a manually-submitted domain finding has no DomainIntel until its first recheck.
-      const dns = await checkDnsExistence(hostname);
-      if (dns.exists) {
-        await tx.domainIntel.create({
-          data: { findingId: finding.id, firstResolvedAt: new Date(), currentlyResolves: true },
-        });
-      }
-    });
+  // New logs start at the tip: only certificates logged from now on are interesting.
+  const cursor = await adminPrisma.ctLogCursor.findUnique({ where: { monitoringUrl: log.monitoringUrl } });
+  let next = Math.max(0, cursor?.nextTile ?? fullTiles);
+  if (fullTiles - next > MAX_BACKLOG_TILES) {
+    result.note = `skipped ${fullTiles - MAX_TILES_PER_RUN - next} tiles of backlog`;
+    next = fullTiles - MAX_TILES_PER_RUN;
   }
+
+  // Probe once: does this log serve names tiles at all? (Google/Sectigo logs 404.)
+  const probe = namesSupport.get(log.monitoringUrl);
+  if (!probe || Date.now() - probe.at > NAMES_PROBE_TTL_MS) {
+    try {
+      await fetchNamesTile(log, fullTiles - 1);
+      namesSupport.set(log.monitoringUrl, { supported: true, at: Date.now() });
+    } catch (err) {
+      if (!(err instanceof NoNamesTilesError)) throw err;
+      namesSupport.set(log.monitoringUrl, { supported: false, at: Date.now() });
+    }
+  }
+  if (!namesSupport.get(log.monitoringUrl)!.supported) return { ...result, note: "no names tiles" };
+
+  const end = Math.min(fullTiles, next + MAX_TILES_PER_RUN);
+  const matched = new Set<string>();
+  try {
+    while (next < end && Date.now() < deadline) {
+      const batch = Array.from({ length: Math.min(TILE_CONCURRENCY, end - next) }, (_, i) => next + i);
+      const texts = await Promise.all(batch.map((i) => fetchNamesTile(log, i)));
+      for (const text of texts) {
+        const tile = matchNamesTile(text, keep);
+        result.entries += tile.entries;
+        tile.matched.forEach((h) => matched.add(h));
+      }
+      next += batch.length;
+      result.tiles += batch.length;
+    }
+    result.ok = true;
+  } catch (err: any) {
+    // Resume from the last complete batch next run. A 429 (Geomys rate-limits) just ends
+    // this log's turn; anything else is logged too.
+    result.note = err instanceof RateLimitedError ? "rate limited" : String(err?.message ?? err);
+    result.ok = err instanceof RateLimitedError;
+  }
+
+  await adminPrisma.ctLogCursor.upsert({
+    where: { monitoringUrl: log.monitoringUrl },
+    create: { monitoringUrl: log.monitoringUrl, nextTile: next },
+    update: { nextTile: next },
+  });
+  result.matched = [...matched];
+  return result;
+}
+
+export async function runCtMonitorJob(now: number = Date.now()): Promise<void> {
+  const brands = await adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  if (brands.length === 0) return;
+  const contexts = await Promise.all(brands.map((b) => loadBrandMatch(b.id, b.organizationId)));
+  const keep = (h: string) => contexts.some((c) => c.keep(h));
+
+  let logs: TiledLog[];
+  try {
+    logs = await currentLogs(now);
+  } catch (err: any) {
+    console.warn(`[ct-tiles] log list unavailable: ${err?.message ?? err}`);
+    return;
+  }
+  if (logs.length === 0) {
+    console.warn(`[ct-tiles] no tiled logs match CT_LOG_OPERATORS=${env.ctLogOperators.join(",")}`);
+    return;
+  }
+
+  const deadline = now + RUN_BUDGET_MS;
+  const settled = await Promise.allSettled(logs.map((log) => readLog(log, keep, deadline)));
+
+  const matched = new Set<string>();
+  let tiles = 0;
+  let entries = 0;
+  let okLogs = 0;
+  settled.forEach((s, i) => {
+    if (s.status === "rejected") {
+      console.warn(`[ct-tiles] ${logs[i].description}: ${s.reason?.message ?? s.reason}`);
+      return;
+    }
+    const r = s.value;
+    tiles += r.tiles;
+    entries += r.entries;
+    r.matched.forEach((h) => matched.add(h));
+    if (r.ok) okLogs++;
+    if (r.note && r.note !== "no names tiles") console.warn(`[ct-tiles] ${r.log.description}: ${r.note}`);
+  });
+
+  for (const ctx of contexts) {
+    await createFindings(ctx, [...matched].filter(ctx.keep), "ct_log");
+  }
+  console.log(`[ct-tiles] ${okLogs}/${logs.length} logs, ${tiles} tiles, ${entries} entries, ${matched.size} matched a brand`);
+  // Stale on /health/jobs only if no log at all has answered for an hour.
+  if (okLogs > 0) markSourceSuccess("ct_log");
 }

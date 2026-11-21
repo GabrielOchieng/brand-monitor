@@ -17,7 +17,7 @@ try {
   // .env not present -- fine in environments where vars are injected another way.
 }
 
-// Confirmed real (not theoretical) via ctLog.ts's crt.sh integration: on a network with
+// Confirmed real (not theoretical) via the old crt.sh integration: on a network with
 // broken/unreliable IPv6 routing but IPv6 DNS records still present (this dev machine's
 // VPN, and plausibly others), Node's fetch tries the AAAA address first and hangs for a
 // 10s connect timeout before ever trying the working IPv4 address -- `curl` succeeded
@@ -76,5 +76,11 @@ export const env = {
   // Contact (email or URL) sent in the User-Agent to SANS ISC's recent-domains feed, which
   // asks automated clients to identify themselves (lib/iscRecentDomains.ts). Optional.
   iscContact: process.env.ISC_CONTACT ?? "",
+  // CT log operators whose names tiles are read (pipeline/ctMonitorJob.ts), comma-separated
+  // as named in Google's log list. Default: Let's Encrypt only (~1.3 GB/day, ~70% of new
+  // names). "all" = every operator that serves names tiles (~3.2 GB/day, ~84%).
+  ctLogOperators: ((v) => (v.toLowerCase() === "all" ? [] : v.split(",").map((s) => s.trim()).filter(Boolean)))(
+    process.env.CT_LOG_OPERATORS ?? "Let's Encrypt"
+  ),
   tavilyMonthlyCap: Number(process.env.TAVILY_MONTHLY_CAP ?? 900),
 };

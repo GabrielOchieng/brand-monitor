@@ -24,7 +24,7 @@ keeps every organization's data apart. The live test brand is Jambojet (`jamboje
  FINDING SOURCES                              PER-FINDING LOOP                     OUTPUT
  ───────────────                              ────────────────                     ──────
  Domain discovery (typos, keywords)  ─┐
- Certificate Transparency (crt.sh)    │                                       ┌─> Alerts: email,
+ Certificate Transparency (LE logs)   │                                       ┌─> Alerts: email,
  Newly-registered-domain feed         │       ┌──────────────────────────┐    │   in-app, webhook
  Phishing feed (phishunt.io)          ├──────>│ Finding (domain/url/     │    │
  App Store + Google Play              │       │ social), status "new"    │    ├─> Threat feed and
@@ -69,7 +69,7 @@ registered in `apps/api/src/queue/dispatch.ts` and the queues are declared in `q
 |---|---|---|---|
 | Domain discovery | every 4h, or on demand | per brand | `pipeline/discoveryJob.ts` |
 | Recheck (enrich + score) | dispatcher every 5 min, then per finding cadence | per finding | `pipeline/recheckJob.ts` |
-| CT log monitor | every 30 min | per brand | `pipeline/ctMonitorJob.ts` |
+| CT log monitor (names tiles) | every 5 min | global | `pipeline/ctMonitorJob.ts` |
 | App Store + Google Play | every 4h | per brand | `pipeline/appStoreMonitorJob.ts` |
 | Newly-registered domains (whoisds and SANS ISC every 6h, hagezi once a day) | every 6h | global | `pipeline/nrdMonitorJob.ts` |
 | Phishing feed | hourly | global | `pipeline/phishFeedMonitorJob.ts` |
@@ -98,11 +98,21 @@ and keeps the registered ones (DNS check):
 The brand's own allowlisted domains are always excluded. Keywords are edited under
 **Settings → Brand**.
 
-**Certificate Transparency** (`lib/ctLog.ts`). Every 30 minutes, asks crt.sh for any TLS
-certificate whose hostname contains the brand name, so it catches names no pattern would
-generate (`secure-jambojet-portal.xyz`). **crt.sh is usually down** (502s and timeouts), so this
-has never produced a finding in production. Failures are retried once, logged as
-`[ct-log] … failed` and shown as stale on `/health/jobs` after 24h.
+**Certificate Transparency** (`lib/ctNamesTiles.ts`, `pipeline/ctMonitorJob.ts`, since
+2026-11-21). Every 5 minutes, reads every certificate name newly logged to the CT logs that
+publish *names tiles* (a names-only copy of each 256-entry tile, ~24 bytes per entry) and flags
+hostnames containing the brand name or a misspelling (same matcher as the new-domain feeds),
+source `ct_log`. A certificate is usually logged before a phishing site goes live, so this is the
+fastest domain source, and it also catches lookalike subdomains on platforms that issue per-site
+certificates. Which logs: `CT_LOG_OPERATORS` (default Let's Encrypt = Sycamore + Willow, all
+current shards; measured ~0.7 GB/day and ~60 s per run from Nairobi; Let's Encrypt saw ~70% of
+all newly logged names in a sample). `all` adds every operator that serves names tiles (Geomys,
+IPng, Microsec, GoDaddy, HARICA; ~3 GB/day, ~84%). Google, Sectigo and the older RFC 6962 logs
+don't serve names tiles and aren't read. Progress per log is kept in `ct_log_cursors`, so a
+failed or slow run resumes where it stopped; a new log starts at its current end, and a backlog
+over 20,000 tiles (a long outage) is skipped. Failures are logged as `[ct-tiles] …` and
+`ct_log` goes stale on `/health/jobs` after 1h without any log answering. This replaced the
+crt.sh search, which was down far more often than up.
 
 **Newly-registered-domain feed** (`lib/nrdFeed.ts`). Every 6 hours, downloads whoisds.com's free
 daily list of new registrations and flags any domain containing the brand name or one of its
@@ -122,7 +132,7 @@ after 48h. Commercial-use terms of the underlying Stamus data aren't stated.
 Internet Storm Center publishes every domain it first saw the previous day, compiled from CT
 logs and ICANN zone files (~335k a day, gTLDs only, so no `.co.ke`), as one ~3 MB gzipped file
 refreshed hourly. Read every run and matched the same way, source `isc_recent`. Because part of
-it comes from CT, it partly fills the gap crt.sh left. Set `ISC_CONTACT` so ISC can identify our
+it comes from CT, it overlaps with the CT monitor but also covers certificates in Google and Sectigo logs. Set `ISC_CONTACT` so ISC can identify our
 client in the User-Agent, as it asks. Terms: an ISC diary (2025-11-05) allows commercial use
 with attribution and no resale, but the API page links a non-commercial licence, so this is
 still to be confirmed with ISC. Data courtesy of the SANS Internet Storm Center.
@@ -427,6 +437,7 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_EXPLANATION_DAILY_LIMIT` | AI explanations and mention labelling |
 | `TAVILY_API_KEY`, `TAVILY_MONTHLY_CAP` | Social and web search |
 | `ISC_CONTACT` | Contact shown to SANS ISC in the User-Agent (optional) |
+| `CT_LOG_OPERATORS` | CT log operators to read, comma-separated as in Google's log list (default `Let's Encrypt`; `all` = every names-tile log) |
 | `TURNSTILE_SECRET_KEY` | Spam protection on the public report form |
 | `RECHECK_CONCURRENCY` | Parallel rechecks (default 3) |
 
@@ -457,8 +468,9 @@ VPS with a shared Postgres 18 server. See `DEPLOYMENT.md`.
 ## Known limits
 
 - **No database backups yet** (top open issue).
-- **CT monitoring doesn't work** while crt.sh is down, and the NRD feed is a 70k/day sample, so
-  new lookalike domains can be missed. `.co.ke` has no public zone file.
+- **CT covers Let's Encrypt's logs only by default** (~70% of new names; Google and Sectigo logs
+  aren't read), and the new-domain feeds are partial, so new lookalike domains can still be missed.
+  `.co.ke` has no public zone file, and a site with no certificate never shows up in CT.
 - **Parked-page detection flaps** on some live sites. Alerts are debounced; the score still swings.
 - **Scans come from a European data-centre IP with a desktop browser, homepage only.** Scam kits
   that only show the scam to Kenyan mobile visitors, or hide it deeper in a booking flow, can look

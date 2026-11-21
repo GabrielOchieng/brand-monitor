@@ -164,20 +164,21 @@ nothing on a normal run):
 
 - Fastest: `GET /health/jobs`: 200 with a recent `lastRecheckDispatchAt`, or 503 once jobs have
   stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `nrd_hagezi` / `isc_recent` / `phish_feed` / `google_play` / `social_search`
-  (last successful query; `stale` after 24h / 48h / 6h / 24h / 48h; social only when `TAVILY_API_KEY` is
+  (last successful query; `stale` after 1h / 48h / 48h / 24h / 6h / 24h / 48h; social only when `TAVILY_API_KEY` is
   set) and `tavilyUsage`. `GET /health/jobs?sources=1` also returns 503 when a source is stale.
   UptimeRobot watches it with email alerts on. Stale since the last restart just means it hasn't
   succeeded *since that restart*.
 - Registered schedules: `SELECT name, cron FROM pgboss.schedule;`. Expect `dispatch-discovery`
-  (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `dispatch-ct-monitor` (`*/30 * * * *`),
+  (`0 */4 * * *`), `dispatch-recheck` (`*/5 * * * *`), `ct-tiles-monitor` (`2-59/5 * * * *`),
   `dispatch-app-store-monitor` (`0 */4 * * *`), `nrd-monitor` (`15 */6 * * *`),
   `phish-feed-monitor` (`40 * * * *`), and `social-search-monitor` twice (`20 6 * * *` key `social`,
   `50 6 * * 1` key `fact_check`).
 - Scan history (pg-boss v12 deletes completed jobs, so use the app's tables):
   `SELECT date_trunc('hour', started_at), count(*), count(error) FROM scans GROUP BY 1 ORDER BY 1 DESC LIMIT 24;`
   Rechecks follow each finding's cadence, so a quiet hour is normal when nothing is due.
-- Zero findings from `app_store` / `google_play` is normal. Zero from `ct_log` is **not** proof nothing exists:
-  crt.sh fails so often that CT monitoring has never produced a finding in production.
+- Zero findings from `app_store` / `google_play` is normal. Zero from `ct_log` is normal for a
+  rare brand name; check the `[ct-tiles] N/N logs, … tiles, … entries` log line (every 5 min) and
+  `SELECT * FROM ct_log_cursors;` (`updated_at` should be minutes old).
 
 **Never leave a local `npm run dev` running.** Its recheck dispatcher runs against the local DB and
 sends real alert emails (using the local SMTP config) to a real inbox, with links to `localhost`.

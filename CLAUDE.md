@@ -16,7 +16,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - Roles live in our own `Membership.role`, not Clerk (Clerk charges for custom roles). `authenticate()`
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
-  Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feeds (`nrd` = whoisds sample, `nrd_hagezi` = hagezi/nrd 7-day list, `isc_recent` = SANS ISC recent domains; all one job), App Store
+  Extra finding sources: CT log monitor (`ct_log`, reads Let's Encrypt's CT names tiles every 5 min, cursor per log in `ct_log_cursors`), newly-registered-domain feeds (`nrd` = whoisds sample, `nrd_hagezi` = hagezi/nrd 7-day list, `isc_recent` = SANS ISC recent domains; all one job), App Store
   and Google Play monitor (`app_store`, `google_play`; one job, Play is scraped -- `pipeline/appStoreMonitorJob.ts`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
   Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), web search (`web_search`,
   same daily job; fake customer-care numbers / recruitment fees / booking pitches on non-social sites --
@@ -31,7 +31,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - On the office network, a web filter (Fortinet) answers DNS for known-bad domains with a block page
   (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
-  ct-monitor 30min, app-store-monitor 4h (App Store + Google Play), nrd-monitor 6h, phish-feed-monitor 1h and
+  ct-tiles-monitor 5min (global; replaced the per-brand crt.sh poll 2026-11-21), app-store-monitor 4h (App Store + Google Play), nrd-monitor 6h, phish-feed-monitor 1h and
   social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
@@ -53,9 +53,10 @@ Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DE
 2. (Fixed) Email alerts over SMTP work on the VPS (confirmed by the owner 2026-11-21; never worked on Render).
 3. The parked-page detector sometimes misreads one scan of a live site as parked (score flaps). Alerts are
    debounced since 2026-10-20 (`findings.first_live_at`, `down_streak`); the detector itself isn't fixed.
-4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
-   now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
-   The whoisds NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`; since 2026-11-21 the hagezi/nrd list
+4. CT: crt.sh (constantly down) was replaced 2026-11-21 by our own reader of CT *names tiles*
+   (`lib/ctNamesTiles.ts`), Let's Encrypt logs only by default (`CT_LOG_OPERATORS`, ~0.7 GB/day;
+   `all` ~3 GB/day). Google and Sectigo logs serve no names tiles and stay unread (~16-30% of names).
+   Names-tile support per log was probed only on 2026-11-21. The whoisds NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`; since 2026-11-21 the hagezi/nrd list
    (~390k/day, ~890 TLDs incl. .ke, from Stamus Labs) runs alongside it daily. SANS ISC's recent-domains feed (CT + zone files, ~335k/day) was added the same day
    (`isc_recent`; its commercial-use terms are still to be confirmed with ISC). Keywords can be marked paired
    (`concat_term_core`) in the Keywords panel since 2026-10-20; Jambojet's 6 core words are paired in prod.

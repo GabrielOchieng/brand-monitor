@@ -18,7 +18,7 @@ Each phase ships on its own and updates README / ARCHITECTURE "As built" when it
 | W2 | **Fake customer-care numbers** aren't searched for | The most common airline scam: "Jambojet customer care 07…" on fake pages and listings | Yes (Phase 1) |
 | W3 | **Cloaking**: scans come from a European data-centre IP with a desktop browser | Scam kits often show the scam only to Kenyan mobile visitors | Partly: mobile profile (Phase 4). A Kenyan/residential IP is paid |
 | W4 | **Homepage only** | jambo-jet.com's WhatsApp hand-off was three clicks into a booking flow (caught via its JS, by luck of a static bundle) | Yes: follow the funnel (Phase 4) |
-| W5 | **New-domain coverage holes**: whoisds NRD feed is a 70k/day sample (hagezi/nrd's ~390k/day list and SANS ISC's ~335k/day CT + zone-file list added 2026-11-21); crt.sh (CT) is down; `.co.ke` not covered | Missed `flyjambojetkenya.store` | Partly: CZDS zone files, own CT reader (Phase 5). `.co.ke` has no public zone file |
+| W5 | **New-domain coverage holes**: whoisds NRD feed is a 70k/day sample (hagezi/nrd's ~390k/day list and SANS ISC's ~335k/day CT + zone-file list added 2026-11-21); CT now read from Let's Encrypt's names tiles (2026-11-21; Google/Sectigo logs not read); `.co.ke` not covered | Missed `flyjambojetkenya.store` | Partly: CZDS zone files, own CT reader (Phase 5). `.co.ke` has no public zone file |
 | W6 | **Free-hosting subdomains** (`*.vercel.app`, `*.netlify.app`, `sites.google.com/…`) found only if a phishing feed lists them | Cheapest place to host a scam | Partly: web search (Phase 1) finds the ones search engines index |
 | W7 | **Email readiness** of lookalikes not checked | A lookalike with MX records is set up for fake job / invoice email | Yes (Phase 5) |
 | W8 | **Android apps** not monitored (iOS only) | Kenya is overwhelmingly Android | Yes, via an unofficial scraper (Phase 3) |
@@ -145,9 +145,9 @@ Daily job: download, diff against yesterday's list (kept on the screenshots volu
 names through `brandMatcher`. `.com/.net` need Verisign's separate agreement. Replaces the 70k/day
 NRD sample for covered TLDs; keep the NRD feed for the rest.
 
-**Own CT reader.** Replace crt.sh: poll a few large CT logs' `get-sth` / `get-entries` directly,
-parse certificate names, match against brands. Heavier (continuous polling, certificate parsing)
-and needs care with the VPS's CPU; scope it after Phase 1–4.
+~~**Own CT reader.**~~ Shipped 2026-11-21 as a names-tiles reader (`pipeline/ctMonitorJob.ts`): no
+certificate parsing, ~0.7 GB/day for Let's Encrypt's logs. Google and Sectigo logs only offer full
+tiles (~18 GB/day per log), so they stay unread.
 
 **Email readiness (W7).** On recheck, look up MX records for domain findings; a lookalike gaining
 MX records fires a `mail_ready` alert and scores `MX_CONFIGURED`.
