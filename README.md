@@ -1,339 +1,481 @@
 # Brand Monitor
 
-MVP build of the brand-impersonation detection platform described in `ARCHITECTURE.md`:
-**register a brand → discover lookalike domains → enrich → score explainably → alert on change.**
-Started as a single-tenant POC against Jambojet (`jambojet.com`); now a real multi-tenant
-build with Clerk auth, Postgres row-level security, and a background job system doing
-continuous discovery + recheck rather than one manual pass. See the plan referenced in
-each stage's git history for the reasoning behind specific decisions (Clerk vs. custom
-auth, pg-boss vs. Redis, the `Scan` batching model, etc.) — this file covers setup/run only.
+Brand Monitor finds people impersonating a brand online and helps you take them down. It looks
+for lookalike domains, clone sites, fake social media accounts, fake apps, fake customer-care
+numbers and recruitment-fee scams. It scores each one with rules you can trace, alerts the team
+when something matters, and prepares the takedown reports.
 
-## Prerequisites
+It's a multi-tenant SaaS: each organization signs in with Clerk, and Postgres row-level security
+keeps every organization's data apart. The live test brand is Jambojet (`jambojet.com`).
+
+| Doc | What's in it |
+|---|---|
+| `README.md` (this file) | How it works, every feature, local setup |
+| `DEPLOYMENT.md` | Hosting (Vercel + Dokploy VPS), environment, operations, incidents |
+| `ARCHITECTURE.md` | "As built" summary at the top, then the original design (partly outdated) |
+| `ROADMAP.md` | Detection gaps compared with enterprise tools, and the phased plan to close them |
+| `CLAUDE.md` | Working notes and conventions for AI-assisted development |
+
+---
+
+## How it works
+
+```
+ FINDING SOURCES                              PER-FINDING LOOP                     OUTPUT
+ ───────────────                              ────────────────                     ──────
+ Domain discovery (typos, keywords)  ─┐
+ Certificate Transparency (crt.sh)    │                                       ┌─> Alerts: email,
+ Newly-registered-domain feed         │       ┌──────────────────────────┐    │   in-app, webhook
+ Phishing feed (phishunt.io)          ├──────>│ Finding (domain/url/     │    │
+ App Store + Google Play              │       │ social), status "new"    │    ├─> Threat feed and
+ Social search (Tavily)               │       └────────────┬─────────────┘    │   finding page
+ Web search (Tavily)                  │                    v                  │
+ Manual submission                    │       ┌──────────────────────────┐    ├─> Takedown kit +
+ Public scam-report form             ─┘       │ Recheck job (scheduled)  │────┤   tracker
+                                              │  RDAP/WHOIS, DNS, IP host│    │
+                                              │  page scan + screenshot  │    └─> Post-takedown
+                                              │  contacts/payment details│        watch
+                                              │  visual + favicon match  │
+                                              │  deterministic score     │
+                                              └──────────────────────────┘
+```
+
+1. **Sources create findings.** Each source (below) creates a bare, unscored *finding* when it
+   sees something new. A finding has a `type` (`domain`, `url` or `social`) and a free-text
+   `source` (`discovery`, `ct_log`, `nrd`, `nrd_hagezi`, `phish_feed`, `app_store`, `google_play`,
+   `social_search`, `web_search`, `manual`, `public_report`).
+2. **The recheck job enriches and scores it.** Every 5 minutes a dispatcher picks up findings
+   that are due and runs `pipeline/recheckJob.ts` on each: registry lookup, DNS, hosting
+   provider, a headless browser scan with screenshot, contact/payment extraction, favicon and
+   visual matching, then a rule-based score. The first real score usually lands within minutes.
+3. **Rechecks repeat on a cadence.** A finding is rechecked every 20 minutes in its first 3 days,
+   every 2 hours until day 7, then daily. Dormant domains (parked or "not deployed yet") stay at
+   hourly at most, so the moment one goes live is caught. False positives stop being rechecked;
+   resolved findings don't (post-takedown watch).
+4. **Changes fire alerts.** After each recheck, `queue/alertDispatch.ts` compares the result with
+   the org's alert rules and sends email, in-app and webhook alerts.
+5. **Analysts triage and take down.** The web app shows a triage-first overview, the threat feed
+   and a finding page with the evidence, the takedown kit and the tracker.
+
+The score is deterministic: every point comes from a named rule, shown as "why this score". The
+AI only *explains* a score after the fact and never sets one.
+
+### Background jobs
+
+Jobs run on pg-boss (a Postgres-backed queue) inside the API process. The schedules are
+registered in `apps/api/src/queue/dispatch.ts` and the queues are declared in `queue/boss.ts`.
+
+| Job | Schedule | Scope | Code |
+|---|---|---|---|
+| Domain discovery | every 4h, or on demand | per brand | `pipeline/discoveryJob.ts` |
+| Recheck (enrich + score) | dispatcher every 5 min, then per finding cadence | per finding | `pipeline/recheckJob.ts` |
+| CT log monitor | every 30 min | per brand | `pipeline/ctMonitorJob.ts` |
+| App Store + Google Play | every 4h | per brand | `pipeline/appStoreMonitorJob.ts` |
+| Newly-registered domains (whoisds every 6h, hagezi once a day) | every 6h | global | `pipeline/nrdMonitorJob.ts` |
+| Phishing feed | hourly | global | `pipeline/phishFeedMonitorJob.ts` |
+| Social + web search | daily (or on demand, 3/org/day) | global | `pipeline/socialSearchMonitorJob.ts` |
+| Fact-check search | weekly | global | same job, separate schedule |
+
+`GET /health/jobs` reports when each job and each source last succeeded and flags stale ones.
+UptimeRobot watches it in production.
+
+---
+
+## Features
+
+### 1. Finding sources
+
+**Domain discovery** (`pipeline/permutations.ts`, `discoveryJob.ts`). Generates candidate domains
+and keeps the registered ones (DNS check):
+- typos and homoglyphs of the brand name (`jarnbojet.com`, `jambojеt.com` with a Cyrillic `е`)
+- the exact brand name on other TLDs (`jambojet.site`)
+- brand + keyword compounds in 4 arrangements (`bookjambojet.com`, `jambojet-booking.xyz`)
+- keyword-brand-keyword for every pair of keywords, high-risk TLDs only (`flyjambojetkenya.store`)
+- **paired keywords**: keywords marked "paired" (`concat_term_core`, max 8 per brand) are also
+  combined with each other around the brand (`flybookjambojet.xyz`). 6 paired keywords add about
+  1,440 candidates (~6k DNS queries) per run, so keep the list to words attackers actually use.
+
+The brand's own allowlisted domains are always excluded. Keywords are edited under
+**Settings → Brand**.
+
+**Certificate Transparency** (`lib/ctLog.ts`). Every 30 minutes, asks crt.sh for any TLS
+certificate whose hostname contains the brand name, so it catches names no pattern would
+generate (`secure-jambojet-portal.xyz`). **crt.sh is usually down** (502s and timeouts), so this
+has never produced a finding in production. Failures are retried once, logged as
+`[ct-log] … failed` and shown as stale on `/health/jobs` after 24h.
+
+**Newly-registered-domain feed** (`lib/nrdFeed.ts`). Every 6 hours, downloads whoisds.com's free
+daily list of new registrations and flags any domain containing the brand name or one of its
+misspellings (≥6 characters). Any TLD, no certificate needed. **It's a sample**: the free list
+is capped at 70,000 domains a day, so it misses most registrations.
+
+**hagezi/nrd list** (`lib/hageziNrd.ts`, same job, since 2026-11-21). Once a day after hagezi's
+08:00 UTC rebuild, streams its free list of every domain registered in the last 7 days (~3M
+names, ~48 MB, ~390k a day across ~890 TLDs including `.ke`; built from Stamus Labs' feed) and
+matches it the same way, source `nrd_hagezi`. On its first run it found `flyjambojetdeals.online`
+and `jambojetonlinebooking.site`. It's one maintainer's project and Stamus warns of lags of a
+few days, so whoisds stays on as well. A download failure or a suspiciously short file (under
+100k lines) is logged as `[nrd-hagezi] … failed` and the source goes stale on `/health/jobs`
+after 48h. Commercial-use terms of the underlying Stamus data aren't stated.
+
+**Phishing feed** (`lib/phishFeed.ts`). Every hour, downloads phishunt.io's public feed of active
+phishing URLs (CC0, ~800 URLs, aggregating OpenPhish, PhishTank, urlscan, Google Safe Browsing
+and TweetFeed). Matches the brand anywhere in the URL, host *or path*, so phishing on shared
+hosting (`*.pages.dev`, `sites.google.com/...`) is caught. Other free feeds were ruled out on
+2026-10-19 (commercial-use bans, closed sign-ups, wrong content).
+
+**App Store and Google Play** (`lib/appStoreSearch.ts`, `lib/googlePlaySearch.ts`). Every 4 hours,
+searches Apple's iTunes Search API and Google Play's Kenya store. Flags apps whose title or
+publisher resembles the brand (one-letter typos and digit look-alikes count) and that aren't on
+the brand's official list. Google Play has no search API, so it uses the unofficial
+`google-play-scraper` package. That sits outside Google's terms and breaks when Google changes its
+pages; failures show as a stale `google_play` source on `/health/jobs`. Official apps are added
+as store links under **Settings → Brand → Official accounts and apps**.
+
+**Social accounts** (`pipeline/socialFindings.ts`, needs `TAVILY_API_KEY`). Once a day, web
+searches through Tavily restricted to Facebook, Instagram, TikTok, X, Telegram and YouTube:
+- 4 brand searches (one in Swahili: "tiketi ofa bei nafuu")
+- 2 searches for contact numbers already found on the brand's high/critical findings, rotating
+  through them, so a scam number found on a clone site leads to the social accounts using it
+
+A result becomes a `social` finding only if it isn't an official account and either the handle
+or display name looks like the brand (`@fly.jambojet`, `jambotjet01235`, "Jambo Jet Airline"),
+or the post gives a phone/WhatsApp/M-Pesa number that isn't the brand's, or it asks job
+applicants for a fee. The finding is the **account** (canonical profile URL,
+`lib/socialUrls.ts`). The post, title and snippet are stored as evidence. A post with no
+identifiable account is kept as its own finding when it names the brand and shows a foreign
+number. **Social findings are never scanned**: platforms block automated access and forbid
+scraping, so rechecks re-score the stored evidence without touching the network.
+
+**Web search** (`pipeline/webSearchFindings.ts`, same daily job). 3 Tavily searches of the whole
+web (excluding the brand's own domains) for scam *content* rather than lookalike names:
+`"<brand> customer care number"`, `<brand> recruitment cabin crew jobs` and a booking pitch. A
+non-social hit becomes a finding (then scanned and scored like any URL) only when it names the
+brand **and** shows a foreign number, or its site name resembles the brand (including free
+builders such as `sites.google.com/view/...`), or it asks applicants for a fee. Everything else
+is dropped. A clone on an unrelated name whose search snippet shows none of these is still
+missed.
+
+**Search budget.** Tavily's free plan gives 1,000 searches a month with no card. One brand uses
+about 276 a month. `TAVILY_MONTHLY_CAP` (default 900) stops searching before the free allowance
+runs out; usage shows on `/health/jobs`.
+
+**Manual submission.** "Add a suspicious link" on the Overview page. A bare domain gets full
+domain enrichment. A URL with a path (a specific profile or page) is scanned and scored as that
+exact page without domain checks, since registration facts about someone else's platform say
+nothing about one fake page on it. A social link becomes a social finding. All stay on the normal
+recheck cadence.
+
+**Public scam reports** (`routes/publicReports.ts`, `/report/<token>`). Owners and admins create
+a per-brand public link (rotate or turn off anytime) to share with customers. The form takes a
+link and/or a phone/WhatsApp number plus a description, with no login.
+- A link becomes a finding (source `public_report`) and is scanned, max 30 report-triggered scans
+  per brand per day. `wa.me` links, non-channel `t.me` links and the brand's own site are never
+  scanned.
+- Numbers, and any numbers in the description, are matched against contact details already found
+  on findings, so "they called me from 0712…" links to the clone sites using that number.
+- Each report raises an in-app notification, and the finding page lists its reports.
+- Spam protection: Cloudflare Turnstile when configured, a honeypot field and 5 reports/hour per
+  IP. Only what the reporter typed and an optional email are stored, no IP or device data.
+- This is the only unauthenticated write route.
+
+### 2. What each recheck collects
+
+**Registration intelligence** (`lib/rdap.ts`, `lib/whois.ts`). Registrar, created / last-changed
+/ expiry dates, EPP status codes (`clientHold` shows as "Suspended at registry") and the
+registrar's abuse contact, over RDAP with WHOIS as fallback. The hosting provider and its abuse
+contact come from IP RDAP, re-queried only when the IP changes. `.co.ke` and similar ccTLDs often
+return nothing; the finding is still created, just without an age signal.
+
+**Registration & site history** (`pipeline/registrationChanges.ts`). Changes between scans
+(registrar, nameservers, last-changed date, status, expiry, IP) are kept on the finding page.
+Registrar, nameserver, last-changed and status changes fire a `registration_changed` alert. This
+catches a dormant domain being re-armed before its website comes back.
+
+**Website scan** (`apps/scanner`, Playwright in Docker). Loads the page in headless Chromium,
+takes a screenshot and detects login and payment forms and parked pages. It also returns link
+targets, up to 50k characters of text and contact links found only in the site's own JavaScript
+(`scriptLinks.ts`), such as a WhatsApp link a fake booking flow opens on "Book Now". The saved
+screenshot gets a drawn address bar with the final URL and the capture time in UTC
+(`lib/addressBar.ts`), so it stands as evidence.
+
+**Contact & payment details** (`lib/indicators.ts`). Extracts phone numbers (Kenyan numbers
+normalized to `+254…`), WhatsApp links, M-Pesa paybill/till numbers, emails, Telegram handles and
+crypto wallets. The brand's own contacts (read from its homepage, cached 45 days) and emails at
+its own domains are ignored. **A value shared by two findings links them**: the finding page
+lists every other finding using the same number, which is the strongest "same operation" signal.
+Known gap: jambojet.com serves the scanner a blank page, so Jambojet's own numbers aren't captured
+yet (retried every 6h).
+
+**Brand matching** (`lib/favicon.ts`, `lib/visualSimilarity.ts`). Compares the favicon hash with
+the brand's, and a regional perceptual hash of the screenshot with the brand's real site (the
+"visual reference" under **Settings → Brand**).
+
+**Campaign correlation** (`pipeline/correlation.ts`). Groups findings registered at the same
+registrar within 7 days, per brand.
+
+### 3. Scoring
+
+Additive and deterministic (`pipeline/scoring.ts`). Severity comes from the total:
+**low** < 30 ≤ **medium** < 60 ≤ **high** < 80 ≤ **critical**. The finding page shows the
+breakdown from the latest scan; older scans are kept underneath but not shown.
+
+| Rule | Points | When |
+|---|---|---|
+| `PHISH_FEED_LISTED` | +60 | Listed by public phishing feeds (worded "reported", not "confirmed") |
+| `APP_STORE_IMPERSONATION` | +60 | App name/publisher resembles the brand and it isn't an official app |
+| `SOCIAL_HANDLE_IMPERSONATION` | +40 | Social account name resembles the brand, not an official account |
+| `DOMAIN_SIMILARITY_HIGH` | +30 | Brand name verbatim plus keywords, or ≥85% similar |
+| `DOMAIN_AGE_LT_24H` / `_7D` / `_30D` | +30 / +20 / +10 | Domain registered recently |
+| `SOCIAL_CONTACT_DETAILS` | +30 | Social post gives a number that isn't the brand's |
+| `RECRUITMENT_FEE` | +30 | Names the brand, offers jobs and asks applicants for a fee (`lib/recruitmentScam.ts`, English and Swahili) |
+| `HOMOGLYPH_MATCH` | +25 | Confusable characters imitate the brand |
+| `BRAND_NAME_ON_PAGE` | +25 | Page title or text uses the brand's name (catches redesigned clones) |
+| `PUBLIC_REPORT` | +15 / +25 | Reported by 1–2 / 3+ members of the public |
+| `SHARED_INDICATOR` | +20 | Shares a number, wallet or email with another finding |
+| `DOMAIN_SIMILARITY_MEDIUM` | +15 | 60–85% similar to the brand |
+| `FAVICON_MATCH` | +15 | Same favicon as the brand |
+| `PAYMENT_DESTINATION` | +15 | Names the brand and asks for payment to an M-Pesa number or wallet |
+| `LOGIN_FORM_DETECTED` | +15 | Login form on the page |
+| `PAYMENT_FORM_DETECTED` | +15 | Payment form or language on the page |
+| `VISUAL_SIMILARITY_MATCH` | +10 | Screenshot resembles the brand's real site |
+| `HIGH_RISK_TLD` | +10 | TLD with elevated abuse history |
+| `PARKING_PAGE_DEDUCTION` | −10 | Parked or for-sale page |
+| `OWN_DOMAIN_DEDUCTION` | −40 | One of the brand's own domains |
+
+Social findings use the two social rules in place of the domain-name rules.
+
+### 4. Alerts
+
+Every org gets five rules on creation. Owners and admins edit them under **Settings → Alerts**:
+on/off, channels and threshold, one rule per kind (`routes/alertRules.ts`).
+
+| Kind | Fires when | Default |
+|---|---|---|
+| `severity_threshold` | A finding's severity crosses into the threshold | on, high |
+| `website_activated` | A dormant domain starts serving real content (once per finding) | on |
+| `registration_changed` | Registrar, nameservers, status or last-changed date change | on |
+| `site_reactivated` | A taken-down site comes back | on |
+| `public_report` | Someone submits the public report form (in-app only) | on |
+| `new_finding` | Any new finding at or above a severity | off, created when first enabled |
+| `score_increase` | Score jumps by at least N points | off, created when first enabled |
+
+**Channels:**
+- **In-app**: the bell icon and `/notifications`.
+- **Email**: plain SMTP to every member.
+- **Webhook**: configured under **Settings → Integrations**. HTTPS to a public host only, signed
+  with a secret (shown to owners and admins, can be rotated), with a "send test" button.
+
+The parked-page detector sometimes misreads one scan of a live site, so alerts are debounced:
+`website_activated` fires only once per finding, and "down" needs two consecutive scans.
+
+### 5. Triage and investigation
+
+- **Lifecycle**: `new → investigating → confirmed / false_positive → resolved`, plus an
+  assignee, tags and a threaded notes log on the finding page. Bulk actions on the threat feed.
+- **AI explanation** (`lib/aiExplain.ts`): "Generate AI explanation" asks an LLM to explain the
+  score and evidence in plain English. Any OpenAI-compatible API works; the default is Google
+  Gemini's free tier, with `AI_MODEL` as a fallback chain. Cached per scan and capped at
+  `AI_EXPLANATION_DAILY_LIMIT` per org per day (default 100).
+- **Related findings**: the same contact details or the same registration campaign.
+- **CSV export**: every finding matching the current filters and sort (max 5,000), with
+  registrar, IP, hosting org, assignee and a link back. Cells starting with `= + - @` are escaped
+  so attacker-chosen URLs can't run as spreadsheet formulas.
+
+### 6. Takedowns
+
+- **Takedown kit** (`lib/takedownKit.ts`): every reporting channel that applies to the finding,
+  each with a ready-to-send message built from the evidence (URL, registration, host, score
+  reasons, numbers, screenshot link). Channels: registrar abuse email (asking for `clientHold`;
+  ICANN Lookup when the registry gave no contact), hosting provider (Vercel/Cloudflare web forms
+  or the host's abuse email), Google Safe Browsing, Safaricom 333 SMS for Kenyan numbers,
+  WhatsApp in-app report per number, KE-CIRT/CC, and the platform's impersonation form for
+  social findings. **Nothing is sent automatically**; the analyst sends each one.
+- **Tracker**: log each request (provider, ticket reference, notes) with its own status
+  (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
+  per channel, so you can see which channels actually work. A warning shows when a takedown is
+  marked completed but the site is still live: content removal without a registrar suspension
+  leaves the domain with the attacker.
+- **Post-takedown watch** (`pipeline/takedownWatch.ts`): resolved and taken-down findings keep
+  being rechecked. Once two consecutive scans show the site down (no DNS, parked, or HTTP
+  404/410/451), seeing live content again fires `site_reactivated`, logs it in the history and
+  moves a resolved finding back to `new`. Prompted by `flyjambojet.org`, which was taken down in
+  September 2026 and came back in October.
+
+### 7. Brand awareness
+
+- **Mentions feed** (`/mentions`, `pipeline/brandMentions.ts`): social posts from the same
+  searches that name the brand but aren't threats (news, complaints, promotions, chatter). No
+  extra search credits. One AI call after each run labels up to 25 new mentions with a category
+  and sentiment. Every stored mention is re-checked against the current threat rules each run,
+  and one that now counts as a threat moves to the threat feed. It's a sample (~30–40 posts a
+  run), not full social listening.
+- **Fact-checks**: once a week, one search per brand on pesacheck.org. A new article about the
+  brand raises an in-app notification (no finding; the article isn't the threat).
+
+### 8. Web app
+
+| Page | What it shows |
+|---|---|
+| **Overview** (`/dashboard`) | Open threats by severity, new this week, a **Needs attention** list (open high/critical, untriaged first), takedowns in progress, source health, recent activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
+| **Threats** (`/threats`) | The threat feed. Open findings by default ("All" shows everything), filters, sorting, paging, bulk actions, CSV export. Targets shown by name (`@handle` + platform, app id, host + path). |
+| **Finding page** (`/threats/[id]`) | Left: evidence (screenshot or social post, score breakdown, AI explanation, contacts, reports, related findings). Right: triage, takedown kit and tracker, domain details and history. |
+| **Mentions** (`/mentions`) | Non-threat brand mentions with 7-day counts and filters. |
+| **Reports** (`/reports`) | Public scam reports and the per-brand report link. |
+| **Notifications** (`/notifications`) | In-app alerts. |
+| **Settings** (`/settings?section=<id>`) | Sidebar, one setting at a time (dropdown on phones). **Brand**: details and domains, keywords with the paired switch, official accounts and apps, report link, visual reference, add/delete brand. **Alerts**, **Integrations** (webhook), **Team**. |
+| **Public report form** (`/report/<token>`) | No login. |
+
+Every page has a skeleton loading state, and a thin progress bar shows navigation in flight. The
+selected brand is remembered per browser.
+
+### 9. Accounts, roles and tenancy
+
+- **Organizations** come from Clerk. A Clerk webhook (`/api/webhooks/clerk`) syncs orgs, users
+  and memberships into Postgres.
+- **Roles** (`owner`, `admin`, `analyst`, `viewer`) live in our own `memberships` table, not
+  Clerk (Clerk charges for custom roles). The org creator becomes `owner` and invitees start as
+  `viewer`. Owners change roles under **Settings → Team**, never their own, and the last owner
+  can't be demoted. Only owners and admins can change settings; others see them read-only.
+  Invite people with Clerk's organization switcher.
+- **Tenancy**: Postgres row-level security. Every request and pipeline query runs through
+  `withTenant(orgId, fn)` (`lib/tenant.ts`) as the restricted `brandmonitor_app` role.
+  `adminPrisma` is used only for the Clerk webhook and cross-tenant job dispatch.
+- **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
+  manual discovery runs, 50 manual submissions and 3 social searches a day. In memory, so they
+  reset on restart.
+- **CORS** is locked to `WEB_APP_URL` (plus localhost in development).
+
+All data queried is public (DNS, RDAP/WHOIS, public web pages, search results). If a run surfaces
+a genuinely live phishing site, report it responsibly to the brand's security team.
+
+---
+
+## Local setup
+
+### Prerequisites
 
 - Node.js 20+ and npm
-- Docker Desktop (for Postgres and the containerized Playwright scanner)
-- A Clerk application with Organizations enabled. No custom Clerk roles are needed: roles
-  (`owner`/`admin`/`analyst`/`viewer`) live in this app's own `memberships` table — the org
-  creator becomes `owner`, invitees start as `viewer`, and an owner changes roles under **Settings → Team**.
-  Clerk's own Admin/Member role is ignored. Also add a webhook in Clerk pointing at
-  `/api/webhooks/clerk` (events: organization, user, organizationMembership) and put its signing
-  secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
-- Deployed setup (Vercel for the web app; API, scanner and Postgres on a Dokploy VPS): see `DEPLOYMENT.md`.
+- Docker Desktop (runs Postgres on port 5450 and the Playwright scanner)
+- A Clerk application with **Organizations** enabled. No custom Clerk roles are needed. Add a
+  webhook pointing at `<api>/api/webhooks/clerk` (events: organization, user,
+  organizationMembership) and put its signing secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
 
-## Setup
+### Steps
 
 ```bash
-# 1. Install dependencies. PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD keeps Chromium off your host --
-#    the scanner service runs Playwright inside Docker only.
+# 1. Install. PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD keeps Chromium off your machine:
+#    the scanner runs Playwright inside Docker.
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 
-# 2. Start Postgres + the containerized scanner (first run downloads images, a few GB)
+# 2. Start Postgres and the scanner (the first run downloads a few GB of images)
 docker compose up -d --build
 
-# 3. Configure env (fill in real values -- see each .env.example for what's needed,
-#    including your Clerk publishable/secret keys)
+# 3. Configure (see the comments in each example file)
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
 
-# 4. Create the schema (also creates the restricted brandmonitor_app DB role used at
-#    runtime, and its RLS policies -- see prisma/migrations/*/migration.sql)
+# 4. Create the schema, the restricted brandmonitor_app role and its RLS policies
 npm run prisma:migrate
 
-# 5. One-time per environment: bootstrap pg-boss's own schema and grant brandmonitor_app
-#    narrow access to it. Re-run only after a pg-boss version upgrade ships an internal
-#    schema migration.
-npm run queue:bootstrap
+# 5. Once per environment: create pg-boss's schema and grant brandmonitor_app access to it.
+#    Re-run only after a pg-boss upgrade that changes its schema.
+npm run queue:bootstrap -w @brand-monitor/api
 
-# 6. Seed a demo brand. Once you've signed in once via the app and created/joined a real
-#    Clerk organization, re-run this with SEED_ORG_ID (and SEED_USER_ID/SEED_USER_EMAIL)
-#    set to your real Clerk ids so the seeded data is reachable through your actual login
-#    -- a placeholder id here is invisible to any real session (RLS correctly hides it).
+# 6. Optional demo brand. Sign in once and create an organization first, then set
+#    SEED_ORG_ID (and SEED_USER_ID / SEED_USER_EMAIL) to your real Clerk ids;
+#    a placeholder id is invisible to your login because of RLS.
 npm run prisma:seed
 ```
 
-## Run
-
-In two terminals:
+### Run
 
 ```bash
-npm run dev:api   # http://localhost:4000 -- also boots the in-process job queue/workers
+npm run dev:api   # http://localhost:4000, also starts the job queue and workers
 npm run dev:web   # http://localhost:3000
 ```
 
-Sign in (or create an organization) at `localhost:3000`, then open `/dashboard` (**Overview**). If
-your org has no brand yet, a short form lets you create one. Click **Run discovery** to kick off an
-immediate pass, or just wait — the same detection loop also runs continuously in the
-background:
+Sign in, create an organization, then open `/dashboard`. With no brand yet, a short form creates
+one. Click **Run discovery** for an immediate pass, or wait for the background jobs.
 
-- **Discovery** (every 4h per brand, or on-demand via the button): generates typosquat/
-  homoglyph candidate domains, plus the exact brand name on other TLDs (`jambojet.site`) and
-  `brand+keyword` compounds (`bookjambojet.com`) using the keywords configured for the brand,
-  DNS-checks them, and creates a bare (unscored) finding for anything newly registered. A brand
-  created with no keywords only gets the typo/homoglyph/alternate-TLD candidates — add keywords
-  via the dashboard's **Keywords** button (or the field on the create-brand form).
-- **Recheck** (every 5 minutes, picks up anything due): does the actual enrichment — RDAP/
-  WHOIS, website scan, favicon match, scoring — for one finding at a time, on a cadence that
-  starts aggressive (every ~20min in a finding's first 72h) and backs off with age. A
-  brand-new finding typically gets its first real score within minutes, not immediately.
-- **Alerting**: every org gets a default rule (alert on severity crossing into "high") the
-  moment it's created (or, for orgs from before this shipped, backfilled by the alerting
-  migration). Fires by email (SMTP — see `.env.example`), an in-app notification (bell icon
-  in the header), and/or a webhook if one's configured. Owners and admins edit both under
-  **Settings → Alerts** (one rule per kind: on/off, channels, threshold; `GET /api/alert-rules`,
-  `PUT /api/alert-rules/:kind`, `routes/alertRules.ts`) and **Settings → Integrations** (webhook URL
-  on/off, signing secret shown to owners/admins only, rotate, send a test; HTTPS to a public host
-  only). Five kinds are seeded per org; `new_finding` and `score_increase` are created the first
-  time they're switched on. Email goes to every member; `public_report` is in-app only.
-  **Caveat:** email uses plain SMTP. It never worked on the old Render host (SMTP blocked);
-  on the VPS it's not yet confirmed (see `DEPLOYMENT.md` §6). In-app and webhook alerts are unaffected.
-- **Lifecycle**: a finding's status (`new → investigating → confirmed/false_positive →
-  resolved`), assignee, and tags are editable from its detail page. `false_positive` stops
-  automatic rechecks; `resolved` does **not** (see post-takedown watch below). Notes are a
-  simple threaded log on the same page.
-- **Registration intelligence**: each recheck reads the registry record over RDAP (WHOIS as
-  fallback): registrar, created / last-changed / expiry dates, EPP status codes (a
-  `clientHold`/`serverHold` shows as "Suspended at registry"), and the registrar's abuse
-  contact. The hosting provider and its abuse contact come from IP RDAP, re-queried only when
-  the IP changes. Changes between scans (registrar, nameservers, last-changed date, status,
-  expiry, IP) are kept in a **Registration & site history** on the detail page. Registrar,
-  nameserver, last-changed and status changes fire the auto-seeded `registration_changed`
-  alert. This catches a dormant domain being re-armed before its website comes back.
-- **Post-takedown watch**: a finding that is `resolved` or has a `completed` takedown keeps
-  being rechecked. Once two consecutive scans show the site definitely down (no DNS, parked, or HTTP
-  404/410/451; a failed scan doesn't count or break the streak), seeing live content again fires the auto-seeded
-  `site_reactivated` alert, logs a history entry, and moves a resolved finding back to `new`.
-  On that scan it replaces the severity and `website_activated` alerts rather than adding to them.
-- **Manual submission**: "Add a suspicious link" on the Overview page to report a suspicious page discovery
-  can't reach on its own — most notably a fake social-media profile, since platforms like
-  Instagram/Facebook have no discovery API to search (see `ARCHITECTURE.md`). A bare domain
-  is treated like any discovered domain (full WHOIS/DNS/favicon enrichment, ongoing
-  recheck cadence); a path-bearing URL (e.g. a specific profile page) is scanned and scored
-  as that exact page — WHOIS/DNS/favicon checks are skipped for it since domain-registration
-  facts about someone else's platform say nothing about one fake profile hosted there — but
-  it still stays enrolled in the normal recheck cadence, not just scored once.
-- **Dormant-domain watch**: a registered typosquat with nothing hosted on it yet (a parked
-  page, or a cloud platform's default "not deployed" placeholder) is rechecked every 20
-  minutes for its first 3 days, then hourly indefinitely — not backing off to daily like a
-  normal finding (hourly rather than faster, originally to fit Render's free bandwidth) — specifically so
-  the moment it starts serving real content gets caught fast. A dedicated `website_activated`
-  alert rule (auto-seeded per org, same as the default severity alert) fires the first time
-  that happens and only then (a live site whose scan is misread as parked once doesn't re-alert), separately from the regular severity/score alerts.
-- **AI explanation**: a "Generate AI explanation" button on a finding's detail page asks
-  an LLM (Google Gemini's free tier by default) to narrate its deterministic score/evidence in plain English — the score itself is
-  never set or influenced by the model, only explained after the fact (see `ARCHITECTURE.md`
-  §9). Explanations are cached per scan (never regenerated for an unchanged scan) and
-  rate-limited per org (`AI_EXPLANATION_DAILY_LIMIT`, default 100/day) to stay inside the
-  provider's free quota. Requires `AI_API_KEY` in `.env` (any OpenAI-compatible provider via
-  `AI_BASE_URL`; `AI_MODEL` is a comma-separated fallback chain, so an overloaded or
-  quota-spent model falls through to the next; see `apps/api/.env.example`) — the button surfaces a clear
-  error if it's missing/invalid rather than failing silently.
-- **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
-  manual discovery runs, 50 manual submissions and 3 manual social media searches a day. Limits
-  live in memory and reset on restart.
-- **Takedown tracking**: a finding's detail page lets you log takedown requests (provider —
-  e.g. registrar/hosting provider, an optional ticket reference, notes) and track each one's
-  status (`requested → acknowledged → completed/rejected`) independently — a finding can have
-  several in flight at once. Buttons prefill the provider and contact from the registrar and
-  host abuse contacts. A warning shows when a takedown is marked completed but the latest scan
-  still sees live content (content removal without a registrar suspension leaves the domain
-  with the attacker). Pure record-keeping: nothing here ever calls a registrar/hosting
-  provider's actual API.
-- **Screenshot address bar** (`lib/addressBar.ts`, since 2026-11-20): headless Chromium has no
-  browser chrome, so each saved finding screenshot gets a drawn strip on top showing the page's
-  final URL (after redirects) and the capture time in UTC, so it stands as evidence of which
-  site it is. Only the saved copy gets it; visual similarity hashes the untouched page image. If
-  drawing fails, the plain screenshot is saved. Existing screenshots get the bar on their next
-  recheck.
-- **Takedown kit** (`lib/takedownKit.ts`, `GET /api/findings/:id/takedown-kit`, `TakedownKit`
-  panel inside the tracker): every reporting channel that applies to a finding, each with a
-  ready-to-send message built from the evidence (URL, registration, IP/host, score reasons,
-  contact numbers, screenshot link): registrar abuse email (asks for clientHold; ICANN Lookup
-  when the registry gave no contact), hosting provider (Vercel/Cloudflare web forms, otherwise
-  the host's abuse email), Google Safe Browsing (browser warnings while takedowns are pending),
-  Safaricom 333 SMS for Kenyan numbers, WhatsApp in-app report per number, KE-CIRT/CC email,
-  and for social findings the platform's impersonation report. Domain-only channels are
-  skipped for URL and social findings. The analyst sends each one (the sign-off is a
-  `[Your name]` placeholder); nothing is sent automatically. "Mark as reported" logs a tracker
-  row per channel, so requested/resolved times show which channel actually works.
-- **Certificate Transparency monitoring** (every 30 min per brand): searches crt.sh for any
-  logged TLS certificate whose hostname contains the brand name, so it catches squats that no
-  generated pattern would (`secure-jambojet-portal.xyz`). The brand's own domains/subdomains are
-  excluded; anything else becomes a finding with source `ct_log` even if DNS doesn't resolve yet.
-  **crt.sh is often down** (502s/timeouts for days in Oct 2026; production had never produced a
-  `ct_log` finding). Failures are retried once, logged as `[ct-log] … failed`, and show up as
-  `sources.ct_log.stale` on `/health/jobs` after 24h without a successful query.
-- **Newly-registered-domain feed** (every 6h, global): downloads whoisds.com's free daily list of
-  new registrations and creates a finding (source `nrd`) for any domain containing a brand name or
-  one of its ASCII misspellings (`typoVariants`, ≥6 chars). Any TLD, any naming pattern, no cert
-  needed. **It's a sample**: the free list is capped at 70,000 domains/day, so it misses most
-  registrations (`flyjambojetkenya.store` wasn't in it). Extra coverage, not a guarantee.
-- **Phishing feed** (hourly, global): downloads phishunt.io's public feed of active phishing URLs
-  (CC0; aggregates OpenPhish, PhishTank, urlscan, Google Safe Browsing, TweetFeed — ~800 URLs) and
-  creates a finding (source `phish_feed`) for any URL containing the brand or a misspelling,
-  host *or path*. That catches phishing on shared hosting (`*.pages.dev`, `sites.google.com/...`)
-  that domain discovery can't. A bare host becomes a `domain` finding, anything with a path a `url`
-  finding. Scored by `PHISH_FEED_LISTED` (+60, high on its own), worded "reported", not
-  "confirmed" (phishunt's terms). Other free feeds were ruled out on 2026-10-19: OpenPhish's free
-  feed forbids commercial use, PhishTank refuses new users (403), URLhaus is mostly malware and
-  wants a key, Phishing.Database stopped updating.
-- **Social accounts** (daily, global; needs `TAVILY_API_KEY`): four web searches per brand through
-  Tavily (free 1,000 searches/month, no card) restricted to Facebook, Instagram, TikTok, X, Telegram
-  and YouTube (one in Swahili: "tiketi ofa bei nafuu"), plus two a day by contact numbers already
-  found on the brand's high/critical findings, rotating through them (`numberPivotQueries`), plus
-  three general-web searches (below). About 276 credits/month per brand, so the 900 cap covers ~3 brands. A hit becomes a `social` finding
-  (source `social_search`) only if it isn't one of the brand's official accounts and either its
-  handle or display name looks like the brand (`@fly.jambojet`, `FlyJambojetUG`, and since
-  2026-11-20 one-letter typos and digit look-alikes like `jambotjet01235` / "Jambo Jet Airline",
-  `nameResemblesBrand`) or its title/snippet gives a phone, WhatsApp or M-Pesa number that isn't
-  the brand's. A number-search hit counts even without naming the brand, when it shows that number.
-  Owners/admins can also run it for one brand from the Overview page ("Search social & web",
-  `POST /api/pipeline/social-search`, 3/org/day); it runs as a queued job and leaves an in-app
-  notification with the result. The finding is the **account** (canonical profile URL, `lib/socialUrls.ts`); the post,
-  title and snippet go in `social_intel`, numbers in `finding_indicators` (so a TikTok fake and a
-  clone site sharing a WhatsApp number link up). Social findings are **never scanned**: the platforms
-  block automated access and forbid scraping, so rechecks re-score stored evidence daily with no
-  network. Scoring: `SOCIAL_HANDLE_IMPERSONATION` (+40) and `SOCIAL_CONTACT_DETAILS` (+30) replace the
-  domain-name rules; both together is high. A post that names the brand, talks about hiring and asks
-  applicants for a fee counts as a threat even without a number (`RECRUITMENT_FEE`, below). Manual submissions and public reports of a social link
-  become the same kind of finding. A hard cap (`TAVILY_MONTHLY_CAP`, default 900) stops searching
-  before the free allowance runs out; usage shows on `/health/jobs`. Official accounts (and the
-  official `wa.me` link) are edited under **Settings → Official accounts and apps**.
-- **Web search** (since 2026-11-20, part of the same daily job; `pipeline/webSearchFindings.ts`):
-  three Tavily searches of the whole web except the brand's own domains (`exclude_domains`), looking
-  for scam content rather than lookalike names: `"<brand> customer care number"` and
-  `<brand> recruitment cabin crew jobs` daily, and a booking pitch alternating between two wordings.
-  Social hits among the results take the social path above. Any other site becomes a finding (source
-  `web_search`; bare host = `domain`, with a path = `url`; then scanned and scored as usual) only
-  when the result names the brand **and** shows a phone/WhatsApp/payment number that isn't the
-  brand's, or the site's name resembles the brand (including the site name on free builders such as
-  `sites.google.com/view/...`, `*.wixsite.com/...`), or it asks job applicants for a fee. Everything
-  else is dropped: a live test showed most hits are legitimate travel, job and news sites, so there's
-  no allowlist to maintain. Known gaps: a clone on an unrelated name whose search result shows none
-  of these is still missed, and travel agents quoting their own number next to the brand become
-  (low-scoring) findings. Skipped if the brand already tracks the URL or its whole host.
-  `RECRUITMENT_FEE` (+30; `lib/recruitmentScam.ts`) fires on scanned pages and social posts that
-  name the brand, use hiring words (recruitment, vacancies, cabin crew, nafasi za kazi …) and ask for
-  a fee (registration/training/medical fee, "send KES …", ada ya usajili …).
-- **Mentions feed** (`/mentions`, since 2026-11-20; `pipeline/brandMentions.ts`,
-  `GET /api/brands/:id/mentions`, table `brand_mentions`): social posts from the same searches
-  that name the brand but aren't threats (news, complaints, promotions, general chatter; not
-  official accounts), which used to be discarded. No extra search credits. After each search run
-  one AI call (`generateText`, the same Gemini chain as explanations) labels up to 25 new mentions
-  with a category (news / complaint / promotion / general) and a sentiment; the answer format is one
-  compact line per post because Gemini's thinking eats the token cap. A failed labelling leaves
-  them unlabelled for the next run (3 attempts). The page shows last-7-days counts and filters.
-  It's a sample (~30–40 posts a run from the past month's indexed posts), not social listening, and
-  the official account's posts can slip in when a title doesn't carry the handle. Each run labels up
-  to 4 batches, and re-checks every stored mention against the current threat rules (no search
-  credits): one that now counts as a threat moves to the threat feed. The page is paged, 20 a page.
-  Since 2026-11-20 a post's account is also read from the snippet's "Author: @handle", and a post
-  with no identifiable account still becomes a social finding (keyed on the post URL,
-  `postAsAccount`) when it names the brand and gives a number that isn't the brand's; aggregate
-  pages (TikTok /discover, /explore, ...) never do.
-- **Fact-checks** (weekly, same key): one search per brand on pesacheck.org. A new article about the
-  brand raises an in-app notification linking to it (no finding: the article isn't the threat).
-  PesaCheck's RSS feed only holds ~15 articles (about a day), so searching is the reliable route.
-- **Contact & payment details** (every successful scan): the scanner returns the page's link hrefs
-  and up to 50k chars of text, plus contact links found only in the site's own JavaScript
-  (`apps/scanner/src/scriptLinks.ts`: `wa.me`, `api.whatsapp.com`, `t.me`, `tel:` patterns in
-  first-party scripts, e.g. a WhatsApp link a fake booking flow opens on "Book Now"; never bare
-  digit runs). `lib/indicators.ts` extracts phone numbers (Kenyan forms
-  normalized to `+254…`), WhatsApp (`wa.me`, `api.whatsapp.com`), M-Pesa paybill/till, emails,
-  Telegram handles and crypto wallets into `finding_indicators`. The brand's own contacts (read
-  from its homepage, cached 45 days as a `contact_indicators` BrandAsset) and emails at its own
-  domains are dropped. Shown on the finding page with every other finding that uses the same
-  value. Scoring: `SHARED_INDICATOR` (+20, value also on another non-false-positive finding) and
-  `PAYMENT_DESTINATION` (+15, page names the brand and gives an M-Pesa number or wallet). Known
-  gap: jambojet.com serves the scanner a blank page, so Jambojet's own numbers aren't captured
-  yet (retried every 6h) — a clone quoting the real call-centre number can link to another clone.
-- **Public scam reports** (`/reports`, form at `/report/<token>`): owners/admins create a per-brand
-  link (rotate or turn off anytime) to share with customers. The form takes a link and/or a
-  phone/WhatsApp number plus a description, with no login. A link becomes a finding (source
-  `public_report`) and is scanned (max 30 report-triggered scans per brand per day; `wa.me` and
-  non-channel `t.me` links and the brand's own site are never scanned; a social-media link becomes a
-  social finding, which isn't scanned either). Numbers and anything in the description are
-  matched against `finding_indicators`, so "they called me from 0712…" links to the clone sites
-  using that number. Each report raises an in-app `public_report` notification; the finding page
-  lists its reports; scoring adds `PUBLIC_REPORT` (+15, or +25 at 3+ non-dismissed reports). Spam
-  protection: Cloudflare Turnstile when configured (DEPLOYMENT.md §4), honeypot, 5/hour per IP.
-  Stored: what the reporter typed, optional email; no IP or device data.
-- **App Store and Google Play monitoring** (every 4h per brand, one job): searches Apple's iTunes
-  Search API and, since 2026-11-20, Google Play's Kenya store (`lib/googlePlaySearch.ts`, the
-  unofficial `google-play-scraper` package: Google has no search API, scraping sits outside its
-  terms, and it breaks when Google changes its pages; failures show as a stale `google_play`
-  source on `/health/jobs`). Flags apps whose title or publisher resembles the brand
-  (`nameResemblesBrand`, so "Jambo Jet" and digit look-alikes count) and that aren't on the brand's
-  official list: App Store and Google Play app links are accepted in **Settings → Official accounts and
-  apps** (`lib/appListings.ts`, compared by store + app id; Jambojet's is
-  `play.google.com/store/apps/details?id=com.jambojet.booking.twa`). Source `app_store` /
-  `google_play`, scored `high` on its own via `APP_STORE_IMPERSONATION`; an app added to the
-  official list later loses that credit on its next recheck.
-- **Keyword-brand-keyword candidates**: discovery also generates `<kw1><brand><kw2>` for every pair
-  of the brand's keywords (no hyphens, high-risk TLDs only) — e.g. `flyjambojetkenya.store` once
-  `fly` and `kenya` are keywords. Each keyword adds ~2×(keywords)×12 DNS lookups per run, so
-  keep the list to words attackers actually use.
-- **Paired keywords**: click a keyword in the Keywords panel to mark it *paired* (`concat_term_core`).
-  Paired keywords are also combined with each other around the brand (`fly`+`book` →
-  `flybookjambojet.xyz`, 4 arrangements, high-risk TLDs). Capped at 8 per brand: 6 paired adds
-  ~1,440 candidates (~6k DNS queries) per discovery run.
-- **CSV export**: "Export CSV" on the threat feed downloads every finding matching the current
-  filters and sort (not just the page, max 5,000) with registrar, IP, hosting org, assignee and a
-  link back (`GET /api/findings/export.csv`). Cells starting with `= + - @` are prefixed with `'`
-  so attacker-chosen URLs can't run as spreadsheet formulas.
-- **Team & roles** (**Settings → Team**; `/team` redirects there): lists org members; owners can change anyone's role (never their own,
-  and the last owner can't be demoted). Invite people with Clerk's organization switcher.
+> **Warning:** `npm run dev:api` runs the real recheck dispatcher, which sends real alert emails
+> and scans real third-party sites. Don't leave it running. Stopping the terminal task may leave
+> the node process alive: find it with `netstat -ano | grep :4000` and kill it.
 
-## Web app (since 2026-11-20)
+### Configuration
 
-- **Overview** (`/dashboard`): open threats by severity and new this week, a **Needs attention**
-  list (open high/critical findings, untriaged first), takedowns in progress, detection-source
-  health (from `/health/jobs`) and recent activity. Discovery, the social & web search and
-  "Add a suspicious link" are buttons at the top. Data: `GET /api/dashboard/summary`
-  (`openBySeverity`, `newThisWeek`, `attention`, `openTakedowns`).
-- **Threats** (`/threats`): open findings by default (`status=open` = not false positive or
-  resolved; "All" shows everything). Filters apply as they change; targets are shown by name
-  (`@handle` + platform, app id, host + path) with readable source names (`lib/format.ts`).
-- **Finding page**: two columns, evidence (screenshot or social post, score breakdown, AI
-  explanation, contacts, reports, related findings) on the left, triage, takedowns and folded
-  domain/history details on the right.
-- **Settings** (`/settings?section=<id>`): a sidebar lists every setting and only the chosen one is
-  shown (a dropdown on phones; old `?tab=` links still work). **Brand** (details with domain
-  checking (a pasted URL is trimmed to its domain, `invalid_domain` otherwise), discovery keywords
-  with an explicit "paired" switch, official accounts and apps, the public report form link, the
-  visual reference, add/delete brand), **Alerts**, **Integrations** (webhook) and **Team**. Only
-  owners and admins can change them; everyone else sees them read-only (`lib/useMyRole.ts`). The
-  selected brand is remembered per browser (`lib/selectedBrand.ts`).
-- Loading: every page has a skeleton shaped like its content (`loading.tsx` +
-  `components/PageSkeletons.tsx`), the threat feed swaps its table for a skeleton while filters,
-  sorting or paging load (`components/PendingNavigation.tsx`), and a thin bar at the top shows any
-  navigation in flight (`components/NavProgress.tsx`).
+API (`apps/api/.env`, full comments in `.env.example`):
 
-## What to expect
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Owner connection, used for migrations and admin access |
+| `DATABASE_APP_URL` | Restricted `brandmonitor_app` connection, used at runtime (RLS applies) |
+| `SCANNER_URL` | The Playwright scanner service (`http://127.0.0.1:3100` locally) |
+| `PORT` | API port (4000) |
+| `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET` | Clerk auth and webhook verification |
+| `WEB_APP_URL` | The web app's origin, used for CORS and links in alerts |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email alerts |
+| `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_EXPLANATION_DAILY_LIMIT` | AI explanations and mention labelling |
+| `TAVILY_API_KEY`, `TAVILY_MONTHLY_CAP` | Social and web search |
+| `TURNSTILE_SECRET_KEY` | Spam protection on the public report form |
+| `RECHECK_CONCURRENCY` | Parallel rechecks (default 3) |
 
-- Most WHOIS/RDAP lookups for `.co.ke` and similar ccTLDs come back empty — expected (see
-  `apps/api/src/lib/whois.ts`); the finding is still created, just without an age signal.
-- rdap.org returns 403 to requests without a User-Agent (Node's `fetch` sends none by
-  default), so `lib/rdap.ts` sets one. Before 2026-10-08 every production lookup silently fell
-  back to WHOIS because of this.
-- A brand's own allowlisted domains are filtered out of the candidate set, so they never
-  show up as a false-positive "threat."
-- A finding's "why this score" breakdown always reflects only its *latest* scan, not a
-  running history — score/evidence history is append-only underneath (see the `Scan` model
-  in `schema.prisma`) but the UI/API deliberately show only the current batch.
-- Everything queried is public data (DNS, RDAP/WHOIS, public web pages) — see `ARCHITECTURE.md`
-  §14/§33. If a run surfaces a genuinely live phishing domain, that's a real finding worth
-  responsibly flagging to the brand's own security team.
+Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+`CLERK_SECRET_KEY` and optionally `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+
+A missing optional key turns its feature off rather than crashing: no Tavily key means no
+social/web search, no AI key means the explain button shows an error.
+
+### Tests
+
+```bash
+npx tsc --noEmit -p apps/api
+npx tsc --noEmit -p apps/web
+npx vitest run       # the integration test needs ALLOW_DB_TESTS=1 and a local Postgres
+```
+
+GitHub Actions runs the typecheck, build and tests (against a real Postgres service) on every
+push and pull request to `main`.
+
+### Deployment
+
+`main` auto-deploys: the web app to Vercel, and the API and scanner (one container) to a Dokploy
+VPS with a shared Postgres 18 server. See `DEPLOYMENT.md`.
+
+---
+
+## Known limits
+
+- **No database backups yet** (top open issue).
+- **CT monitoring doesn't work** while crt.sh is down, and the NRD feed is a 70k/day sample, so
+  new lookalike domains can be missed. `.co.ke` has no public zone file.
+- **Parked-page detection flaps** on some live sites. Alerts are debounced; the score still swings.
+- **Scans come from a European data-centre IP with a desktop browser, homepage only.** Scam kits
+  that only show the scam to Kenyan mobile visitors, or hide it deeper in a booking flow, can look
+  clean. See ROADMAP Phase 4.
+- **No comment-section monitoring** on the brand's own posts yet (ROADMAP Phase 2).
+- **Screenshots** sit on a Dokploy volume without backups, and each scan overwrites the previous
+  one.
+- **On the office network**, a Fortinet web filter answers DNS for known-bad domains with a block
+  page (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
+- No error tracking; rate limits are in memory only.
+
+---
 
 ## Project layout
 
 ```
 apps/
-  api/       Fastify + Prisma + TypeScript -- auth, RLS-scoped routes, detection pipeline,
-             pg-boss job queue (apps/api/src/queue/), REST API
-  web/       Next.js dashboard/threat-feed/threat-detail UI, Clerk-backed auth
-  scanner/   Playwright, containerized -- headless page fetch/screenshot/form-detection
+  api/       Fastify + Prisma + TypeScript
+    src/routes/    REST API (brands, findings, alert rules, members, public reports, webhooks, ...)
+    src/pipeline/  discovery, recheck, scoring, cadence, source monitors, takedown watch
+    src/lib/       RDAP/WHOIS, DNS, indicators, favicon/visual matching, takedown kit, search clients
+    src/queue/     pg-boss setup, schedules, alert dispatch, /health/jobs
+    prisma/        schema and migrations (RLS policies live in the migration SQL)
+  web/       Next.js 15 + Clerk: overview, threat feed, finding page, settings, public report form
+  scanner/   Playwright in Docker: page load, screenshot, forms, parked pages, script links
 packages/
-  shared/    Zod schemas + types shared by api and web
+  shared/    Zod schemas, types and severity thresholds shared by api and web
 ```
 
-Table/field names in `apps/api/prisma/schema.prisma` intentionally match `ARCHITECTURE.md` §7.
+Table and field names in `apps/api/prisma/schema.prisma` follow `ARCHITECTURE.md` §7.

@@ -34,6 +34,7 @@ export function jobsHealth(now: Date = new Date(), last: Date | null = lastReche
 export const SOURCE_STALE_AFTER_MS: Record<string, number> = {
   ct_log: 24 * 60 * 60 * 1000, // runs every 30 min
   nrd: 48 * 60 * 60 * 1000, // one file a day, published at an unpredictable hour
+  nrd_hagezi: 48 * 60 * 60 * 1000, // downloaded once a day after hagezi's 08:00 UTC rebuild
   phish_feed: 6 * 60 * 60 * 1000, // runs hourly
   google_play: 24 * 60 * 60 * 1000, // runs every 4h; a scraper, so it breaks when Google changes its pages
   // Only tracked when it can run at all (TAVILY_API_KEY set) -- otherwise it would read

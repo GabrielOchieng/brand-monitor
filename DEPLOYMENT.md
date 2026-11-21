@@ -142,9 +142,9 @@ and close it afterwards.
 (service → Backups); a free off-site target with no card is still to be chosen. Until then a lost
 VPS disk loses the data.
 
-**Email over SMTP from OVH: not yet confirmed.** Render's free tier blocked outbound SMTP, which is
-why email alerts never worked in production. OVH VPSes normally allow it. Check after the next
-alert: `SELECT channel, status, count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
+**Email over SMTP from OVH works** (confirmed 2026-11-21). Render's free tier blocked outbound
+SMTP, which is why email alerts never worked there. If it breaks: `SELECT channel, status,
+count(*), max(error) FROM alert_deliveries GROUP BY 1, 2;`
 
 **pg-boss polling is still tuned for Render's old 5 GB/month bandwidth cap** (~30 MB/day instead
 of ~400). It's harmless on the VPS; read the comment in `apps/api/src/queue/boss.ts` before
@@ -163,7 +163,7 @@ that hold.
 nothing on a normal run):
 
 - Fastest: `GET /health/jobs`: 200 with a recent `lastRecheckDispatchAt`, or 503 once jobs have
-  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `phish_feed` / `google_play` / `social_search`
+  stalled for 15 min. It also reports `sources.ct_log` / `nrd` / `nrd_hagezi` / `phish_feed` / `google_play` / `social_search`
   (last successful query; `stale` after 24h / 48h / 6h / 24h / 48h; social only when `TAVILY_API_KEY` is
   set) and `tavilyUsage`. `GET /health/jobs?sources=1` also returns 503 when a source is stale.
   UptimeRobot watches it with email alerts on. Stale since the last restart just means it hasn't

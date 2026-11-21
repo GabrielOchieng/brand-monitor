@@ -16,7 +16,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 - Roles live in our own `Membership.role`, not Clerk (Clerk charges for custom roles). `authenticate()`
   reads userId/orgId from the Clerk JWT and the role from the DB.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
-  Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feed (`nrd`), App Store
+  Extra finding sources: CT log monitor (`ct_log`), newly-registered-domain feeds (`nrd` = whoisds sample, `nrd_hagezi` = hagezi/nrd 7-day list, same job), App Store
   and Google Play monitor (`app_store`, `google_play`; one job, Play is scraped -- `pipeline/appStoreMonitorJob.ts`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
   Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), web search (`web_search`,
   same daily job; fake customer-care numbers / recruitment fees / booking pitches on non-social sites --
@@ -50,13 +50,13 @@ Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DE
 ## Open issues (as of 2026-11-19, priority order)
 1. No database backups. Dokploy can back up to S3-compatible storage; needs a free, no-card target.
    Production was down 2026-10-22 -> 11-19 (Render suspension) until the move to the VPS.
-2. Email alerts over SMTP: never worked on Render (blocked); unconfirmed on the VPS. Check
-   `alert_deliveries` after the next alert before reaching for an HTTPS-API email provider.
+2. (Fixed) Email alerts over SMTP work on the VPS (confirmed by the owner 2026-11-21; never worked on Render).
 3. The parked-page detector sometimes misreads one scan of a live site as parked (score flaps). Alerts are
    debounced since 2026-10-20 (`findings.first_live_at`, `down_streak`); the detector itself isn't fixed.
 4. CT monitoring never worked in production: crt.sh is constantly down (502s/timeouts). Failures are
    now logged and shown on `/health/jobs`, but there's no working free substring-search CT source yet.
-   The NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`. Keywords can be marked paired
+   The whoisds NRD feed is a 70k/day sample and missed `flyjambojetkenya.store`; since 2026-11-21 the hagezi/nrd list
+   (~390k/day, ~890 TLDs incl. .ke, from Stamus Labs) runs alongside it daily. SANS ISC `recentdomains` is a candidate next. Keywords can be marked paired
    (`concat_term_core`) in the Keywords panel since 2026-10-20; Jambojet's 6 core words are paired in prod.
 5. Smaller: no error tracking; rate limits are in-memory only (`lib/rateLimit.ts`).
 6. Screenshots live on a Dokploy volume (mounted 2026-11-20; before that every deploy wiped them),

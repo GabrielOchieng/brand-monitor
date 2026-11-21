@@ -73,6 +73,7 @@ const SEVERITY_EDGE: Record<string, string> = {
 const SOURCE_NAMES: Record<string, string> = {
   ct_log: "Certificate logs",
   nrd: "New-domain feed",
+  nrd_hagezi: "New-domain feed (hagezi)",
   phish_feed: "Phishing feed",
   google_play: "Google Play",
   social_search: "Social and web search",
