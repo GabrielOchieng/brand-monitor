@@ -1,4 +1,5 @@
 import { adminPrisma } from "../adminDb";
+import { listMonitoredBrands } from "../lib/monitoredBrands";
 import { env } from "../env";
 import {
   fetchLogList,
@@ -106,7 +107,8 @@ async function readLog(log: TiledLog, keep: (h: string) => boolean, deadline: nu
 }
 
 export async function runCtMonitorJob(now: number = Date.now()): Promise<void> {
-  const brands = await adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  // Paused brands (platform admin) are skipped -- lib/monitoredBrands.ts.
+  const brands = await listMonitoredBrands();
   if (brands.length === 0) return;
   const contexts = await Promise.all(brands.map((b) => loadBrandMatch(b.id, b.organizationId)));
   const keep = (h: string) => contexts.some((c) => c.keep(h));

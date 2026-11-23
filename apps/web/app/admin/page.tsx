@@ -4,15 +4,17 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
-import { AdminShell, AdminTable, StatCard, ago, day, td, useAdminData } from "../../components/admin/AdminShell";
+import { AdminShell, AdminTable, MonitoringStatus, StatCard, ago, day, td, useAdminData } from "../../components/admin/AdminShell";
 
 interface Overview {
   month: string;
-  totals: { orgs: number; users: number; brands: number; scansThisMonth: number; emailsThisMonth: number; tavilyThisMonth: number; tavilyCap: number };
+  totals: { orgs: number; users: number; brands: number; monitoredBrands: number; scansThisMonth: number; emailsThisMonth: number; tavilyThisMonth: number; tavilyCap: number };
   orgs: Array<{
     id: string;
     name: string;
     createdAt: string;
+    pausedAt: string | null;
+    pausedBrands: number;
     members: number;
     brands: number;
     findings: number;
@@ -76,18 +78,21 @@ export default function AdminOrgsPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatCard label="Organizations" value={t.orgs} />
             <StatCard label="Users" value={t.users} />
-            <StatCard label="Brands" value={t.brands} hint="all monitored" />
+            <StatCard label="Brands" value={t.brands} hint={t.monitoredBrands === t.brands ? "all monitored" : `${t.monitoredBrands} monitored, ${t.brands - t.monitoredBrands} paused`} />
             <StatCard label="Scans" value={t.scansThisMonth.toLocaleString()} hint={`in ${data.month}`} />
             <StatCard label="Alert emails" value={t.emailsThisMonth} hint={`sent in ${data.month}`} />
             <StatCard label="Tavily searches" value={`${t.tavilyThisMonth} / ${t.tavilyCap}`} hint={`in ${data.month}, all brands`} />
           </div>
-          <AdminTable head={["Organization", "Members", "Brands", "Findings", "Scans this month", "Emails this month", "Last active", "Created"]}>
+          <AdminTable head={["Organization", "Monitoring", "Members", "Brands", "Findings", "Scans this month", "Emails this month", "Last active", "Created"]}>
             {data.orgs.map((o) => (
               <tr key={o.id} className="hover:bg-elevated/50">
                 <td className="whitespace-nowrap px-4 py-2.5">
                   <Link href={`/admin/orgs/${o.id}`} className="font-medium text-ink hover:text-brand">
                     {o.name}
                   </Link>
+                </td>
+                <td className={td}>
+                  <MonitoringStatus pausedAt={o.pausedAt} pausedBrands={o.pausedBrands} brands={o.brands} />
                 </td>
                 <td className={td}>{o.members}</td>
                 <td className={td}>{o.brands}</td>

@@ -143,3 +143,14 @@ export function ago(iso: string | null): string {
 }
 
 export const day = (iso: string) => new Date(iso).toLocaleDateString();
+
+export function MonitoringStatus({ pausedAt, pausedBrands = 0, brands = 1 }: { pausedAt: string | null; pausedBrands?: number; brands?: number }) {
+  if (pausedAt) return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">Paused</span>;
+  if (pausedBrands > 0)
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+        {pausedBrands} of {brands} paused
+      </span>
+    );
+  return <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">On</span>;
+}

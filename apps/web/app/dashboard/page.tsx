@@ -37,6 +37,7 @@ interface Brand {
   id: string;
   name: string;
   primaryDomain: string;
+  monitoringPausedAt?: string | null;
 }
 
 interface RunStatus {
@@ -81,7 +82,9 @@ const SOURCE_NAMES: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { orgId, isLoaded } = useSession();
+  const { orgId, isLoaded, me } = useSession();
+  // The org-wide pause has its own banner (PausedBanner); this page only adds the per-brand one.
+  const activeOrgPaused = !!me?.organizations.find((o) => o.id === orgId)?.monitoringPaused;
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [brandId, setBrandId] = useState<string | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -284,8 +287,15 @@ export default function DashboardPage() {
 
   const runPct = run && run.candidatesTotal > 0 ? Math.round((run.candidatesChecked / run.candidatesTotal) * 100) : 0;
 
+  const selectedBrand = brands?.find((b) => b.id === brandId);
+
   return (
     <div>
+      {selectedBrand?.monitoringPausedAt && !activeOrgPaused && (
+        <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Monitoring of {selectedBrand.name} is paused by the platform admin. Its findings are still here, but nothing new is discovered or scanned.
+        </p>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

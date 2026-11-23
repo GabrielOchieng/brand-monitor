@@ -22,6 +22,8 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   First account / lockout: `npm run auth:create-user`; lost 2FA: `npm run auth:disable-2fa`.
 - Platform admins (`users.platform_role`, set only by `npm run auth:make-admin`) use `/admin`
   (`routes/admin.ts`, needs 2FA, every action in `admin_audit_log`). Only they create orgs.
+- Admins can pause monitoring per org or brand. **Any new job that loops over brands must use
+  `listMonitoredBrands()` / `MONITORED_BRAND` (`lib/monitoredBrands.ts`)**, never `brand.findMany` directly.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`, reads Let's Encrypt's CT names tiles every 5 min, cursor per log in `ct_log_cursors`), newly-registered-domain feeds (`nrd` = whoisds sample, `nrd_hagezi` = hagezi/nrd 7-day list, `isc_recent` = SANS ISC recent domains; all one job), App Store
   and Google Play monitor (`app_store`, `google_play`; one job, Play is scraped -- `pipeline/appStoreMonitorJob.ts`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,

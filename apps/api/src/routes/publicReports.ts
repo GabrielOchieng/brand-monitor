@@ -6,6 +6,7 @@ import { fromPrisma } from "pg-boss";
 import { adminPrisma } from "../adminDb";
 import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
+import { brandPausedInTx } from "../lib/monitoredBrands";
 import { extractIndicators, type Indicator } from "../lib/indicators";
 import { parseSubmittedUrl } from "../lib/submittedUrl";
 import { parseSocialUrl } from "../lib/socialUrls";
@@ -164,7 +165,9 @@ async function saveReport(
       const existing = await tx.finding.findUnique({ where: { brandId_identifier: { brandId: brand.id, identifier: scannable.identifier } } });
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const scansToday = await tx.publicReport.count({ where: { brandId: brand.id, scanQueued: true, createdAt: { gte: since } } });
-      const underCap = scansToday < PUBLIC_REPORT_DAILY_SCAN_CAP;
+      // A paused brand (platform admin) still collects reports, but nothing is scanned or
+      // created -- the same path as being over the daily cap.
+      const underCap = scansToday < PUBLIC_REPORT_DAILY_SCAN_CAP && !(await brandPausedInTx(tx, brand.id));
 
       if (existing) {
         findingId = existing.id;

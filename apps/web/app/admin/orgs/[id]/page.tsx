@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { apiFetch } from "../../../../lib/api";
-import { AdminShell, AdminTable, ago, day, td, useAdminData } from "../../../../components/admin/AdminShell";
+import { AdminShell, AdminTable, MonitoringStatus, ago, day, td, useAdminData } from "../../../../components/admin/AdminShell";
 
 const ROLES = ["owner", "admin", "analyst", "viewer"] as const;
 
 interface OrgDetail {
-  org: { id: string; name: string; createdAt: string };
+  org: { id: string; name: string; createdAt: string; pausedAt: string | null; pausedBy: string | null };
   members: Array<{
     userId: string;
     email: string;
@@ -21,7 +21,7 @@ interface OrgDetail {
     googleLinked: boolean;
     lastActiveAt: string | null;
   }>;
-  brands: Array<{ id: string; name: string; primaryDomain: string; createdAt: string; findings: number; scansThisMonth: number; emailsThisMonth: number; lastScanAt: string | null }>;
+  brands: Array<{ id: string; name: string; primaryDomain: string; createdAt: string; pausedAt: string | null; pausedBy: string | null; findings: number; scansThisMonth: number; emailsThisMonth: number; lastScanAt: string | null }>;
   invites: Array<{ id: string; email: string; role: string; createdAt: string; expiresAt: string }>;
 }
 
@@ -89,6 +89,22 @@ function OrgPage() {
   }
 
   const hasOwner = !!data?.members.some((m) => m.role === "owner");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function setPaused(kind: "orgs" | "brands", targetId: string, name: string, pause: boolean) {
+    const what = kind === "orgs" ? `all monitoring for ${name}` : `monitoring of ${name}`;
+    if (pause && !window.confirm(`Pause ${what}? Data is kept; nothing new is discovered, scanned or searched until you resume.`)) return;
+    setActionError(null);
+    setBusy(targetId);
+    try {
+      await apiFetch(`/api/admin/${kind}/${targetId}/${pause ? "pause" : "resume"}`, { method: "POST" });
+      await reload();
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <AdminShell title={data?.org.name ?? "Organization"} blocked={blocked} error={error ?? actionError} loading={!data && !error}>
@@ -97,6 +113,25 @@ function OrgPage() {
           <Link href="/admin" className="text-sm text-ink-subtle hover:text-ink">
             ← All organizations
           </Link>
+          <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-ink">Monitoring</span>
+              <MonitoringStatus pausedAt={data.org.pausedAt} />
+              {data.org.pausedAt && (
+                <span className="text-xs text-ink-subtle">
+                  since {day(data.org.pausedAt)}
+                  {data.org.pausedBy ? ` by ${data.org.pausedBy}` : ""}
+                </span>
+              )}
+            </div>
+            <button
+              className={data.org.pausedAt ? "btn-primary" : "btn-secondary"}
+              disabled={busy === data.org.id}
+              onClick={() => setPaused("orgs", data.org.id, data.org.name, !data.org.pausedAt)}
+            >
+              {data.org.pausedAt ? "Resume organization" : "Pause organization"}
+            </button>
+          </div>
           {created && !hasOwner && (
             <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Organization created. Invite its first owner below.</p>
           )}
@@ -150,16 +185,28 @@ function OrgPage() {
             {data.brands.length === 0 ? (
               <p className="text-sm text-ink-subtle">No brands yet.</p>
             ) : (
-              <AdminTable head={["Brand", "Domain", "Findings", "Scans this month", "Emails this month", "Last scan", "Created"]}>
+              <AdminTable head={["Brand", "Domain", "Monitoring", "Findings", "Scans this month", "Emails this month", "Last scan", "Created", ""]}>
                 {data.brands.map((b) => (
                   <tr key={b.id}>
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink">{b.name}</td>
                     <td className={td}>{b.primaryDomain}</td>
+                    <td className={td}>
+                      <MonitoringStatus pausedAt={data.org.pausedAt ?? b.pausedAt} />
+                    </td>
                     <td className={td}>{b.findings.toLocaleString()}</td>
                     <td className={td}>{b.scansThisMonth.toLocaleString()}</td>
                     <td className={td}>{b.emailsThisMonth}</td>
                     <td className={td}>{ago(b.lastScanAt)}</td>
                     <td className={td}>{day(b.createdAt)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {data.org.pausedAt ? (
+                        <span className="text-xs text-ink-subtle">org paused</span>
+                      ) : (
+                        <button className="btn-ghost text-xs" disabled={busy === b.id} onClick={() => setPaused("brands", b.id, b.name, !b.pausedAt)}>
+                          {b.pausedAt ? "Resume" : "Pause"}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </AdminTable>

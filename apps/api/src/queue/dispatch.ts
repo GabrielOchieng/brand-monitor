@@ -24,14 +24,16 @@ import { runNrdMonitorJob } from "../pipeline/nrdMonitorJob";
 import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
 import { runSocialSearchMonitorJob, runFactCheckMonitorJob, runManualSocialSearch } from "../pipeline/socialSearchMonitorJob";
 import { markRecheckDispatched } from "./health";
+import { MONITORED_BRAND, isBrandPaused, isFindingPaused, listMonitoredBrands } from "../lib/monitoredBrands";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's
 // other callers. A "find everything due, across every org" query is inherently
 // cross-tenant; no single request context could ever express it. Kept to exactly these
 // two auditable, read-only, id-only selects -- never used to read/write tenant content.
 
+// Paused brands (platform admin) are left out of both -- lib/monitoredBrands.ts.
 async function listAllBrandsForDispatch(): Promise<Array<{ brandId: string; organizationId: string }>> {
-  const brands = await adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  const brands = await listMonitoredBrands();
   return brands.map((b) => ({ brandId: b.id, organizationId: b.organizationId }));
 }
 
@@ -42,6 +44,8 @@ async function listDueFindingsForDispatch(): Promise<Array<{ findingId: string; 
       // "resolved" stays in: a taken-down site coming back is exactly what needs catching
       // (pipeline/takedownWatch.ts). Only a false positive is never worth rechecking.
       status: { not: "false_positive" },
+      // A paused brand's due findings just wait; they're picked up again on resume.
+      brand: MONITORED_BRAND,
     },
     select: { id: true, brand: { select: { organizationId: true } } },
   });
@@ -61,7 +65,15 @@ async function dispatchDiscoveryForBrand(brandId: string, organizationId: string
 }
 
 export async function registerQueueWorkers(): Promise<void> {
+  // Jobs queued before a pause check again when they run (lib/monitoredBrands.ts).
   await boss.work<DiscoveryJobData>(QUEUE_DISCOVERY, WORKER_POLLING, async ([job]) => {
+    if (await isBrandPaused(job.data.brandId)) {
+      await adminPrisma.pipelineRun.updateMany({
+        where: { id: job.data.runId, status: "running" },
+        data: { status: "failed", error: "monitoring paused", finishedAt: new Date() },
+      });
+      return;
+    }
     await runDiscoveryJob(job.data);
   });
 
@@ -70,6 +82,7 @@ export async function registerQueueWorkers(): Promise<void> {
   // per-finding rechecks would otherwise hammer them. Also the only concurrency knob that
   // triggers Chromium launches (via scanWebsite in each recheck job) -- see env.ts.
   await boss.work<RecheckJobData>(QUEUE_RECHECK, { ...WORKER_POLLING, localConcurrency: env.recheckConcurrency }, async ([job]) => {
+    if (await isFindingPaused(job.data.findingId)) return;
     await runRecheckJob(job.data);
   });
 
@@ -94,6 +107,7 @@ export async function registerQueueWorkers(): Promise<void> {
   });
 
   await boss.work<AppStoreMonitorJobData>(QUEUE_APP_STORE_MONITOR, WORKER_POLLING, async ([job]) => {
+    if (await isBrandPaused(job.data.brandId)) return;
     await runAppStoreMonitorJob(job.data);
   });
 
@@ -112,6 +126,7 @@ export async function registerQueueWorkers(): Promise<void> {
     async ([job]) => {
       if (job.data?.kind === "fact_check") await runFactCheckMonitorJob();
       else if (job.data?.kind === "manual" && job.data.brandId && job.data.organizationId) {
+        if (await isBrandPaused(job.data.brandId)) return;
         await runManualSocialSearch(job.data.organizationId, job.data.brandId);
       } else await runSocialSearchMonitorJob();
     }

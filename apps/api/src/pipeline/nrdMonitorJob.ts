@@ -1,4 +1,4 @@
-import { adminPrisma } from "../adminDb";
+import { listMonitoredBrands } from "../lib/monitoredBrands";
 import { withTenant } from "../lib/tenant";
 import { fetchNrdList } from "../lib/nrdFeed";
 import { fetchHageziNrd } from "../lib/hageziNrd";
@@ -42,7 +42,8 @@ export async function runNrdMonitorJob(now: Date = new Date()): Promise<void> {
   // Cross-tenant by nature (one feed, every brand) -- id-only select, same narrow RLS
   // bypass as queue/dispatch.ts's listAllBrandsForDispatch. Brand content is then read
   // and written per tenant through withTenant.
-  const brands = await adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  // Paused brands (platform admin) are skipped -- lib/monitoredBrands.ts.
+  const brands = await listMonitoredBrands();
 
   for (let daysAgo = 1; daysAgo <= DAYS_BACK; daysAgo++) {
     const date = utcDate(daysAgo, now);

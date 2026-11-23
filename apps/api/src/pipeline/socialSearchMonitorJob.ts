@@ -1,4 +1,4 @@
-import { adminPrisma } from "../adminDb";
+import { listMonitoredBrands } from "../lib/monitoredBrands";
 import { env } from "../env";
 import { withTenant } from "../lib/tenant";
 import { tavilySearch, type TavilyResult } from "../lib/tavily";
@@ -82,8 +82,9 @@ async function brandPivotNumbers(organizationId: string, brandId: string, ownKey
 export const FACT_CHECK_DOMAINS = ["pesacheck.org"];
 
 async function listBrands() {
-  // Cross-tenant by nature -- same narrow id-only bypass as nrdMonitorJob.ts.
-  return adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  // Cross-tenant by nature -- same narrow id-only bypass as nrdMonitorJob.ts. Paused brands
+  // (platform admin) are skipped -- lib/monitoredBrands.ts.
+  return listMonitoredBrands();
 }
 
 export interface SocialSearchOutcome {

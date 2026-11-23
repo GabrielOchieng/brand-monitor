@@ -4,6 +4,7 @@ import { authenticate, requireRole } from "../lib/auth";
 import { allowDiscoveryRun, allowSocialSearchRun } from "../lib/rateLimit";
 import { env } from "../env";
 import { withTenant } from "../lib/tenant";
+import { brandPausedInTx } from "../lib/monitoredBrands";
 import { boss, QUEUE_DISCOVERY, QUEUE_SOCIAL_SEARCH_MONITOR } from "../queue/boss";
 import type { DiscoveryJobData } from "../pipeline/discoveryJob";
 
@@ -22,6 +23,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
         ? await tx.brand.findUnique({ where: { id: brandId } })
         : await tx.brand.findFirst({ orderBy: { createdAt: "asc" } });
       if (!brand) return null;
+      if (await brandPausedInTx(tx, brand.id)) return "paused" as const;
 
       const run = await tx.pipelineRun.create({ data: { brandId: brand.id, status: "running" } });
       const data: DiscoveryJobData = { runId: run.id, brandId: brand.id, organizationId: orgId };
@@ -30,6 +32,7 @@ export async function pipelineRoutes(app: FastifyInstance) {
     });
 
     if (!result) return reply.status(404).send({ error: "no_brand" });
+    if (result === "paused") return reply.status(409).send({ error: "monitoring_paused" });
     return reply.send({ runId: result.id });
   });
 
@@ -41,8 +44,12 @@ export async function pipelineRoutes(app: FastifyInstance) {
     const orgId = request.auth!.orgId;
     if (!env.tavilyApiKey) return reply.status(400).send({ error: "social_search_not_configured" });
     if (!brandId) return reply.status(400).send({ error: "invalid_request" });
-    const brand = await withTenant(orgId, (tx) => tx.brand.findUnique({ where: { id: brandId }, select: { id: true } }));
+    const brand = await withTenant(orgId, async (tx) => {
+      const b = await tx.brand.findUnique({ where: { id: brandId }, select: { id: true } });
+      return b && { ...b, paused: await brandPausedInTx(tx, b.id) };
+    });
     if (!brand) return reply.status(404).send({ error: "no_brand" });
+    if (brand.paused) return reply.status(409).send({ error: "monitoring_paused" });
     if (!allowSocialSearchRun(orgId)) return reply.status(429).send({ error: "too_many_social_searches" });
     // singletonKey: a second click while one is queued for this brand doesn't queue another.
     await boss.send(QUEUE_SOCIAL_SEARCH_MONITOR, { kind: "manual", brandId, organizationId: orgId }, { singletonKey: `manual-social-${brandId}` });

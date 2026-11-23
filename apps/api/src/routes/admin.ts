@@ -37,9 +37,10 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/api/admin/overview", async () => {
     const since = monthStart();
     const orgs = await adminPrisma.$queryRaw<
-      Array<{ id: string; name: string; created_at: Date; members: bigint; brands: bigint; findings: bigint; scans_month: bigint; emails_month: bigint; last_active: Date | null }>
+      Array<{ id: string; name: string; created_at: Date; monitoring_paused_at: Date | null; paused_brands: bigint; members: bigint; brands: bigint; findings: bigint; scans_month: bigint; emails_month: bigint; last_active: Date | null }>
     >`
-      SELECT o.id, o.name, o.created_at,
+      SELECT o.id, o.name, o.created_at, o.monitoring_paused_at,
+        (SELECT count(*) FROM brands b WHERE b.organization_id = o.id AND b.monitoring_paused_at IS NOT NULL) AS paused_brands,
         (SELECT count(*) FROM memberships m WHERE m.organization_id = o.id) AS members,
         (SELECT count(*) FROM brands b WHERE b.organization_id = o.id) AS brands,
         (SELECT count(*) FROM findings f JOIN brands b ON b.id = f.brand_id WHERE b.organization_id = o.id) AS findings,
@@ -60,6 +61,7 @@ export async function adminRoutes(app: FastifyInstance) {
         orgs: orgs.length,
         users,
         brands: orgs.reduce((a, o) => a + n(o.brands), 0),
+        monitoredBrands: orgs.reduce((a, o) => a + (o.monitoring_paused_at ? 0 : n(o.brands) - n(o.paused_brands)), 0),
         scansThisMonth: orgs.reduce((a, o) => a + n(o.scans_month), 0),
         emailsThisMonth: orgs.reduce((a, o) => a + n(o.emails_month), 0),
         tavilyThisMonth: tavily?.count ?? 0,
@@ -69,6 +71,8 @@ export async function adminRoutes(app: FastifyInstance) {
         id: o.id,
         name: o.name,
         createdAt: o.created_at,
+        pausedAt: o.monitoring_paused_at,
+        pausedBrands: n(o.paused_brands),
         members: n(o.members),
         brands: n(o.brands),
         findings: n(o.findings),
@@ -90,8 +94,8 @@ export async function adminRoutes(app: FastifyInstance) {
         include: { user: { include: { auth: true, sessions: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 } } } },
         orderBy: { createdAt: "asc" },
       }),
-      adminPrisma.$queryRaw<Array<{ id: string; name: string; primary_domain: string; created_at: Date; findings: bigint; scans_month: bigint; emails_month: bigint; last_scan: Date | null }>>`
-        SELECT b.id, b.name, b.primary_domain, b.created_at,
+      adminPrisma.$queryRaw<Array<{ id: string; name: string; primary_domain: string; created_at: Date; monitoring_paused_at: Date | null; monitoring_paused_by: string | null; findings: bigint; scans_month: bigint; emails_month: bigint; last_scan: Date | null }>>`
+        SELECT b.id, b.name, b.primary_domain, b.created_at, b.monitoring_paused_at, b.monitoring_paused_by,
           (SELECT count(*) FROM findings f WHERE f.brand_id = b.id) AS findings,
           (SELECT count(*) FROM scans s JOIN findings f ON f.id = s.finding_id WHERE f.brand_id = b.id AND s.started_at >= ${since}) AS scans_month,
           (SELECT count(*) FROM alert_deliveries d JOIN findings f ON f.id = d.finding_id
@@ -104,7 +108,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
     ]);
     return {
-      org: { id: org.id, name: org.name, createdAt: org.createdAt },
+      org: { id: org.id, name: org.name, createdAt: org.createdAt, pausedAt: org.monitoringPausedAt, pausedBy: org.monitoringPausedBy },
       members: members.map((m) => ({
         userId: m.userId,
         email: m.user.email,
@@ -121,6 +125,8 @@ export async function adminRoutes(app: FastifyInstance) {
         name: b.name,
         primaryDomain: b.primary_domain,
         createdAt: b.created_at,
+        pausedAt: b.monitoring_paused_at,
+        pausedBy: b.monitoring_paused_by,
         findings: n(b.findings),
         scansThisMonth: n(b.scans_month),
         emailsThisMonth: n(b.emails_month),
@@ -175,6 +181,44 @@ export async function adminRoutes(app: FastifyInstance) {
     if (count === 0) return reply.status(404).send({ error: "not_found" });
     return reply.status(204).send();
   });
+
+  // Pause/resume monitoring (lib/monitoredBrands.ts). Data is kept; jobs and manual triggers
+  // skip paused brands. The change and its audit row commit together.
+  for (const action of ["pause", "resume"] as const) {
+    app.post(`/api/admin/orgs/:id/${action}`, async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const admin = await adminOf(request);
+      const done = await adminPrisma.$transaction(async (tx) => {
+        const org = await tx.organization.findUnique({ where: { id } });
+        if (!org) return null;
+        await tx.organization.update({
+          where: { id },
+          data: action === "pause" ? { monitoringPausedAt: new Date(), monitoringPausedBy: admin.email } : { monitoringPausedAt: null, monitoringPausedBy: null },
+        });
+        await recordAdminAction(admin, action === "pause" ? "org.pause" : "org.resume", { type: "org", id }, { name: org.name }, tx);
+        return org;
+      });
+      if (!done) return reply.status(404).send({ error: "not_found" });
+      return reply.status(204).send();
+    });
+
+    app.post(`/api/admin/brands/:id/${action}`, async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const admin = await adminOf(request);
+      const done = await adminPrisma.$transaction(async (tx) => {
+        const brand = await tx.brand.findUnique({ where: { id }, include: { organization: { select: { name: true } } } });
+        if (!brand) return null;
+        await tx.brand.update({
+          where: { id },
+          data: action === "pause" ? { monitoringPausedAt: new Date(), monitoringPausedBy: admin.email } : { monitoringPausedAt: null, monitoringPausedBy: null },
+        });
+        await recordAdminAction(admin, action === "pause" ? "brand.pause" : "brand.resume", { type: "brand", id }, { brand: brand.name, org: brand.organization.name }, tx);
+        return brand;
+      });
+      if (!done) return reply.status(404).send({ error: "not_found" });
+      return reply.status(204).send();
+    });
+  }
 
   // Every user, with their orgs, sign-in methods and last activity.
   app.get("/api/admin/users", async () => {

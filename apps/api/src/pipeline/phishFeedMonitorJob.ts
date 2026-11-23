@@ -1,4 +1,4 @@
-import { adminPrisma } from "../adminDb";
+import { listMonitoredBrands } from "../lib/monitoredBrands";
 import { withTenant } from "../lib/tenant";
 import { fetchPhishFeed } from "../lib/phishFeed";
 import { markSourceSuccess } from "../queue/health";
@@ -37,7 +37,8 @@ export async function runPhishFeedMonitorJob(): Promise<void> {
   }
 
   // Cross-tenant by nature -- same narrow id-only bypass as nrdMonitorJob.ts.
-  const brands = await adminPrisma.brand.findMany({ select: { id: true, organizationId: true } });
+  // Paused brands (platform admin) are skipped -- lib/monitoredBrands.ts.
+  const brands = await listMonitoredBrands();
   for (const { id: brandId, organizationId } of brands) {
     await matchBrand(brandId, organizationId, result.urls);
   }

@@ -61,7 +61,12 @@ export async function describeUser(userId: string, activeOrgId: string | null) {
     include: { memberships: { include: { organization: true }, orderBy: { createdAt: "asc" } }, auth: true },
   });
   if (!user) return null;
-  const organizations = user.memberships.map((m) => ({ id: m.organizationId, name: m.organization.name, role: m.role }));
+  const organizations = user.memberships.map((m) => ({
+    id: m.organizationId,
+    name: m.organization.name,
+    role: m.role,
+    monitoringPaused: !!m.organization.monitoringPausedAt,
+  }));
   return {
     user: { id: user.id, email: user.email, name: user.name },
     platformRole: user.platformRole,

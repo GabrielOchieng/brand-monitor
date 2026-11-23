@@ -16,6 +16,9 @@ model Organization {
   id        String   @id
   name      String
   createdAt DateTime @default(now()) @map("created_at")
+  // Set by a platform admin: nothing in this org is monitored while set (lib/monitoredBrands.ts).
+  monitoringPausedAt DateTime? @map("monitoring_paused_at")
+  monitoringPausedBy String?   @map("monitoring_paused_by") // admin's email
   brands       Brand[]
   memberships  Membership[]
 
@@ -117,6 +120,9 @@ model Brand {
   organization   Organization @relation(fields: [organizationId], references: [id])
   name           String
   primaryDomain  String   @map("primary_domain")
+  // Set by a platform admin: this brand isn't monitored while set (lib/monitoredBrands.ts).
+  monitoringPausedAt DateTime? @map("monitoring_paused_at")
+  monitoringPausedBy String?   @map("monitoring_paused_by") // admin's email
   // Unguessable token in the public "report a scam" link (/report/<token>). Null = the
   // brand has no public form. Rotating it kills every copy of the old link.
   reportToken    String?  @unique @map("report_token")

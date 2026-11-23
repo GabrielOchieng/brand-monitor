@@ -4,6 +4,7 @@ import { z } from "zod";
 import { fromPrisma } from "pg-boss";
 import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
+import { brandPausedInTx } from "../lib/monitoredBrands";
 import { boss, QUEUE_RECHECK } from "../queue/boss";
 import type { RecheckJobData } from "../pipeline/recheckJob";
 import { env } from "../env";
@@ -690,6 +691,7 @@ export async function findingsRoutes(app: FastifyInstance) {
       const result = await withTenant(orgId, async (tx) => {
         const brand = await tx.brand.findUnique({ where: { id: parsed.data.brandId } });
         if (!brand) return null;
+        if (await brandPausedInTx(tx, brand.id)) return "paused" as const;
 
         // Re-submitting the same URL later is a no-op dedup + fresh recheck, not a
         // duplicate finding, thanks to the existing @@unique([brandId, identifier]).
@@ -710,6 +712,7 @@ export async function findingsRoutes(app: FastifyInstance) {
       });
 
       if (!result) return reply.status(404).send({ error: "no_brand" });
+      if (result === "paused") return reply.status(409).send({ error: "monitoring_paused" });
       return reply.status(201).send(result);
     }
   );

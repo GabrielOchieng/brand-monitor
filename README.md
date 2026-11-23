@@ -363,8 +363,14 @@ selected brand is remembered per browser.
   member activity) and every user (orgs, sign-in methods, 2FA, last activity), shows the month's
   Tavily usage, creates organizations (without joining them) and invites their first owner. Every
   admin action goes to `admin_audit_log`, shown on the Audit log tab. A `superadmin` role that can
-  make admins from the panel is planned. Next steps: pause/resume monitoring, user actions, delete
-  org, and a read-only view into any org (`ADMIN_PLAN.md`).
+  make admins from the panel is planned.
+- **Pausing monitoring** (admin panel, per organization or per brand; `lib/monitoredBrands.ts`): a
+  paused brand gets no discovery, rechecks, CT/NRD/phishing-feed matching, app-store or social/web
+  searches. Every job picks brands through `listMonitoredBrands()` / `MONITORED_BRAND`, and a job
+  queued just before a pause checks again when it runs. Manual triggers (run discovery, social
+  search, manual submit) return 409 `monitoring_paused`; public scam reports are still saved but
+  not scanned. Data is kept, and the org's members see a banner. Next admin steps: user actions,
+  delete org, read-only view into any org (`ADMIN_PLAN.md`).
 - **Account and security** (`/account`, from the avatar menu): name; password change (needs the
   current one, signs out every other device, emails a notice); email change (needs the current
   password, confirmed through a 1-hour link sent to the new address, notice to the old one); and
