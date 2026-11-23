@@ -10,6 +10,8 @@ export interface Me {
   user: { id: string; email: string; name: string | null };
   // "admin" = platform admin (the /admin panel). null for everyone else.
   platformRole: "admin" | "superadmin" | null;
+  // Set while a platform admin is viewing an org read-only (AdminViewBanner).
+  adminView: { orgId: string; name: string; monitoringPaused: boolean } | null;
   activeOrgId: string | null;
   organizations: Array<{ id: string; name: string; role: Role; monitoringPaused: boolean }>;
   security: { hasPassword: boolean; totpEnabled: boolean; recoveryCodesLeft: number; googleLinked: boolean };
@@ -90,13 +92,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(() => {
-    const orgId = me?.activeOrgId ?? null;
+    // In an admin's read-only view, the viewed org is the active one, as a viewer.
+    const orgId = me?.adminView?.orgId ?? me?.activeOrgId ?? null;
     return {
       me,
       isLoaded,
       userId: me?.user.id ?? null,
       orgId,
-      role: me?.organizations.find((o) => o.id === orgId)?.role ?? null,
+      role: me?.adminView ? "viewer" : (me?.organizations.find((o) => o.id === orgId)?.role ?? null),
       setMe,
       refresh,
       switchOrg,

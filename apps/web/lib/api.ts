@@ -41,6 +41,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   is_platform_admin: "That user is a platform admin. Revoke it first: npm run auth:make-admin -- --email <email> --revoke.",
   last_owner: "That would leave an organization with no owner. Make someone else owner first, or delete the organization.",
   confirm_mismatch: "The name you typed doesn’t match the organization’s name.",
+  admin_read_only: "You're viewing this organization read-only as platform admin. Exit the view to make changes.",
   admin_requires_2fa: "The admin panel needs two-factor sign-in. Turn it on under Account and security.",
   forbidden: "Your role doesn't allow this. Ask an owner or admin.",
   no_active_organization: "Choose an organization first.",

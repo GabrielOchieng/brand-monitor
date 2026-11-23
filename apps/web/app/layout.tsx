@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { SessionProvider } from "../lib/session";
 import { AppHeader } from "../components/AppHeader";
 import { PausedBanner } from "../components/PausedBanner";
+import { AdminViewBanner } from "../components/AdminViewBanner";
 import { NavProgress } from "../components/NavProgress";
 
 export const metadata = { title: "Brand Monitor" };
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Suspense fallback={null}>
             <NavProgress />
           </Suspense>
+          <AdminViewBanner />
           <AppHeader />
           <PausedBanner />
           <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>

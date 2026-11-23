@@ -42,7 +42,7 @@ export function OrgSwitcher() {
   const { me, orgId, switchOrg } = useSession();
   const [error, setError] = useState<string | null>(null);
   if (!me) return null;
-  const active = me.organizations.find((o) => o.id === orgId);
+  const active = me.adminView ? { name: `${me.adminView.name} (viewing)` } : me.organizations.find((o) => o.id === orgId);
   return (
     <Dropdown
       label="Switch organization"

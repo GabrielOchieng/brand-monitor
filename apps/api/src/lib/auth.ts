@@ -10,13 +10,15 @@ export type Role = (typeof VALID_ROLES)[number];
 declare module "fastify" {
   interface FastifyRequest {
     // Set by authenticateUser (no org needed: /auth/me, switching or creating an org).
-    user?: { userId: string; sessionId: string; activeOrgId: string | null };
+    user?: { userId: string; sessionId: string; activeOrgId: string | null; adminViewOrgId: string | null };
     // Set by authenticate: a signed-in user acting inside their active organization.
     auth?: {
       userId: string;
       orgId: string;
       role: Role;
       sessionId: string;
+      // A platform admin's read-only view (no membership; every write is refused).
+      adminView?: boolean;
     };
   }
 }
@@ -28,7 +30,7 @@ export async function authenticateUser(request: FastifyRequest, reply: FastifyRe
   if (!session) {
     return reply.status(401).send({ error: "unauthorized", message: "Sign in to continue" });
   }
-  request.user = { userId: session.userId, sessionId: session.id, activeOrgId: session.activeOrgId };
+  request.user = { userId: session.userId, sessionId: session.id, activeOrgId: session.activeOrgId, adminViewOrgId: session.adminViewOrgId };
 }
 
 // Attach as a preHandler on any route that needs a signed-in user with an active
@@ -38,7 +40,24 @@ export async function authenticateUser(request: FastifyRequest, reply: FastifyRe
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
   await authenticateUser(request, reply);
   if (reply.sent || !request.user) return;
-  const { userId, sessionId, activeOrgId } = request.user;
+  const { userId, sessionId, activeOrgId, adminViewOrgId } = request.user;
+
+  // Platform admin viewing an org read-only: that org, role viewer, no membership needed, and
+  // every write refused here -- for every route that uses authenticate, whatever its own role
+  // checks -- so "see but never edit" can't depend on a UI button being hidden. Re-checked on
+  // every request: losing the admin role (or 2FA) ends the view.
+  if (adminViewOrgId) {
+    const viewer = await adminPrisma.user.findUnique({ where: { id: userId }, include: { auth: true } });
+    if (viewer?.platformRole && viewer.auth?.totpEnabledAt) {
+      if (!["GET", "HEAD"].includes(request.method)) {
+        return reply.status(403).send({ error: "admin_read_only", message: "Read-only admin view: exit it to make changes" });
+      }
+      request.auth = { userId, orgId: adminViewOrgId, role: "viewer", sessionId, adminView: true };
+      return;
+    }
+    await adminPrisma.session.update({ where: { id: sessionId }, data: { adminViewOrgId: null } });
+  }
+
   if (!activeOrgId) {
     return reply.status(403).send({ error: "no_active_organization", message: "Select an organization to continue" });
   }

@@ -13,6 +13,8 @@ export interface SessionRow {
   id: string;
   userId: string;
   activeOrgId: string | null;
+  // Set while a platform admin is viewing an org read-only (routes/admin.ts).
+  adminViewOrgId: string | null;
 }
 
 export function readCookie(request: FastifyRequest, name: string): string | null {
@@ -80,7 +82,7 @@ export async function createSession(
     },
   });
   setSessionCookie(reply, token);
-  return { id: session.id, userId, activeOrgId: session.activeOrgId };
+  return { id: session.id, userId, activeOrgId: session.activeOrgId, adminViewOrgId: null };
 }
 
 export async function findSession(request: FastifyRequest): Promise<SessionRow | null> {
@@ -96,7 +98,7 @@ export async function findSession(request: FastifyRequest): Promise<SessionRow |
   if (now - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
     await adminPrisma.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date(now), ip: request.ip } });
   }
-  return { id: session.id, userId: session.userId, activeOrgId: session.activeOrgId };
+  return { id: session.id, userId: session.userId, activeOrgId: session.activeOrgId, adminViewOrgId: session.adminViewOrgId };
 }
 
 export async function deleteSessionFromRequest(request: FastifyRequest): Promise<void> {

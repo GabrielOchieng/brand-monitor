@@ -177,11 +177,11 @@ export async function googleRoutes(app: FastifyInstance) {
 
   // Only with a password to fall back on, so nobody unlinks their only way in.
   app.post("/auth/google/unlink", { preHandler: authenticateUser }, async (request, reply) => {
-    const { userId, activeOrgId } = request.user!;
+    const { userId, activeOrgId, adminViewOrgId } = request.user!;
     const auth = await adminPrisma.userAuth.findUnique({ where: { userId } });
     if (!auth?.googleSub) return reply.status(400).send({ error: "google_not_linked" });
     if (!auth.passwordHash) return reply.status(400).send({ error: "no_password" });
     await adminPrisma.userAuth.update({ where: { userId }, data: { googleSub: null } });
-    return reply.send(await describeUser(userId, activeOrgId));
+    return reply.send(await describeUser(userId, activeOrgId, adminViewOrgId));
   });
 }

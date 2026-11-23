@@ -17,6 +17,7 @@ import { clearSessionCookie, createSession, deleteSessionFromRequest, revokeUser
 import { consumeToken, issueToken, peekToken, purgeOldTokens, revokeTokens } from "../auth/tokens";
 import { sendResetPasswordEmail } from "../auth/emails";
 import { consumeSecondFactor } from "../auth/mfa";
+import { endAdminView } from "../auth/adminView";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -55,7 +56,7 @@ function rateLimited(reply: FastifyReply) {
 }
 
 // Everything the web app needs about the signed-in user, in one call.
-export async function describeUser(userId: string, activeOrgId: string | null) {
+export async function describeUser(userId: string, activeOrgId: string | null, adminViewOrgId: string | null = null) {
   const user = await adminPrisma.user.findUnique({
     where: { id: userId },
     include: { memberships: { include: { organization: true }, orderBy: { createdAt: "asc" } }, auth: true },
@@ -67,9 +68,12 @@ export async function describeUser(userId: string, activeOrgId: string | null) {
     role: m.role,
     monitoringPaused: !!m.organization.monitoringPausedAt,
   }));
+  // A platform admin's read-only view (auth/adminView.ts): the org they're looking at.
+  const viewed = adminViewOrgId && user.platformRole ? await adminPrisma.organization.findUnique({ where: { id: adminViewOrgId } }) : null;
   return {
     user: { id: user.id, email: user.email, name: user.name },
     platformRole: user.platformRole,
+    adminView: viewed ? { orgId: viewed.id, name: viewed.name, monitoringPaused: !!viewed.monitoringPausedAt } : null,
     activeOrgId: organizations.some((o) => o.id === activeOrgId) ? activeOrgId : null,
     organizations,
     security: {
@@ -81,8 +85,8 @@ export async function describeUser(userId: string, activeOrgId: string | null) {
   };
 }
 
-async function sendMe(request: FastifyRequest, reply: FastifyReply, userId: string, activeOrgId: string | null) {
-  const me = await describeUser(userId, activeOrgId);
+async function sendMe(request: FastifyRequest, reply: FastifyReply, userId: string, activeOrgId: string | null, adminViewOrgId: string | null = null) {
+  const me = await describeUser(userId, activeOrgId, adminViewOrgId);
   if (!me) {
     clearSessionCookie(reply);
     return reply.status(401).send({ error: "unauthorized" });
@@ -194,7 +198,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get("/auth/me", { preHandler: authenticateUser }, async (request, reply) => {
-    return sendMe(request, reply, request.user!.userId, request.user!.activeOrgId);
+    return sendMe(request, reply, request.user!.userId, request.user!.activeOrgId, request.user!.adminViewOrgId);
   });
 
   app.post("/auth/switch-org", { preHandler: authenticateUser }, async (request, reply) => {
@@ -205,8 +209,18 @@ export async function authRoutes(app: FastifyInstance) {
       where: { userId_organizationId: { userId, organizationId: parsed.data.orgId } },
     });
     if (!membership) return reply.status(404).send({ error: "not_found" });
+    // Switching to one of your own orgs ends an admin view.
+    await endAdminView(sessionId, userId);
     await adminPrisma.session.update({ where: { id: sessionId }, data: { activeOrgId: parsed.data.orgId } });
     return sendMe(request, reply, userId, parsed.data.orgId);
+  });
+
+  // Leaves the platform admin's read-only view. Not under /api/admin: it must work even if
+  // the admin role was revoked mid-view.
+  app.post("/auth/admin-view/exit", { preHandler: authenticateUser }, async (request, reply) => {
+    const { userId, sessionId, activeOrgId } = request.user!;
+    await endAdminView(sessionId, userId);
+    return sendMe(request, reply, userId, activeOrgId);
   });
 
   // Organizations are created only by platform admins (routes/admin.ts).

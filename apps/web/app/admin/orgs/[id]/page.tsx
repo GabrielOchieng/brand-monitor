@@ -150,6 +150,19 @@ function OrgPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Opens the normal app for this org as a viewer; the API refuses every change meanwhile.
+  async function startView() {
+    setActionError(null);
+    setBusy("view");
+    try {
+      await apiFetch(`/api/admin/orgs/${id}/view`, { method: "POST" });
+      window.location.assign("/dashboard");
+    } catch (err: any) {
+      setActionError(err.message);
+      setBusy(null);
+    }
+  }
+
   async function removeMember(userId: string, email: string) {
     if (!window.confirm(`Remove ${email} from ${data?.org.name}? Their assignments here are cleared. Their account stays.`)) return;
     setActionError(null);
@@ -199,6 +212,10 @@ function OrgPage() {
                 </span>
               )}
             </div>
+            <div className="flex flex-wrap gap-2">
+            <button className="btn-secondary" disabled={busy === "view"} onClick={startView}>
+              View read-only
+            </button>
             <button
               className={data.org.pausedAt ? "btn-primary" : "btn-secondary"}
               disabled={busy === data.org.id}
@@ -206,6 +223,7 @@ function OrgPage() {
             >
               {data.org.pausedAt ? "Resume organization" : "Pause organization"}
             </button>
+            </div>
           </div>
           {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
           {created && !hasOwner && (

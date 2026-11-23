@@ -49,9 +49,9 @@ export async function accountRoutes(app: FastifyInstance) {
   app.patch("/auth/profile", { preHandler: authenticateUser }, async (request, reply) => {
     const parsed = ProfileSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
-    const { userId, activeOrgId } = request.user!;
+    const { userId, activeOrgId, adminViewOrgId } = request.user!;
     await adminPrisma.user.update({ where: { id: userId }, data: { name: parsed.data.name || null } });
-    return reply.send(await describeUser(userId, activeOrgId));
+    return reply.send(await describeUser(userId, activeOrgId, adminViewOrgId));
   });
 
   // Keeps this session, signs out every other one, and tells the user by email.

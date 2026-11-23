@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { apiFetch } from "../../lib/api";
+import { useSession } from "../../lib/session";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 
 interface Notification {
@@ -18,6 +19,9 @@ interface Notification {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // A platform admin's read-only view can't mark anything read.
+  const readOnly = !!useSession().me?.adminView;
 
   const load = useCallback(async () => {
     const data = await apiFetch<{ notifications: Notification[] }>("/api/notifications");
@@ -29,24 +33,29 @@ export default function NotificationsPage() {
     load();
   }, [load]);
 
-  async function markRead(id: string) {
-    await apiFetch(`/api/notifications/${id}/read`, { method: "POST" });
-    load();
+  async function act(fn: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await fn();
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    }
   }
-
-  async function markAllRead() {
-    await apiFetch("/api/notifications/read-all", { method: "POST" });
-    load();
-  }
+  const markRead = (id: string) => act(() => apiFetch(`/api/notifications/${id}/read`, { method: "POST" }));
+  const markAllRead = () => act(() => apiFetch("/api/notifications/read-all", { method: "POST" }));
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Notifications</h1>
-        <button onClick={markAllRead} className="btn-ghost text-xs">
-          Mark all read
-        </button>
+        {!readOnly && (
+          <button onClick={markAllRead} className="btn-ghost text-xs">
+            Mark all read
+          </button>
+        )}
       </div>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       {loading && (
         <LoadingRegion label="Loading notifications" className="mt-6">
@@ -75,7 +84,7 @@ export default function NotificationsPage() {
               )}
               <div className="text-xs text-ink-subtle">{new Date(n.createdAt).toLocaleString()}</div>
             </div>
-            {!n.readAt && (
+            {!n.readAt && !readOnly && (
               <button onClick={() => markRead(n.id)} className="btn-ghost shrink-0 text-xs">
                 Mark read
               </button>

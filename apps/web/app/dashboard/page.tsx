@@ -319,7 +319,8 @@ export default function DashboardPage() {
             <span>{summary.brand.primaryDomain}</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Hidden in a platform admin's read-only view (the API refuses them anyway). */}
+        <div className={`flex flex-wrap gap-2 ${me?.adminView ? "hidden" : ""}`}>
           <button onClick={runDiscovery} disabled={run?.status === "running"} className="btn-secondary">
             <RadarIcon className="h-4 w-4" /> {run?.status === "running" ? "Discovery running…" : "Run discovery"}
           </button>

@@ -66,6 +66,7 @@ export async function deleteOrganization(orgId: string, record: (tx: Prisma.Tran
         Prisma.sql`DELETE FROM webhook_configs      WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM auth_tokens          WHERE organization_id = ${orgId}`,
         Prisma.sql`UPDATE sessions SET active_org_id = NULL WHERE active_org_id = ${orgId}`,
+        Prisma.sql`UPDATE sessions SET admin_view_org_id = NULL WHERE admin_view_org_id = ${orgId}`,
         Prisma.sql`DELETE FROM memberships          WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM organizations        WHERE id = ${orgId}`,
         // Sessions and credentials cascade with the user.

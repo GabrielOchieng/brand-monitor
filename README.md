@@ -378,8 +378,14 @@ selected brand is remembered per browser.
 - **Delete organization** (bottom of an org's page, type its exact name): one transaction removes
   every brand, finding, scan, report, setting, invite and alert record, and members who belong to
   no other org (except platform admins); then its screenshot files (`admin/deleteOrg.ts`). The
-  audit row keeps the name and counts. Next admin step: a read-only view into any org
-  (`ADMIN_PLAN.md`).
+  audit row keeps the name and counts.
+- **Read-only view into any org** ("View read-only" on an org's admin page): the normal app
+  (overview, threats, finding pages, mentions, reports, settings) for that org, as a viewer, with
+  a dark "Viewing … as platform admin" bar and Exit. Held on the session
+  (`sessions.admin_view_org_id`); `authenticate()` refuses **every** write while it's set
+  (`admin_read_only`), whatever the route, and re-checks the admin role + 2FA on each request.
+  Exiting, switching to an own org or losing the role ends it; start and end are audit-logged.
+  The admin's own account page and the admin panel keep working during a view.
 - **Account and security** (`/account`, from the avatar menu): name; password change (needs the
   current one, signs out every other device, emails a notice); email change (needs the current
   password, confirmed through a 1-hour link sent to the new address, notice to the old one); and

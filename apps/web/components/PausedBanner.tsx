@@ -7,7 +7,7 @@ import { useSession } from "../lib/session";
 export function PausedBanner() {
   const pathname = usePathname();
   const { me, orgId } = useSession();
-  const org = me?.organizations.find((o) => o.id === orgId);
+  const org = me?.adminView ? { name: me.adminView.name, monitoringPaused: me.adminView.monitoringPaused } : me?.organizations.find((o) => o.id === orgId);
   if (!org?.monitoringPaused || pathname?.startsWith("/admin") || pathname?.startsWith("/report/")) return null;
   return (
     <div className="border-b border-amber-200 bg-amber-50">

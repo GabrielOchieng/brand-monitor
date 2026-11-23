@@ -69,6 +69,9 @@ model Session {
   userId      String   @map("user_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   activeOrgId String?  @map("active_org_id")
+  // Platform admin's read-only view into an org (routes/admin.ts). While set, authenticate()
+  // uses this org with role viewer and refuses every write.
+  adminViewOrgId String? @map("admin_view_org_id")
   createdAt   DateTime @default(now()) @map("created_at")
   lastSeenAt  DateTime @default(now()) @map("last_seen_at")
   expiresAt   DateTime @map("expires_at")

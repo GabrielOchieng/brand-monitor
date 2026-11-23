@@ -9,6 +9,7 @@ import { issueToken, revokeTokens } from "../auth/tokens";
 import { sendAdminPasswordLinkEmail, sendInviteEmail } from "../auth/emails";
 import { TOTP_OFF } from "../auth/mfa";
 import { deleteOrganization } from "../admin/deleteOrg";
+import { startAdminView } from "../auth/adminView";
 import { recordAdminAction } from "../auth/audit";
 import { tavilyPeriod } from "../lib/tavily";
 
@@ -221,6 +222,15 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     });
   }
+
+  // Read-only view into any org: the normal app, as a viewer, every write refused (lib/auth.ts).
+  app.post("/api/admin/orgs/:id/view", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const org = await adminPrisma.organization.findUnique({ where: { id } });
+    if (!org) return reply.status(404).send({ error: "not_found" });
+    await startAdminView(request.user!.sessionId, await adminOf(request), { id: org.id, name: org.name });
+    return reply.status(204).send();
+  });
 
   // ---- User actions. None of them can target the admin's own account (use the account page).
 
