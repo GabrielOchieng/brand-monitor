@@ -99,10 +99,9 @@ async function seedDemoFinding(
 }
 
 async function main() {
-  // Once Clerk is configured, set SEED_ORG_ID (and optionally SEED_USER_ID/SEED_USER_EMAIL)
-  // to your real Clerk org/user id and re-run this -- a placeholder id here would never
-  // match any real session's org_id claim, so the seeded data would be unreachable
-  // through actual auth even though it's sitting in the database.
+  // To see the seeded data when signed in, set SEED_ORG_ID to your org's id (and optionally
+  // SEED_USER_ID/SEED_USER_EMAIL), or create a user in the seeded org with
+  // `npm run auth:create-user -- --email you@example.com --org seed-org-jambojet`.
   const orgId = process.env.SEED_ORG_ID ?? "seed-org-jambojet";
   const userId = process.env.SEED_USER_ID;
   const userEmail = process.env.SEED_USER_EMAIL;

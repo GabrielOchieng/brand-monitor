@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
@@ -15,7 +14,6 @@ interface WebhookConfig {
 
 // The alert webhook: where it posts, whether it's on, the signing secret and a test send.
 export function IntegrationSettings({ editable }: { editable: boolean }) {
-  const { getToken } = useAuth();
   const [config, setConfig] = useState<WebhookConfig | null | undefined>(undefined);
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -29,7 +27,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiFetch<WebhookConfig | null>("/api/webhook-config", await getToken());
+        const data = await apiFetch<WebhookConfig | null>("/api/webhook-config");
         setConfig(data);
         setUrl(data?.url ?? "");
       } catch (err: any) {
@@ -37,7 +35,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
         setConfig(null);
       }
     })();
-  }, [getToken]);
+  }, []);
 
   async function save(next: { url: string; enabled: boolean }) {
     setSaving(true);
@@ -45,7 +43,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
     setError(null);
     setTestResult(null);
     try {
-      const data = await apiFetch<WebhookConfig>("/api/webhook-config", await getToken(), {
+      const data = await apiFetch<WebhookConfig>("/api/webhook-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(next),
@@ -64,7 +62,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
     if (!window.confirm("Make a new signing secret? The receiver must be updated with it, or it will reject the next alert.")) return;
     setError(null);
     try {
-      const data = await apiFetch<WebhookConfig>("/api/webhook-config/rotate-secret", await getToken(), { method: "POST" });
+      const data = await apiFetch<WebhookConfig>("/api/webhook-config/rotate-secret", { method: "POST" });
       setConfig(data);
       setShowSecret(true);
     } catch (err: any) {
@@ -77,7 +75,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
     setTestResult(null);
     setError(null);
     try {
-      setTestResult(await apiFetch<{ ok: boolean; error?: string }>("/api/webhook-config/test", await getToken(), { method: "POST" }));
+      setTestResult(await apiFetch<{ ok: boolean; error?: string }>("/api/webhook-config/test", { method: "POST" }));
     } catch (err: any) {
       setError(err.message);
     } finally {

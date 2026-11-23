@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { adminPrisma } from "../adminDb";
 
-// Organization.id/User.id are externally-supplied Clerk-style ids (org_.../user_...),
-// NOT @default(cuid()) -- confirmed in schema.prisma. Hardcoding a fixed test id would
+// Organization.id/User.id are prefixed ids (org_.../user_...) set by the app,
+// NOT @default(cuid()) -- see schema.prisma. Hardcoding a fixed test id would
 // collide under Vitest's parallel test-file execution against the same shared Postgres
 // container; every test-created org/user must generate its own unique id.
 export function testOrgId(): string {
@@ -20,8 +20,8 @@ export interface TestOrgAndBrand {
 
 // Mirrors the exact adminPrisma-based fixture pattern this project's manual verification
 // scripts have used for every feature this session (e.g. campaign correlation, threat-feed
-// bulk actions) -- bypassing RLS to set up cross-tenant state directly, the same way the
-// Clerk webhook sync and queue dispatchers legitimately do in production code.
+// bulk actions) -- bypassing RLS to set up cross-tenant state directly, the same way auth
+// and the queue dispatchers legitimately do in production code.
 export async function createTestOrgAndBrand(name = "Test Brand"): Promise<TestOrgAndBrand> {
   const orgId = testOrgId();
   await adminPrisma.organization.create({ data: { id: orgId, name: `Test Org ${orgId}` } });

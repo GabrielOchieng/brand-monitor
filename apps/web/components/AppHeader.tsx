@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SignedIn, SignedOut, SignInButton, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+import { useSession } from "../lib/session";
 import { NotificationBell } from "./NotificationBell";
+import { OrgSwitcher, UserMenu } from "./HeaderMenus";
 import { ShieldIcon, HomeIcon, ListIcon, FlagIcon, MessageIcon, SettingsIcon } from "./icons";
 
 const navLinkClass = "text-sm font-medium transition-colors";
@@ -22,9 +23,10 @@ const NAV = [
 ];
 
 // The public scam-report form (/report/<token>) is seen by a brand's customers, not our
-// users: no app nav, no sign-in button.
+// users: no header at all. Sign-in pages show the logo only.
 export function AppHeader() {
   const pathname = usePathname();
+  const { me } = useSession();
   if (pathname?.startsWith("/report/")) return null;
 
   return (
@@ -39,7 +41,8 @@ export function AppHeader() {
           </span>
           <span className="whitespace-nowrap font-semibold tracking-tight text-ink">Brand Monitor</span>
         </Link>
-        <SignedIn>
+        {me && (
+          <>
           {NAV.map(({ href, label, Icon }) => {
             // The current section is marked: a finding page counts as Threats.
             const active = pathname === href || pathname?.startsWith(`${href}/`);
@@ -62,36 +65,15 @@ export function AppHeader() {
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-5">
             <NotificationBell />
             <div className="hidden h-5 w-px shrink-0 bg-line sm:block" />
-            {/* A long org name doesn't shrink or truncate on its own inside Clerk's
-                trigger button -- the appearance.elements className hook below is
-                Clerk's documented way to constrain it, but confirmed unreliable in
-                practice (still overflowed past the header in a real signed-in
-                session). The outer div's own hard max-width + overflow-hidden is
-                the actual guarantee: plain Tailwind on an element this code fully
-                controls, not dependent on Clerk's internal class plumbing. Narrower
-                cap below `sm` to leave room for the icon links + avatar. */}
-            <div className="max-w-[60px] shrink-0 overflow-hidden sm:max-w-[180px]">
-              <OrganizationSwitcher
-                hidePersonal
-                appearance={{
-                  variables: { colorPrimary: "#5b4fe0" },
-                  elements: {
-                    organizationSwitcherTrigger: "max-w-[60px] sm:max-w-[180px]",
-                    organizationPreviewTextContainer: "truncate",
-                  },
-                }}
-                afterCreateOrganizationUrl="/dashboard"
-                afterSelectOrganizationUrl="/dashboard"
-              />
+            {/* Long org names truncate; narrower cap below `sm` to leave room for the icon
+                links and the avatar. */}
+            <div className="max-w-[90px] shrink-0 sm:max-w-[180px]">
+              <OrgSwitcher />
             </div>
-            <UserButton />
+            <UserMenu />
           </div>
-        </SignedIn>
-        <SignedOut>
-          <div className="ml-auto">
-            <SignInButton mode="modal" />
-          </div>
-        </SignedOut>
+          </>
+        )}
       </nav>
     </header>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { CheckIcon, LinkIcon } from "../icons";
 
@@ -17,7 +16,6 @@ export function ReportLink({
   editable: boolean;
   onChange: (token: string | null) => void;
 }) {
-  const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +25,7 @@ export function ReportLink({
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch<{ reportToken: string } | undefined>(`/api/brands/${brandId}/report-token`, await getToken(), { method });
+      const res = await apiFetch<{ reportToken: string } | undefined>(`/api/brands/${brandId}/report-token`, { method });
       onChange(method === "POST" ? (res?.reportToken ?? null) : null);
     } catch (err: any) {
       setError(err.message);

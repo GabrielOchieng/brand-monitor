@@ -3,12 +3,13 @@ import fs from "node:fs";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import fastifyRawBody from "fastify-raw-body";
 import { env } from "./env";
 import { pipelineRoutes } from "./routes/pipeline";
 import { findingsRoutes } from "./routes/findings";
 import { brandRoutes } from "./routes/brands";
-import { webhookRoutes } from "./routes/webhooks";
+import { authRoutes } from "./routes/auth";
+import { accountRoutes } from "./routes/account";
+import { googleRoutes } from "./routes/google";
 import { notificationsRoutes } from "./routes/notifications";
 import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { alertRuleRoutes } from "./routes/alertRules";
@@ -21,6 +22,10 @@ import { registerAlertDispatchWorker } from "./queue/alertDispatch";
 import { jobsHealth, sourcesHealth } from "./queue/health";
 import { tavilyUsageSnapshot } from "./lib/tavily";
 import { allowRequest, allowScreenshot } from "./lib/rateLimit";
+import { SESSION_COOKIE, readCookie } from "./auth/sessions";
+import { isAllowedOrigin as originAllowed } from "./auth/origin";
+
+const isAllowedOrigin = (origin: string) => originAllowed(origin, env.webAppUrl);
 
 async function main() {
   // trustProxy: Traefik (Dokploy) sits in front of the container, so without it request.ip is the
@@ -37,22 +42,33 @@ async function main() {
   });
 
   await app.register(cors, {
+    // credentials: the web app's fetches send the session cookie.
+    credentials: true,
     origin: (origin, cb) => {
       // No Origin header at all -- not a browser CORS request (curl, health checks,
       // UptimeRobot, server-to-server calls) -- always safe to allow.
       if (!origin) return cb(null, true);
-      if (origin === env.webAppUrl) return cb(null, true);
-      // Local dev flexibility: any localhost/127.0.0.1 port, regardless of environment,
-      // so a local frontend on a non-default port (or hitting a deployed API for quick
-      // manual testing) is never blocked by this.
-      if (/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return cb(null, true);
       // cb(null, false), not cb(err, false) -- an unrecognized Origin should just get no
       // CORS headers (letting the browser block the response from being read), not a 500.
       // This API gets scanned/probed with arbitrary Origin headers in production; treating
       // every one as a server error would be noisy, misleading log pollution for exactly
       // the outcome CORS is supposed to produce.
-      cb(null, false);
+      cb(null, isAllowedOrigin(origin));
     },
+  });
+
+  // CSRF. The session cookie is SameSite=Lax, which stops other *sites* from sending it on a
+  // POST -- but every *.gabrielochieng.com subdomain (the Dokploy panel, other apps on the
+  // VPS) counts as the same site. So any state-changing request that carries the cookie must
+  // also come from the web app's own origin. Browsers always send Origin on these requests.
+  // Registered after CORS so a rejection still carries CORS headers and the page can show it.
+  app.addHook("onRequest", async (request, reply) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
+    if (!readCookie(request, SESSION_COOKIE)) return;
+    const origin = request.headers.origin;
+    if (!origin || !isAllowedOrigin(origin)) {
+      return reply.status(403).send({ error: "bad_origin" });
+    }
   });
   // @fastify/static needs its root to exist at registration time, not just by the time a
   // screenshot is first saved (saveScreenshot/ensureBrandScreenshotHash both mkdir lazily,
@@ -64,11 +80,9 @@ async function main() {
     root: screenshotDir,
     prefix: "/screenshots/",
   });
-  // Scoped to just the webhook route (global: false) -- Clerk's svix signature is
-  // computed over the exact raw request bytes, which normal JSON body parsing discards.
-  await app.register(fastifyRawBody, { field: "rawBody", global: false, runFirst: true });
-
-  await app.register(webhookRoutes);
+  await app.register(authRoutes);
+  await app.register(accountRoutes);
+  await app.register(googleRoutes);
   await app.register(brandRoutes);
   await app.register(pipelineRoutes);
   await app.register(findingsRoutes);
@@ -94,12 +108,16 @@ async function main() {
 
   // Requires `npm run queue:bootstrap` to have already granted brandmonitor_app access
   // to the pgboss schema -- see scripts/bootstrapQueue.ts.
-  await boss.start();
-  await ensureQueues();
-  await registerQueueWorkers();
-  await registerAlertDispatchWorker();
-  await scheduleDispatchers();
-  app.log.info("Queue started: workers registered, dispatchers scheduled.");
+  if (env.disableSchedulers) {
+    app.log.warn("DISABLE_SCHEDULERS=1: no queue workers or dispatchers (nothing scans or sends alerts).");
+  } else {
+    await boss.start();
+    await ensureQueues();
+    await registerQueueWorkers();
+    await registerAlertDispatchWorker();
+    await scheduleDispatchers();
+    app.log.info("Queue started: workers registered, dispatchers scheduled.");
+  }
 
   await app.listen({ port: env.port, host: "0.0.0.0" });
 }

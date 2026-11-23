@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { TakedownStatusSchema } from "@brand-monitor/shared";
 import { apiFetch } from "../lib/api";
 import { TakedownKit, type KitChannel } from "./TakedownKit";
@@ -35,7 +34,6 @@ export function TakedownTracker({
   // part of it worked, or it's back.
   siteLive?: boolean;
 }) {
-  const { getToken } = useAuth();
   const [takedowns, setTakedowns] = useState<Takedown[]>([]);
   const [form, setForm] = useState({ provider: "", reference: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -43,19 +41,17 @@ export function TakedownTracker({
   const [kit, setKit] = useState<KitChannel[]>([]);
 
   const load = useCallback(async () => {
-    const token = await getToken();
-    const data = await apiFetch<Takedown[]>(`/api/findings/${findingId}/takedowns`, token);
+    const data = await apiFetch<Takedown[]>(`/api/findings/${findingId}/takedowns`);
     setTakedowns(data);
-  }, [getToken, findingId]);
+  }, [findingId]);
 
   useEffect(() => {
     load().catch(() => {});
     (async () => {
-      const token = await getToken();
-      const data = await apiFetch<{ channels: KitChannel[] }>(`/api/findings/${findingId}/takedown-kit`, token);
+      const data = await apiFetch<{ channels: KitChannel[] }>(`/api/findings/${findingId}/takedown-kit`);
       setKit(data.channels);
     })().catch(() => {});
-  }, [load, getToken, findingId]);
+  }, [load, findingId]);
 
   // First time each provider label was logged, for the kit's "Reported" markers.
   const reportedAt: Record<string, string> = {};
@@ -66,8 +62,7 @@ export function TakedownTracker({
   async function handleMarkReported(channel: KitChannel) {
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/findings/${findingId}/takedowns`, token, {
+      await apiFetch(`/api/findings/${findingId}/takedowns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -87,8 +82,7 @@ export function TakedownTracker({
     setSubmitting(true);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/findings/${findingId}/takedowns`, token, {
+      await apiFetch(`/api/findings/${findingId}/takedowns`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -114,8 +108,7 @@ export function TakedownTracker({
     setTakedowns((prev) => prev.map((t) => (t.id === takedownId ? { ...t, status: nextStatus as Takedown["status"] } : t)));
     setError(null);
     try {
-      const token = await getToken();
-      const updated = await apiFetch<Takedown>(`/api/findings/${findingId}/takedowns/${takedownId}`, token, {
+      const updated = await apiFetch<Takedown>(`/api/findings/${findingId}/takedowns/${takedownId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus }),

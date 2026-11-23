@@ -10,6 +10,32 @@ const ERROR_MESSAGES: Record<string, string> = {
   target_not_allowed: "That address can't be checked (private and internal addresses aren't allowed).",
   no_brand: "Add a brand first.",
   unauthorized: "Your session has expired. Sign in again.",
+  invalid_credentials: "That email and password don't match.",
+  invalid_or_expired_token: "This link has expired or was already used. Ask for a new one.",
+  password_required: "Choose a password to finish.",
+  bad_origin: "The request was blocked. Reload the page and try again.",
+  already_member: "That person is already a member of this organization.",
+  too_many_invites: "Your organization has sent today's limit of 20 invites. Try again tomorrow.",
+  email_failed: "The email couldn't be sent. Try again in a few minutes.",
+  cannot_remove_self: "You can't remove yourself.",
+  wrong_password: "Your current password isn't right.",
+  no_password: "This account has no password yet. Use \"Forgot password\" on the sign-in page to set one.",
+  same_email: "That's already your email.",
+  email_taken: "Another account already uses that email.",
+  cannot_revoke_current_session: "To end this session, sign out.",
+  invalid_totp: "That code isn't right, or was already used. Wait for the next one and try again.",
+  invalid_recovery_code: "That recovery code isn't right, or was already used.",
+  totp_not_configured: "Two-factor sign-in isn't available: the server has no AUTH_ENCRYPTION_KEY.",
+  totp_already_enabled: "Two-factor sign-in is already on.",
+  totp_setup_required: "Start the setup again.",
+  totp_not_enabled: "Two-factor sign-in is off.",
+  google_no_account: "No Brand Monitor account uses that Google account. Accounts are by invitation: ask an owner or admin to invite your email.",
+  google_failed: "Google sign-in didn't go through. Try again.",
+  google_cancelled: "Google sign-in was cancelled.",
+  google_in_use: "That Google account is already linked to a different Brand Monitor account.",
+  google_email_mismatch: "That Google account's email isn't the one this invite was sent to. Pick the invited address, or set a password instead.",
+  google_not_configured: "Google sign-in isn't set up on this server.",
+  google_not_linked: "No Google account is linked.",
   forbidden: "Your role doesn't allow this. Ask an owner or admin.",
   no_active_organization: "Choose an organization first.",
   rate_limited: "Too many requests. Wait a minute and try again.",
@@ -36,6 +62,11 @@ export class ApiError extends Error {
   }
 }
 
+// For error codes that arrive in a URL (?error=...) rather than an API response.
+export function describeErrorCode(code: string): string {
+  return ERROR_MESSAGES[code] ?? "Something went wrong. Try again.";
+}
+
 function describeApiError(status: number, code: string | null): string {
   if (code && ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
   if (status === 429) return ERROR_MESSAGES.rate_limited;
@@ -43,17 +74,13 @@ function describeApiError(status: number, code: string | null): string {
   return `Something went wrong (error ${status}${code ? `, ${code}` : ""}).`;
 }
 
-export async function apiFetch<T>(path: string, token: string | null, init?: RequestInit): Promise<T> {
+// The session is an HttpOnly cookie the API sets (credentials: "include" sends it). Server
+// components have no browser cookie jar: they pass the incoming Cookie header in init.headers
+// (lib/serverApi.ts).
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
-      ...init,
-      cache: "no-store",
-      headers: {
-        ...(init?.headers ?? {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
+    res = await fetch(`${API_URL}${path}`, { ...init, cache: "no-store", credentials: "include" });
   } catch {
     throw new ApiError("Can't reach the server. Check your connection and try again.", 0, null);
   }

@@ -5,10 +5,10 @@
 | `apps/web` (Next.js) | Vercel (Hobby) | free |
 | `apps/api` + `apps/scanner` (one container) | OVH VPS (VPS-2: 4 vCores, 8 GB RAM, 75 GB, Beauharnois CA) running Dokploy | the one paid item |
 | Postgres 18 | Same VPS: one **shared** Postgres server in Dokploy, used by every app on the box; each app gets its own database + role | (VPS) |
-| Auth | Clerk **dev** instance (see §4) | free |
+| Auth | Our own (email + password, session cookie), in the API; see §4 | free |
 | Monitoring | UptimeRobot on `/health/jobs` | free |
 
-Live (since 2026-11-19): web `https://brand-monitor-web-eta.vercel.app`, API
+Live (since 2026-11-19): web `https://brand-monitor.gabrielochieng.com` (before the auth cutover: `https://brand-monitor-web-eta.vercel.app`), API
 `https://brand-monitor-api.gabrielochieng.com`. Dokploy panel: `panel.gabrielochieng.com`.
 Both Vercel and Dokploy auto-deploy on every push to `main`.
 
@@ -78,11 +78,15 @@ Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":tr
 
 1. Import the repo as a Vercel project with **Root Directory** `apps/web` (Vercel runs
    `npm install` from the repo root itself; no `vercel.json`).
-2. Env vars: `NEXT_PUBLIC_API_URL=https://brand-monitor-api.gabrielochieng.com` plus the Clerk dev
-   instance's publishable/secret keys. `NEXT_PUBLIC_*` values are baked into the browser bundle at
-   build time: add them as type **Config**, not Secret (Vercel refuses public-prefixed secrets and
-   can't convert a saved secret), and **redeploy** after changing them.
-3. `WEB_APP_URL` on the API must exactly equal the Vercel origin (see §6).
+2. Env vars: `NEXT_PUBLIC_API_URL=https://brand-monitor-api.gabrielochieng.com`. `NEXT_PUBLIC_*`
+   values are baked into the browser bundle at build time: add them as type **Config**, not Secret
+   (Vercel refuses public-prefixed secrets and can't convert a saved secret), and **redeploy**
+   after changing them.
+3. Custom domain `brand-monitor.gabrielochieng.com` (Vercel → Project → Settings → Domains, plus
+   the CNAME Vercel shows, at the DNS host). Required, not cosmetic: the session cookie is set by
+   the API for `.gabrielochieng.com`, and the web app's middleware only sees it on a sibling
+   subdomain. On the `*.vercel.app` URL everyone is bounced to /login. `WEB_APP_URL` on the API
+   must exactly equal this origin (see §6).
 4. Optional, public report form (`/report/<token>`): a free Cloudflare **Turnstile** widget for the
    Vercel hostname; `NEXT_PUBLIC_TURNSTILE_SITE_KEY` on Vercel, `TURNSTILE_SECRET_KEY` on the API.
    Set both or neither: with only the site key the form shows a check the API ignores; with only
@@ -94,39 +98,61 @@ Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":tr
    `provider_usage`; each brand uses ~276/month (so ~3 brands fit). Then add each brand's official social accounts
    and WhatsApp link under **Settings → Official accounts and apps**, or its own accounts get reported.
 
-## 4. Clerk — deliberately staying on the dev instance
+## 4. Auth (our own since 2026-11; Clerk before)
 
-**This deployment runs on Clerk's free development instance permanently.** Production mode needs
-a custom domain with DNS control; when this was decided there was none (`*.vercel.app` is
-rejected). `gabrielochieng.com` now exists, so production is possible, but for a small internal
-team tool the dev instance's only downsides are a "Development mode" watermark and Clerk's shared
-OAuth credentials. Revisit only if the app needs public sign-ups.
+Sign-in, sessions, invites and password resets live in the API (`apps/api/src/auth/`, README §9).
+Nothing to configure outside this repo except these API env vars:
 
-Webhook: Clerk dashboard → Developers → Webhooks, endpoint
-`https://brand-monitor-api.gabrielochieng.com/api/webhooks/clerk`, subscribed to
-`organization.created`, `organization.updated`, `user.created`, `user.updated`,
-`organizationMembership.created`, `organizationMembership.updated`,
-`organizationMembership.deleted`. Its signing secret → `CLERK_WEBHOOK_SIGNING_SECRET`; the dev
-instance's secret key → `CLERK_SECRET_KEY` (the same dev keys `apps/web/.env.local` uses).
+- `WEB_APP_URL=https://brand-monitor.gabrielochieng.com` (CORS, the Origin check, email links)
+- `COOKIE_DOMAIN=.gabrielochieng.com` (so the web app's middleware sees the session cookie)
+- `AUTH_ENCRYPTION_KEY`: 32 random bytes, base64 (`node -e "console.log(crypto.randomBytes(32).toString('base64'))"`).
+  Encrypts 2FA secrets. Keep a copy somewhere safe (password manager): if it's lost or changed, every
+  user with 2FA on is locked out until reset with `npm run auth:disable-2fa -- --email <email>`.
+- SMTP (already set for alerts): invites and reset links are emailed. If SMTP breaks, invites fail
+  with an error in the UI and "forgot password" silently sends nothing.
 
-**Roles are not configured in Clerk.** Role (`owner`/`admin`/`analyst`/`viewer`) is managed in-app
-under Settings → Team (see `apps/api/src/lib/auth.ts`, `VALID_ROLES`). The org creator becomes `owner`,
-invitees start as `viewer`. **Clerk's own Admin/Member toggle has no effect on this app**, so
-don't "fix" someone's access from the Clerk side.
+**Locked out / first account:** in the API container terminal (Dokploy; it starts in `apps/api`),
+`npm run auth:create-user -- --email <email> --org <orgId>` prints a one-time
+set-password link (owner role by default; `--role`, `--send-email` and `--new-org "<name>"` exist).
+**Sign in with Google (optional).** Google Cloud Console, any project → *Google Auth Platform*
+(formerly "OAuth consent screen"): audience **External**, app name "Brand Monitor", support email;
+scopes only `openid`, `email`, `profile`; then **Publish app** (status *In production*: while it's
+*Testing*, only listed test users can sign in). Basic scopes don't need Google's app verification.
+Then *Clients* → Create client → **Web application**, authorized redirect URI exactly
+`https://brand-monitor-api.gabrielochieng.com/auth/google/callback`. On the API set `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET` and `API_PUBLIC_URL=https://brand-monitor-api.gabrielochieng.com`. **If any
+step asks for a billing account or card, stop**: leave the vars empty and the Google button just
+doesn't appear (the $0 rule). Not verified with a real Google client yet; tested against a fake one.
+
+Lost authenticator *and* recovery codes: `npm run auth:disable-2fa -- --email <email>` (confirm it's
+really them first, out of band). It also signs them out everywhere.
+
+### Cutover from Clerk (one-off)
+1. Vercel custom domain (§3 step 3) and the three API env vars above, *before* pushing.
+2. Push. Dokploy and Vercel deploy separately, so sign-in is broken for a few minutes in between.
+   The migration `20261123120000_own_auth` runs on container start. Existing users, orgs, roles and
+   assignments are unchanged (old Clerk ids stay as plain ids).
+3. Check the user list first: in `postgres-shared`, `select id, email from users;`. Fix any
+   `...@unknown.local` placeholder emails with an `UPDATE`.
+4. In the API container: `npm run auth:migrate-from-clerk` (dry run), then
+   with `-- --send`. Each user gets a 7-day "set your password" link.
+5. Remove the Clerk env vars from Vercel and the API, and the webhook in the Clerk dashboard. Keep
+   the Clerk application about a week as a rollback (revert the commit), then delete it.
 
 ## 5. Smoke test
 
-Sign in on the Vercel URL and confirm the dashboard shows real data (browser → Vercel → API →
+Sign in on `https://brand-monitor.gabrielochieng.com` and confirm the dashboard shows real data (browser → Vercel → API →
 Postgres). `/health/jobs` should show a `lastRecheckDispatchAt` within the last 5 minutes. To see
 the scanner work end to end, submit a live URL as a manual finding: its screenshot should load.
 
 ## 6. Operating it — things that bite
 
-**`WEB_APP_URL` must exactly equal the Vercel origin** (scheme + host, no trailing slash). The API
-uses it for email links *and* as the CORS allowlist (`apps/api/src/server.ts`; `localhost` /
-`127.0.0.1` on any port are always allowed for dev). Wrong value → the browser blocks every
-frontend request with a CORS error. It also needs setting in Clerk → Developers → Paths →
-*Fallback development host*, or invitation emails link to `localhost:3000`.
+**`WEB_APP_URL` must exactly equal the web app's origin** (`https://brand-monitor.gabrielochieng.com`,
+no trailing slash). The API uses it for email links, as the CORS allowlist, and for the Origin check
+on every cookie-carrying write (`apps/api/src/auth/origin.ts`; localhost ports are allowed only when
+`WEB_APP_URL` is itself localhost). Wrong value → every frontend request fails with a CORS error, or
+every save fails `bad_origin`. Wrong or missing `COOKIE_DOMAIN` → sign-in "works" but every page
+bounces back to /login.
 
 **The VPS is shared** with other apps (cve-monitor, and more to come); new apps' databases go on
 the shared Postgres server (§1). Brand-monitor's container holds headless Chromium; `RECHECK_CONCURRENCY=3` means up to 3

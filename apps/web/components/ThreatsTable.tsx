@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { SeverityBadge } from "./SeverityBadge";
 import { PendingLink, usePendingNavigation } from "./PendingNavigation";
@@ -46,7 +45,6 @@ export function ThreatsTable({
   currentSort: { sortBy: string; sortDir: string };
   showBrand: boolean;
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const { navigate } = usePendingNavigation();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -63,14 +61,13 @@ export function ThreatsTable({
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
-        const data = await apiFetch<Member[]>("/api/organization/members", token);
+        const data = await apiFetch<Member[]>("/api/organization/members");
         setMembers(data);
       } catch {
         // Only feeds the bulk "Assign to" list -- that select just stays empty.
       }
     })();
-  }, [getToken]);
+  }, []);
 
   const toggleAll = useCallback(
     (checked: boolean) => {
@@ -93,8 +90,7 @@ export function ThreatsTable({
     setApplying(true);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch("/api/findings/bulk", token, {
+      await apiFetch("/api/findings/bulk", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

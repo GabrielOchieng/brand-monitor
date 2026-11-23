@@ -3,10 +3,11 @@ import { env } from "./env";
 
 // DELIBERATE, NARROW RLS bypass -- connects as the migration role, not brandmonitor_app.
 // Used ONLY by:
-//   1. The Clerk webhook sync (src/routes/webhooks.ts): syncing an organization/user
-//      record has to happen before any tenant session context can exist (you can't set
-//      app.current_org_id to an org that doesn't have a row yet, and a brand new user
-//      isn't a member of anything yet either).
+//   1. Auth (src/auth/*, src/routes/auth.ts, the invite routes in src/routes/members.ts):
+//      sign-in, sessions and invites run before any tenant context exists (a signing-in
+//      user has no org yet; a new org has no row to point app.current_org_id at). The
+//      credential tables (user_auth, sessions, auth_tokens) are reachable ONLY this way --
+//      the app role has no grants on them.
 //   2. The scheduled queue dispatchers (src/queue/dispatch.ts): "find every brand due
 //      for discovery" / "every finding due for recheck" is inherently cross-tenant --
 //      no single request context could ever express it. Kept to narrow, read-only,

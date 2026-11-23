@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { LoadingRegion, Skeleton } from "../Skeleton";
 import { ReadOnlyNote, Section, Toggle } from "./Section";
@@ -31,7 +30,6 @@ const SEVERITIES = ["low", "medium", "high", "critical"];
 
 // One row per alert type: on/off, where it goes, and its threshold. Saved per change.
 export function AlertSettings({ editable }: { editable: boolean }) {
-  const { getToken } = useAuth();
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [savingKind, setSavingKind] = useState<string | null>(null);
   const [savedKind, setSavedKind] = useState<string | null>(null);
@@ -41,10 +39,9 @@ export function AlertSettings({ editable }: { editable: boolean }) {
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
         const [data, webhook] = await Promise.all([
-          apiFetch<{ rules: Rule[] }>("/api/alert-rules", token),
-          apiFetch<{ enabled: boolean } | null>("/api/webhook-config", token).catch(() => null),
+          apiFetch<{ rules: Rule[] }>("/api/alert-rules"),
+          apiFetch<{ enabled: boolean } | null>("/api/webhook-config").catch(() => null),
         ]);
         setRules(data.rules);
         setWebhookOn(Boolean(webhook?.enabled));
@@ -53,7 +50,7 @@ export function AlertSettings({ editable }: { editable: boolean }) {
         setRules([]);
       }
     })();
-  }, [getToken]);
+  }, []);
 
   async function save(next: Rule) {
     const previous = rules;
@@ -62,7 +59,7 @@ export function AlertSettings({ editable }: { editable: boolean }) {
     setSavedKind(null);
     setError(null);
     try {
-      await apiFetch(`/api/alert-rules/${next.kind}`, await getToken(), {
+      await apiFetch(`/api/alert-rules/${next.kind}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next.enabled, channels: next.channels, config: next.config }),

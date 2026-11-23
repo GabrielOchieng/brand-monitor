@@ -1,5 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
-import { apiFetch } from "../../lib/api";
+import { serverApiFetch } from "../../lib/serverApi";
 import { ThreatsTable } from "../../components/ThreatsTable";
 import { ExportCsvButton } from "../../components/ExportCsvButton";
 import { ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
@@ -55,8 +54,6 @@ type SearchParams = Promise<{
 
 export default async function ThreatsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const { getToken } = await auth();
-  const token = await getToken();
 
   // No status in the URL is the default view, open findings only; "all" means no filter.
   const status = sp.status ?? "open";
@@ -76,9 +73,9 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
   else apiQs.set("status", status);
 
   const [data, brands, members] = await Promise.all([
-    apiFetch<FindingsResponse>(`/api/findings?${apiQs.toString()}`, token),
-    apiFetch<Brand[]>("/api/brands", token),
-    apiFetch<Member[]>("/api/organization/members", token),
+    serverApiFetch<FindingsResponse>(`/api/findings?${apiQs.toString()}`),
+    serverApiFetch<Brand[]>("/api/brands"),
+    serverApiFetch<Member[]>("/api/organization/members"),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));

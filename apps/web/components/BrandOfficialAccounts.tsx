@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { TrashIcon } from "./icons";
 import { TargetIcon } from "./ThreatsTable";
@@ -27,16 +26,15 @@ function describeOfficial(url: string) {
 // The brand's real social accounts, WhatsApp link and apps. The searches never report
 // these, and their contact numbers count as the brand's own.
 export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: string; editable?: boolean }) {
-  const { getToken } = useAuth();
   const [urls, setUrls] = useState<string[] | null>(null);
   const [newUrl, setNewUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, await getToken());
+    const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`);
     setUrls(data.urls);
-  }, [getToken, brandId]);
+  }, [brandId]);
 
   useEffect(() => {
     setUrls(null);
@@ -50,7 +48,7 @@ export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: s
     setSaving(true);
     setError(null);
     try {
-      const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, await getToken(), {
+      const data = await apiFetch<{ urls: string[] }>(`/api/brands/${brandId}/official-socials`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls: next }),

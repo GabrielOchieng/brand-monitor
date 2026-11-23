@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { LoadingRegion, Skeleton } from "./Skeleton";
 import { timeAgo } from "../lib/format";
@@ -36,7 +35,6 @@ export function AiExplanationPanel({
   findingId: string;
   initialExplanation: Explanation | null;
 }) {
-  const { getToken } = useAuth();
   const [explanation, setExplanation] = useState(initialExplanation);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +43,7 @@ export function AiExplanationPanel({
     setGenerating(true);
     setError(null);
     try {
-      const token = await getToken();
-      const result = await apiFetch<Explanation>(`/api/findings/${findingId}/explain`, token, { method: "POST" });
+      const result = await apiFetch<Explanation>(`/api/findings/${findingId}/explain`, { method: "POST" });
       setExplanation(result);
     } catch (err: any) {
       setError(err.message);

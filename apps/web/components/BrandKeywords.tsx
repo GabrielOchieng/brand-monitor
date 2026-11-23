@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { TrashIcon } from "./icons";
 import { LoadingRegion, Skeleton } from "./Skeleton";
@@ -17,7 +16,6 @@ interface Keyword {
 const MAX_PAIRED = 8;
 
 export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId: string; brandRoot: string; editable?: boolean }) {
-  const { getToken } = useAuth();
   const [keywords, setKeywords] = useState<Keyword[] | null>(null);
   const [newKeyword, setNewKeyword] = useState("");
   const [adding, setAdding] = useState(false);
@@ -25,9 +23,9 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const data = await apiFetch<Keyword[]>(`/api/brands/${brandId}/keywords`, await getToken());
+    const data = await apiFetch<Keyword[]>(`/api/brands/${brandId}/keywords`);
     setKeywords(data);
-  }, [getToken, brandId]);
+  }, [brandId]);
 
   useEffect(() => {
     setKeywords(null);
@@ -44,7 +42,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
     setAdding(true);
     setError(null);
     try {
-      await apiFetch(`/api/brands/${brandId}/keywords`, await getToken(), {
+      await apiFetch(`/api/brands/${brandId}/keywords`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword }),
@@ -62,7 +60,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
     setBusyId(k.id);
     setError(null);
     try {
-      const updated = await apiFetch<Keyword>(`/api/brands/${brandId}/keywords/${k.id}`, await getToken(), {
+      const updated = await apiFetch<Keyword>(`/api/brands/${brandId}/keywords/${k.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ core }),
@@ -79,7 +77,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
     setBusyId(k.id);
     setError(null);
     try {
-      await apiFetch(`/api/brands/${brandId}/keywords/${k.id}`, await getToken(), { method: "DELETE" });
+      await apiFetch(`/api/brands/${brandId}/keywords/${k.id}`, { method: "DELETE" });
       setKeywords((prev) => (prev ?? []).filter((p) => p.id !== k.id));
     } catch (err: any) {
       setError(err.message);

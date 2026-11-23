@@ -2,22 +2,21 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
+import { useSession } from "../lib/session";
 import { apiFetch } from "../lib/api";
 
 export function NotificationBell() {
-  const { getToken, isLoaded, orgId } = useAuth();
+  const { isLoaded, orgId } = useSession();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const poll = useCallback(async () => {
     try {
-      const token = await getToken();
-      const data = await apiFetch<{ unreadCount: number }>("/api/notifications", token);
+      const data = await apiFetch<{ unreadCount: number }>("/api/notifications");
       setUnreadCount(data.unreadCount);
     } catch {
       // notifications are non-critical -- a transient failure just skips this tick
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || !orgId) return;

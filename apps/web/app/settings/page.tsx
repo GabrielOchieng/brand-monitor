@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useSession } from "../../lib/session";
 import { apiFetch } from "../../lib/api";
 import {
   AccountsSection,
@@ -79,7 +79,7 @@ export default function SettingsPage() {
 function Settings() {
   const params = useSearchParams();
   const router = useRouter();
-  const { getToken, isLoaded, orgId } = useAuth();
+  const { isLoaded, orgId } = useSession();
   const role = useMyRole();
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [brandId, setBrandId] = useState<string | null>(null);
@@ -90,12 +90,12 @@ function Settings() {
 
   const loadBrands = useCallback(
     async (prefer?: string) => {
-      const list = await apiFetch<Brand[]>("/api/brands", await getToken());
+      const list = await apiFetch<Brand[]>("/api/brands");
       setBrands(list);
       const chosen = list.find((b) => b.id === prefer) ?? pickBrand(list);
       setBrandId(chosen?.id ?? null);
     },
-    [getToken]
+    []
   );
 
   useEffect(() => {
@@ -265,7 +265,7 @@ function Settings() {
               {section === "team" && (
                 <Section
                   title="Team"
-                  description="Who can see and act on findings. Owners manage everything, including roles; admins manage settings; analysts triage findings; viewers can only look. Invite people from the organization menu at the top right (Manage, then Members); they join as viewers."
+                  description="Who can see and act on findings. Owners manage everything, including roles; admins manage settings; analysts triage findings; viewers can only look. Owners and admins invite people by email below and pick their role."
                 >
                   <TeamMembers />
                 </Section>

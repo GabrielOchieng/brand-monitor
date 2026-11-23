@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
+import { useSession } from "../../lib/session";
 import { apiFetch, API_URL } from "../../lib/api";
 import { RadarIcon, SearchIcon, FlagIcon, ChevronDownIcon, ChevronRightIcon, CheckIcon } from "../../components/icons";
 import { SeverityBadge } from "../../components/SeverityBadge";
@@ -81,7 +81,7 @@ const SOURCE_NAMES: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { getToken, orgId, isLoaded } = useAuth();
+  const { orgId, isLoaded } = useSession();
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [brandId, setBrandId] = useState<string | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -100,13 +100,13 @@ export default function DashboardPage() {
   const loadSummary = useCallback(
     async (id: string) => {
       try {
-        const data = await apiFetch<Summary>(`/api/dashboard/summary?brandId=${encodeURIComponent(id)}`, await getToken());
+        const data = await apiFetch<Summary>(`/api/dashboard/summary?brandId=${encodeURIComponent(id)}`);
         setSummary(data);
       } catch (err: any) {
         setError(err.message);
       }
     },
-    [getToken]
+    []
   );
 
   // Brands first; the summary follows for the remembered (or first) brand.
@@ -114,7 +114,7 @@ export default function DashboardPage() {
     if (!isLoaded || !orgId) return;
     (async () => {
       try {
-        const list = await apiFetch<Brand[]>("/api/brands", await getToken());
+        const list = await apiFetch<Brand[]>("/api/brands");
         setBrands(list);
         const chosen = pickBrand(list);
         if (chosen) setBrandId(chosen.id);
@@ -123,7 +123,7 @@ export default function DashboardPage() {
         setBrands([]);
       }
     })();
-  }, [isLoaded, orgId, getToken]);
+  }, [isLoaded, orgId]);
 
   useEffect(() => {
     if (!brandId) return;
@@ -142,19 +142,19 @@ export default function DashboardPage() {
       .catch(() => setHealth("unavailable"));
     (async () => {
       try {
-        const data = await apiFetch<{ notifications: NotificationItem[] }>("/api/notifications", await getToken());
+        const data = await apiFetch<{ notifications: NotificationItem[] }>("/api/notifications");
         setActivity(data.notifications.slice(0, 6));
       } catch {
         setActivity([]);
       }
     })();
-  }, [isLoaded, orgId, getToken]);
+  }, [isLoaded, orgId]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
     const interval = setInterval(async () => {
       try {
-        const updated = await apiFetch<RunStatus>(`/api/pipeline/runs/${run.id}`, await getToken());
+        const updated = await apiFetch<RunStatus>(`/api/pipeline/runs/${run.id}`);
         setRun(updated);
         if (updated.status !== "running") {
           clearInterval(interval);
@@ -165,7 +165,7 @@ export default function DashboardPage() {
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [run, brandId, loadSummary, getToken]);
+  }, [run, brandId, loadSummary]);
 
   function selectBrand(id: string) {
     writeSelectedBrand(id);
@@ -176,7 +176,7 @@ export default function DashboardPage() {
     if (!brandId) return;
     setError(null);
     try {
-      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", await getToken(), {
+      const { runId } = await apiFetch<{ runId: string }>("/api/pipeline/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brandId }),
@@ -192,7 +192,7 @@ export default function DashboardPage() {
     setError(null);
     setSearchState("starting");
     try {
-      await apiFetch("/api/pipeline/social-search", await getToken(), {
+      await apiFetch("/api/pipeline/social-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brandId }),
@@ -211,7 +211,7 @@ export default function DashboardPage() {
     setSubmitMessage(null);
     setError(null);
     try {
-      await apiFetch("/api/findings/manual-submit", await getToken(), {
+      await apiFetch("/api/findings/manual-submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brandId, url: submitUrl }),
@@ -230,7 +230,7 @@ export default function DashboardPage() {
     setCreating(true);
     setError(null);
     try {
-      const created = await apiFetch<Brand>("/api/brands", await getToken(), {
+      const created = await apiFetch<Brand>("/api/brands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -254,7 +254,10 @@ export default function DashboardPage() {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
         <h1 className="text-xl font-semibold text-ink">Select or create an organization</h1>
-        <p className="mt-2 text-sm text-ink-muted">Use the organization switcher in the top bar to continue.</p>
+        <p className="mt-2 text-sm text-ink-muted">Pick one from the menu in the top bar, or start a new one.</p>
+        <Link href="/organizations/new" className="btn-primary mt-5">
+          New organization
+        </Link>
       </div>
     );
   }

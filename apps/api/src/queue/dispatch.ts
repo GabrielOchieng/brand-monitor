@@ -25,8 +25,8 @@ import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
 import { runSocialSearchMonitorJob, runFactCheckMonitorJob, runManualSocialSearch } from "../pipeline/socialSearchMonitorJob";
 import { markRecheckDispatched } from "./health";
 
-// Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's Clerk
-// webhook sync. A "find everything due, across every org" query is inherently
+// Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's
+// other callers. A "find everything due, across every org" query is inherently
 // cross-tenant; no single request context could ever express it. Kept to exactly these
 // two auditable, read-only, id-only selects -- never used to read/write tenant content.
 

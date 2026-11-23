@@ -22,7 +22,6 @@
     "prisma@5.22.0": true,
     "sharp@0.35.4": true,
     "sharp@0.33.5": true,
-    "@clerk/shared@3.47.8": true,
     "esbuild@0.21.5": true
   }
 }

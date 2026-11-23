@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useSession } from "../../lib/session";
 import { apiFetch } from "../../lib/api";
 import { ExternalLinkIcon } from "../../components/icons";
 import { LoadingRegion, Skeleton, SkeletonList } from "../../components/Skeleton";
@@ -60,7 +60,7 @@ function capitalize(s: string) {
 // Non-threat social posts that name the brand, collected by the daily social search
 // (apps/api/src/pipeline/brandMentions.ts). A sample, not full social listening.
 export default function MentionsPage() {
-  const { getToken, isLoaded, orgId } = useAuth();
+  const { isLoaded, orgId } = useSession();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [brandId, setBrandId] = useState<string | null>(null);
   const [filters, setFiltersState] = useState({ category: "", sentiment: "", platform: "" });
@@ -79,14 +79,14 @@ export default function MentionsPage() {
     if (!isLoaded || !orgId) return;
     (async () => {
       try {
-        const list = await apiFetch<Brand[]>("/api/brands", await getToken());
+        const list = await apiFetch<Brand[]>("/api/brands");
         setBrands(list);
         setBrandId((current) => current ?? list[0]?.id ?? null);
       } catch (err: any) {
         setError(err.message);
       }
     })();
-  }, [isLoaded, orgId, getToken]);
+  }, [isLoaded, orgId]);
 
   const query = useCallback(() => {
     const qs = new URLSearchParams();
@@ -105,7 +105,7 @@ export default function MentionsPage() {
       setError(null);
       setLoading(true);
       try {
-        const next = await apiFetch<MentionsResponse>(query(), await getToken());
+        const next = await apiFetch<MentionsResponse>(query());
         if (!cancelled) setData(next);
       } catch (err: any) {
         if (!cancelled) setError(err.message);
@@ -116,7 +116,7 @@ export default function MentionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [brandId, query, getToken]);
+  }, [brandId, query]);
 
   function goTo(p: number) {
     setPage(p);

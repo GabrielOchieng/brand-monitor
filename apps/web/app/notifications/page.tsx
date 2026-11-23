@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 
@@ -17,30 +16,26 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
-  const { getToken } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const token = await getToken();
-    const data = await apiFetch<{ notifications: Notification[] }>("/api/notifications", token);
+    const data = await apiFetch<{ notifications: Notification[] }>("/api/notifications");
     setNotifications(data.notifications);
     setLoading(false);
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
   async function markRead(id: string) {
-    const token = await getToken();
-    await apiFetch(`/api/notifications/${id}/read`, token, { method: "POST" });
+    await apiFetch(`/api/notifications/${id}/read`, { method: "POST" });
     load();
   }
 
   async function markAllRead() {
-    const token = await getToken();
-    await apiFetch("/api/notifications/read-all", token, { method: "POST" });
+    await apiFetch("/api/notifications/read-all", { method: "POST" });
     load();
   }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { fullDate, statusLabel, timeAgo } from "../lib/format";
 
@@ -31,7 +30,6 @@ export function FindingLifecycle({
   initialAssigneeId: string | null;
   initialTags: string[];
 }) {
-  const { getToken } = useAuth();
   const [status, setStatus] = useState(initialStatus);
   const [assigneeId, setAssigneeId] = useState(initialAssigneeId ?? "");
   const [tagsInput, setTagsInput] = useState(initialTags.join(", "));
@@ -42,30 +40,27 @@ export function FindingLifecycle({
   const [error, setError] = useState<string | null>(null);
 
   const loadNotes = useCallback(async () => {
-    const token = await getToken();
-    const data = await apiFetch<Note[]>(`/api/findings/${findingId}/notes`, token);
+    const data = await apiFetch<Note[]>(`/api/findings/${findingId}/notes`);
     setNotes(data);
-  }, [getToken, findingId]);
+  }, [findingId]);
 
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
-        const data = await apiFetch<Member[]>("/api/organization/members", token);
+        const data = await apiFetch<Member[]>("/api/organization/members");
         setMembers(data);
       } catch {
         // assignee dropdown just stays empty on failure -- non-critical
       }
       loadNotes().catch(() => {});
     })();
-  }, [getToken, loadNotes]);
+  }, [loadNotes]);
 
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/findings/${findingId}`, token, {
+      await apiFetch(`/api/findings/${findingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -101,8 +96,7 @@ export function FindingLifecycle({
     setSaving(true);
     setError(null);
     try {
-      const token = await getToken();
-      await apiFetch(`/api/findings/${findingId}/notes`, token, {
+      await apiFetch(`/api/findings/${findingId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: newNote }),

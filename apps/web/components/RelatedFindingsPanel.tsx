@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../lib/api";
 import { SkeletonCard } from "./Skeleton";
 
@@ -26,20 +25,18 @@ interface RelatedResponse {
 // share a cheap registrar's generic default DNS), and this only ever looks at pairs, not
 // transitive clusters -- see routes/findings.ts for the full reasoning.
 export function RelatedFindingsPanel({ findingId }: { findingId: string }) {
-  const { getToken } = useAuth();
   const [data, setData] = useState<RelatedResponse | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const token = await getToken();
-        const result = await apiFetch<RelatedResponse>(`/api/findings/${findingId}/related`, token);
+        const result = await apiFetch<RelatedResponse>(`/api/findings/${findingId}/related`);
         setData(result);
       } catch {
         // non-critical panel -- a failed fetch just leaves it hidden
       }
     })();
-  }, [getToken, findingId]);
+  }, [findingId]);
 
   if (!data) return <SkeletonCard lines={2} />;
   // No registrar or registration date (social accounts, app listings, unscanned pages):

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch } from "../../lib/api";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { SeverityBadge } from "../../components/SeverityBadge";
@@ -37,7 +36,6 @@ const STATUS_FILTERS = ["new", "reviewed", "dismissed", ""] as const;
 
 // Scam reports from the public form (/report/<token>), plus the controls for that link.
 export default function ReportsPage() {
-  const { getToken } = useAuth();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("new");
@@ -45,15 +43,14 @@ export default function ReportsPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const token = await getToken();
     const [b, r] = await Promise.all([
-      apiFetch<Brand[]>("/api/brands", token),
-      apiFetch<Report[]>(`/api/reports${status ? `?status=${status}` : ""}`, token),
+      apiFetch<Brand[]>("/api/brands"),
+      apiFetch<Report[]>(`/api/reports${status ? `?status=${status}` : ""}`),
     ]);
     setBrands(b);
     setReports(r);
     setLoading(false);
-  }, [getToken, status]);
+  }, [status]);
 
   // A new status tab shows the skeleton; a refresh after an action keeps the list on screen.
   useEffect(() => {
@@ -61,10 +58,10 @@ export default function ReportsPage() {
     load();
   }, [load]);
 
-  async function act(fn: (token: string | null) => Promise<unknown>) {
+  async function act(fn: () => Promise<unknown>) {
     setError("");
     try {
-      await fn(await getToken());
+      await fn();
       await load();
     } catch (e: any) {
       setError(e?.status === 403 ? "Your role can't change reports. Ask an analyst, admin or owner." : String(e?.message ?? e));
@@ -137,12 +134,12 @@ export default function ReportsPage() {
               </div>
               <div className="flex shrink-0 gap-1">
                 {r.status !== "reviewed" && (
-                  <button className="btn-ghost text-xs" onClick={() => act((t) => apiFetch(`/api/reports/${r.id}`, t, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "reviewed" }) }))}>
+                  <button className="btn-ghost text-xs" onClick={() => act(() => apiFetch(`/api/reports/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "reviewed" }) }))}>
                     Mark reviewed
                   </button>
                 )}
                 {r.status !== "dismissed" && (
-                  <button className="btn-ghost text-xs" onClick={() => act((t) => apiFetch(`/api/reports/${r.id}`, t, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }) }))}>
+                  <button className="btn-ghost text-xs" onClick={() => act(() => apiFetch(`/api/reports/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }) }))}>
                     Dismiss
                   </button>
                 )}

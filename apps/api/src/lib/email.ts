@@ -104,5 +104,11 @@ export function buildAlertEmail(input: AlertEmailInput): { subject: string; text
 
 export async function sendAlertEmail(input: AlertEmailInput): Promise<void> {
   const { subject, text, html } = buildAlertEmail(input);
-  await transporter.sendMail({ from: env.smtpFrom, to: input.to, subject, text, html });
+  await sendMail({ to: input.to, subject, text, html });
 }
+
+export async function sendMail(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+  await transporter.sendMail({ from: env.smtpFrom, ...message });
+}
+
+export { escapeHtml };

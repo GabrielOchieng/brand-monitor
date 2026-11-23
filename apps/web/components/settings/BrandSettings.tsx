@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { apiFetch, API_URL } from "../../lib/api";
 import { BrandKeywords } from "../BrandKeywords";
 import { BrandOfficialAccounts } from "../BrandOfficialAccounts";
@@ -28,7 +27,6 @@ export function domainError(input: string): string | null {
 }
 
 export function BrandDetails({ brand, editable, onSaved }: { brand: Brand; editable: boolean; onSaved: () => Promise<void> }) {
-  const { getToken } = useAuth();
   const [details, setDetails] = useState({ name: brand.name, primaryDomain: brand.primaryDomain });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -48,7 +46,7 @@ export function BrandDetails({ brand, editable, onSaved }: { brand: Brand; edita
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(`/api/brands/${brand.id}`, await getToken(), {
+      await apiFetch(`/api/brands/${brand.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: details.name.trim(), primaryDomain: cleanDomain(details.primaryDomain) }),
@@ -134,20 +132,19 @@ export function ReportFormSection({ brand, editable, onChange }: { brand: Brand;
 }
 
 export function VisualReferenceSection({ brand }: { brand: Brand }) {
-  const { getToken } = useAuth();
   const [has, setHas] = useState<boolean | null>(null);
 
   useEffect(() => {
     setHas(null);
     (async () => {
       try {
-        const s = await apiFetch<{ brand: { hasVisualBaseline: boolean } }>(`/api/dashboard/summary?brandId=${brand.id}`, await getToken());
+        const s = await apiFetch<{ brand: { hasVisualBaseline: boolean } }>(`/api/dashboard/summary?brandId=${brand.id}`);
         setHas(s.brand.hasVisualBaseline);
       } catch {
         setHas(false);
       }
     })();
-  }, [brand.id, getToken]);
+  }, [brand.id]);
 
   return (
     <Section title="Visual reference" description="The screenshot of the brand's real site that pages are compared against to spot clones.">
@@ -171,7 +168,6 @@ export function VisualReferenceSection({ brand }: { brand: Brand }) {
 }
 
 export function DeleteBrandSection({ brand, onDeleted }: { brand: Brand; onDeleted: () => Promise<void> }) {
-  const { getToken } = useAuth();
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +176,7 @@ export function DeleteBrandSection({ brand, onDeleted }: { brand: Brand; onDelet
     setDeleting(true);
     setError(null);
     try {
-      await apiFetch(`/api/brands/${brand.id}`, await getToken(), { method: "DELETE" });
+      await apiFetch(`/api/brands/${brand.id}`, { method: "DELETE" });
       await onDeleted();
     } catch (err: any) {
       setError(err.message);
@@ -207,7 +203,6 @@ export function DeleteBrandSection({ brand, onDeleted }: { brand: Brand; onDelet
 }
 
 export function AddBrandSection({ onCreated }: { onCreated: (id: string) => Promise<void> }) {
-  const { getToken } = useAuth();
   const [form, setForm] = useState({ name: "", primaryDomain: "", concatKeywords: "" });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,7 +214,7 @@ export function AddBrandSection({ onCreated }: { onCreated: (id: string) => Prom
     setCreating(true);
     setError(null);
     try {
-      const created = await apiFetch<Brand>("/api/brands", await getToken(), {
+      const created = await apiFetch<Brand>("/api/brands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { apiFetch, API_URL } from "../../../lib/api";
+import { API_URL } from "../../../lib/api";
+import { serverApiFetch } from "../../../lib/serverApi";
 import { SeverityBadge } from "../../../components/SeverityBadge";
 import { FindingLifecycle } from "../../../components/FindingLifecycle";
 import { AiExplanationPanel } from "../../../components/AiExplanationPanel";
@@ -81,9 +81,7 @@ interface FindingDetail {
 // what to do about it (status, takedowns) and the reference details, folded where long.
 export default async function ThreatDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { getToken } = await auth();
-  const token = await getToken();
-  const finding = await apiFetch<FindingDetail>(`/api/findings/${id}`, token);
+  const finding = await serverApiFetch<FindingDetail>(`/api/findings/${id}`);
   const di = finding.domainIntel;
   const onHold = Boolean(di?.statusCodes.some((s) => s === "clientHold" || s === "serverHold"));
   const siteLive = Boolean(

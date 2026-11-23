@@ -5,8 +5,8 @@ for lookalike domains, clone sites, fake social media accounts, fake apps, fake 
 numbers and recruitment-fee scams. It scores each one with rules you can trace, alerts the team
 when something matters, and prepares the takedown reports.
 
-It's a multi-tenant SaaS: each organization signs in with Clerk, and Postgres row-level security
-keeps every organization's data apart. The live test brand is Jambojet (`jambojet.com`).
+It's a multi-tenant SaaS with its own invite-only sign-in, and Postgres row-level security keeps
+every organization's data apart. The live test brand is Jambojet (`jambojet.com`).
 
 | Doc | What's in it |
 |---|---|
@@ -350,16 +350,46 @@ selected brand is remembered per browser.
 
 ### 9. Accounts, roles and tenancy
 
-- **Organizations** come from Clerk. A Clerk webhook (`/api/webhooks/clerk`) syncs orgs, users
-  and memberships into Postgres.
-- **Roles** (`owner`, `admin`, `analyst`, `viewer`) live in our own `memberships` table, not
-  Clerk (Clerk charges for custom roles). The org creator becomes `owner` and invitees start as
-  `viewer`. Owners change roles under **Settings → Team**, never their own, and the last owner
-  can't be demoted. Only owners and admins can change settings; others see them read-only.
-  Invite people with Clerk's organization switcher.
+- **Sign-in** is our own (no auth provider since 2026-11): email + password, invite-only. Owners
+  and admins invite people by email under **Settings → Team**, choosing their role (only owners
+  invite owners); the invite link lasts 7 days, and the new person sets a password on accepting.
+  "Forgot password" emails a 1-hour reset link. Any signed-in user can start a new organization
+  from the organization menu and becomes its owner. The very first account is created from the
+  CLI (`npm run auth:create-user`, see Local setup).
+- **Account and security** (`/account`, from the avatar menu): name; password change (needs the
+  current one, signs out every other device, emails a notice); email change (needs the current
+  password, confirmed through a 1-hour link sent to the new address, notice to the old one); and
+  the list of signed-in devices with "sign out" per device or everywhere else.
+- **Two-factor sign-in** (optional, per user, on the account page): an authenticator app
+  (TOTP, RFC 6238: 6 digits, 30 s, ±1 step) plus 10 single-use recovery codes, shown once and
+  stored only as hashes. With it on, the password step returns a 5-minute challenge instead of a
+  session; 5 tries per challenge; a used code's time step is recorded so it can't be replayed.
+  The TOTP secret is stored AES-256-GCM-encrypted with `AUTH_ENCRYPTION_KEY`. Turning it on signs
+  out other devices; turning it off needs the password and a code (or a recovery code). A user who
+  lost both phone and codes is reset with `npm run auth:disable-2fa -- --email <email>`.
+- **Sign in with Google** (optional, shown only when `GOOGLE_CLIENT_ID`/`SECRET` are set;
+  `routes/google.ts`): OpenID Connect code flow with PKCE, a nonce, and a single-use state tied to
+  the browser by a short-lived `bm_oauth` cookie (blocks login CSRF). Still invite-only: Google
+  signs in an existing account (matched by Google's user id, or on first use by its verified email,
+  which then links it), or accepts an invite when the Google email is the invited one; an unknown
+  Google account is refused. 2FA, if on, still asks for the code. Users can link or unlink Google
+  on the account page; unlinking needs a password to fall back on.
+- **How it works** (`apps/api/src/auth/`): passwords hashed with scrypt; the session is a random
+  token in an HttpOnly, SameSite=Lax cookie (`bm_session`, 30 days, 7 days idle), stored only as a
+  SHA-256 hash in `sessions`, which also holds the active organization. Reset and invite links are
+  single-use hashed tokens in `auth_tokens`. These tables and `user_auth` (credentials) have no RLS
+  and the app role has no grants on them; only the auth code reads them, via `adminPrisma`. Every
+  state-changing request that carries the cookie must come from `WEB_APP_URL` (Origin check in
+  `server.ts`), since SameSite treats sibling subdomains as same-site. Login is limited to 10
+  tries per email and 30 per IP per 15 minutes; a reset or password change signs out everywhere.
+- **Roles** (`owner`, `admin`, `analyst`, `viewer`) live in the `memberships` table. Owners
+  change roles and remove members under **Settings → Team**, never their own, and the last owner
+  can't be demoted or removed. Only owners and admins can change settings; others see them
+  read-only.
 - **Tenancy**: Postgres row-level security. Every request and pipeline query runs through
   `withTenant(orgId, fn)` (`lib/tenant.ts`) as the restricted `brandmonitor_app` role.
-  `adminPrisma` is used only for the Clerk webhook and cross-tenant job dispatch.
+  `adminPrisma` is used only for auth (before any org context exists) and cross-tenant job
+  dispatch.
 - **Rate limits** (`lib/rateLimit.ts`): per IP 300 requests/min and 60 screenshots/min; per org 12
   manual discovery runs, 50 manual submissions and 3 social searches a day. In memory, so they
   reset on restart.
@@ -376,9 +406,6 @@ a genuinely live phishing site, report it responsibly to the brand's security te
 
 - Node.js 20+ and npm
 - Docker Desktop (runs Postgres on port 5450 and the Playwright scanner)
-- A Clerk application with **Organizations** enabled. No custom Clerk roles are needed. Add a
-  webhook pointing at `<api>/api/webhooks/clerk` (events: organization, user,
-  organizationMembership) and put its signing secret in `CLERK_WEBHOOK_SIGNING_SECRET`.
 
 ### Steps
 
@@ -401,10 +428,12 @@ npm run prisma:migrate
 #    Re-run only after a pg-boss upgrade that changes its schema.
 npm run queue:bootstrap -w @brand-monitor/api
 
-# 6. Optional demo brand. Sign in once and create an organization first, then set
-#    SEED_ORG_ID (and SEED_USER_ID / SEED_USER_EMAIL) to your real Clerk ids;
-#    a placeholder id is invisible to your login because of RLS.
+# 6. Optional demo brand (org id seed-org-jambojet)
 npm run prisma:seed
+
+# 7. Your first account. Prints a one-time link to set the password (add --send-email to email it).
+npm run auth:create-user -w @brand-monitor/api -- --email you@example.com --org seed-org-jambojet
+#    or, without the seed:  ... -- --email you@example.com --new-org "My Org"
 ```
 
 ### Run
@@ -414,12 +443,16 @@ npm run dev:api   # http://localhost:4000, also starts the job queue and workers
 npm run dev:web   # http://localhost:3000
 ```
 
-Sign in, create an organization, then open `/dashboard`. With no brand yet, a short form creates
-one. Click **Run discovery** for an immediate pass, or wait for the background jobs.
+Open the link from step 7, set a password, sign in, then open `/dashboard`. With no brand yet, a
+short form creates one. Click **Run discovery** for an immediate pass, or wait for the background
+jobs. Open the web app and the API on the same host name (both `localhost`), or the sign-in
+cookie isn't seen.
 
 > **Warning:** `npm run dev:api` runs the real recheck dispatcher, which sends real alert emails
 > and scans real third-party sites. Don't leave it running. Stopping the terminal task may leave
-> the node process alive: find it with `netstat -ano | grep :4000` and kill it.
+> the node process alive: find it with `netstat -ano | grep :4000` and kill it. To work on the
+> UI or sign-in without any of that, start the API with `DISABLE_SCHEDULERS=1` (no queue workers
+> or dispatchers; discovery runs from the dashboard won't work).
 
 ### Configuration
 
@@ -431,9 +464,13 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `DATABASE_APP_URL` | Restricted `brandmonitor_app` connection, used at runtime (RLS applies) |
 | `SCANNER_URL` | The Playwright scanner service (`http://127.0.0.1:3100` locally) |
 | `PORT` | API port (4000) |
-| `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET` | Clerk auth and webhook verification |
-| `WEB_APP_URL` | The web app's origin, used for CORS and links in alerts |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email alerts |
+| `WEB_APP_URL` | The web app's origin: CORS, the Origin check on writes, links in emails |
+| `COOKIE_DOMAIN` | Session cookie domain, e.g. `.gabrielochieng.com` so the web app on a sibling subdomain sees it; empty locally |
+| `DISABLE_SCHEDULERS` | `1` = no queue workers or cron dispatchers (local UI work) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Sign in with Google (optional; both empty = no Google button) |
+| `API_PUBLIC_URL` | The API's public origin, for Google's redirect URI (`<this>/auth/google/callback`) |
+| `AUTH_ENCRYPTION_KEY` | 32 random bytes, base64; encrypts 2FA secrets. Empty = 2FA can't be turned on. Never change it once set |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email alerts, invites and password resets |
 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_EXPLANATION_DAILY_LIMIT` | AI explanations and mention labelling |
 | `TAVILY_API_KEY`, `TAVILY_MONTHLY_CAP` | Social and web search |
 | `ISC_CONTACT` | Contact shown to SANS ISC in the User-Agent (optional) |
@@ -441,8 +478,8 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `TURNSTILE_SECRET_KEY` | Spam protection on the public report form |
 | `RECHECK_CONCURRENCY` | Parallel rechecks (default 3) |
 
-Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
-`CLERK_SECRET_KEY` and optionally `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL` and optionally
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
 
 A missing optional key turns its feature off rather than crashing: no Tavily key means no
 social/web search, no AI key means the explain button shows an error.
@@ -494,7 +531,7 @@ apps/
     src/lib/       RDAP/WHOIS, DNS, indicators, favicon/visual matching, takedown kit, search clients
     src/queue/     pg-boss setup, schedules, alert dispatch, /health/jobs
     prisma/        schema and migrations (RLS policies live in the migration SQL)
-  web/       Next.js 15 + Clerk: overview, threat feed, finding page, settings, public report form
+  web/       Next.js 15: overview, threat feed, finding page, settings, public report form
   scanner/   Playwright in Docker: page load, screenshot, forms, parked pages, script links
 packages/
   shared/    Zod schemas, types and severity thresholds shared by api and web

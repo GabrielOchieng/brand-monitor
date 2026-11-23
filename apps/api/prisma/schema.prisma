@@ -12,7 +12,8 @@ datasource db {
 // not a throwaway schema.
 
 model Organization {
-  id        String   @id // Clerk organization id (org_...), not a generated cuid
+  // org_<random>. Orgs created before 2026-11 carry their old Clerk id (same prefix).
+  id        String   @id
   name      String
   createdAt DateTime @default(now()) @map("created_at")
   brands       Brand[]
@@ -22,15 +23,75 @@ model Organization {
 }
 
 model User {
-  id        String   @id // Clerk user id (user_...), not a generated cuid
-  email     String   @unique
+  // user_<random>. Users created before 2026-11 carry their old Clerk id (same prefix).
+  id        String   @id
+  email     String   @unique // stored lowercased
   name      String?
   createdAt DateTime @default(now()) @map("created_at")
 
   memberships      Membership[]
   assignedFindings Finding[] @relation("FindingAssignee")
+  auth             UserAuth?
+  sessions         Session[]
 
   @@map("users")
+}
+
+// Credentials, kept out of `users` so no tenant query that includes a user can ever return
+// them. No RLS and no grants for brandmonitor_app: only src/auth/* touches these, through
+// adminPrisma (see adminDb.ts).
+model UserAuth {
+  userId             String    @id @map("user_id")
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash       String?   @map("password_hash") // scrypt$N$r$p$salt$hash; null = no password set yet
+  passwordChangedAt  DateTime? @map("password_changed_at")
+  emailVerifiedAt    DateTime? @map("email_verified_at")
+  totpSecretEnc      String?   @map("totp_secret_enc") // AES-256-GCM, AUTH_ENCRYPTION_KEY
+  totpEnabledAt      DateTime? @map("totp_enabled_at")
+  totpLastStep       BigInt?   @map("totp_last_step") // last accepted time step, blocks replay
+  recoveryCodeHashes String[]  @default([]) @map("recovery_code_hashes")
+  googleSub          String?   @unique @map("google_sub")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@map("user_auth")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique @map("token_hash") // sha256 of the cookie value
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrgId String?  @map("active_org_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  expiresAt   DateTime @map("expires_at")
+  ip          String?
+  userAgent   String?  @map("user_agent")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// One-time emailed/short-lived tokens. Single-use: consumed with a conditional update.
+model AuthToken {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique @map("token_hash")
+  purpose        String // reset_password | invite | change_email | mfa_challenge | oauth_state
+  userId         String?   @map("user_id")
+  email          String?
+  organizationId String?   @map("organization_id")
+  role           String?
+  newEmail       String?   @map("new_email")
+  data           Json?
+  createdBy      String?   @map("created_by")
+  attempts       Int       @default(0)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime  @map("expires_at")
+  usedAt         DateTime? @map("used_at")
+
+  @@index([purpose, organizationId])
+  @@index([purpose, userId])
+  @@map("auth_tokens")
 }
 
 model Membership {

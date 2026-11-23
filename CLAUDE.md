@@ -9,12 +9,17 @@ section at the top of `ARCHITECTURE.md` (the rest of that file is the original d
 partly outdated). **When you ship a feature or change behaviour, update those docs in the same change.**
 
 ## Architecture in brief
-- npm workspaces: `apps/api` (Fastify + Prisma + pg-boss), `apps/web` (Next.js 15 + Clerk),
+- npm workspaces: `apps/api` (Fastify + Prisma + pg-boss), `apps/web` (Next.js 15),
   `apps/scanner` (Playwright), `packages/shared`.
 - Multi-tenancy = Postgres RLS. All request/pipeline DB access goes through `withTenant(orgId, fn)`
-  (`apps/api/src/lib/tenant.ts`). `adminPrisma` is only for webhook sync and cross-tenant dispatch.
-- Roles live in our own `Membership.role`, not Clerk (Clerk charges for custom roles). `authenticate()`
-  reads userId/orgId from the Clerk JWT and the role from the DB.
+  (`apps/api/src/lib/tenant.ts`). `adminPrisma` is only for auth and cross-tenant dispatch.
+- Auth is our own since 2026-11-23 (Clerk removed): email + password, invite-only, HttpOnly session
+  cookie `bm_session` (`apps/api/src/auth/`). `authenticate()` reads the session (user + active org) and
+  the role from `Membership.role`. `user_auth`, `sessions`, `auth_tokens` have no RLS and no app-role
+  grants: only auth code touches them, via `adminPrisma`. Cookie-carrying writes must come from
+  `WEB_APP_URL` (Origin check). Optional TOTP 2FA (secret encrypted with `AUTH_ENCRYPTION_KEY`) and Sign in with Google
+  (`routes/google.ts`, off unless `GOOGLE_CLIENT_ID`/`SECRET` are set).
+  First account / lockout: `npm run auth:create-user`; lost 2FA: `npm run auth:disable-2fa`.
 - Pipeline: discovery creates findings -> `recheckJob` scans/enriches/scores -> `alertDispatch`.
   Extra finding sources: CT log monitor (`ct_log`, reads Let's Encrypt's CT names tiles every 5 min, cursor per log in `ct_log_cursors`), newly-registered-domain feeds (`nrd` = whoisds sample, `nrd_hagezi` = hagezi/nrd 7-day list, `isc_recent` = SANS ISC recent domains; all one job), App Store
   and Google Play monitor (`app_store`, `google_play`; one job, Play is scraped -- `pipeline/appStoreMonitorJob.ts`), phishing feed (`phish_feed`, phishunt.io), social search (`social_search`,
@@ -38,7 +43,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
 Since 2026-11-19: Vercel (web) + an OVH VPS running Dokploy (`panel.gabrielochieng.com`): the API and
 scanner in ONE container at `brand-monitor-api.gabrielochieng.com`, and a **shared Postgres 18 server**
 (`postgres-shared`, internal host only, no public port) that every app on the VPS uses, each with its own
-database + role. Clerk **dev** instance (permanent by decision). UptimeRobot alerts on `/health/jobs`.
+database + role. Web app on `brand-monitor.gabrielochieng.com` (needed so it sees the API's cookie; `COOKIE_DOMAIN`). UptimeRobot alerts on `/health/jobs`.
 Render + Neon are retired (suspended/kept as rollback until ~2026-11-26); see DEPLOYMENT.md §7.
 
 ## Hard constraints
