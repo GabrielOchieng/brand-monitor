@@ -111,7 +111,7 @@ Nothing to configure outside this repo except these API env vars:
 - SMTP (already set for alerts): invites and reset links are emailed. If SMTP breaks, invites fail
   with an error in the UI and "forgot password" silently sends nothing.
 
-**Locked out / first account:** in the API container terminal (Dokploy; it starts in `apps/api`),
+**Locked out / first account:** in the API container terminal (Dokploy; it opens in `/`, so `cd /app/apps/api` first),
 `npm run auth:create-user -- --email <email> --org <orgId>` prints a one-time
 set-password link (owner role by default; `--role`, `--send-email` and `--new-org "<name>"` exist).
 **Sign in with Google (optional).** Google Cloud Console, any project → *Google Auth Platform*
@@ -134,7 +134,7 @@ really them first, out of band). It also signs them out everywhere.
    assignments are unchanged (old Clerk ids stay as plain ids).
 3. Check the user list first: in `postgres-shared`, `select id, email from users;`. Fix any
    `...@unknown.local` placeholder emails with an `UPDATE`.
-4. In the API container: `npm run auth:migrate-from-clerk` (dry run), then
+4. In the API container, after `cd /app/apps/api`: `npm run auth:migrate-from-clerk` (dry run), then
    with `-- --send`. Each user gets a 7-day "set your password" link.
 5. Remove the Clerk env vars from Vercel and the API, and the webhook in the Clerk dashboard. Keep
    the Clerk application about a week as a rollback (revert the commit), then delete it.
