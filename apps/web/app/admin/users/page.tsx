@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AdminShell, AdminTable, ago, day, td, useAdminData } from "../../../components/admin/AdminShell";
+import { UserActions } from "../../../components/admin/UserActions";
+import { useSession } from "../../../lib/session";
 
 interface AdminUser {
   id: string;
@@ -18,8 +20,10 @@ interface AdminUser {
 }
 
 export default function AdminUsersPage() {
-  const { data, blocked, error } = useAdminData<AdminUser[]>("/api/admin/users");
+  const { data, blocked, error, reload } = useAdminData<AdminUser[]>("/api/admin/users");
+  const { userId } = useSession();
   const [q, setQ] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!data || !term) return data ?? [];
@@ -29,7 +33,8 @@ export default function AdminUsersPage() {
   return (
     <AdminShell title="Users" blocked={blocked} error={error} loading={!data && !error}>
       <input type="search" placeholder="Search email, name or organization" value={q} onChange={(e) => setQ(e.target.value)} className="field w-full sm:max-w-sm" aria-label="Search users" />
-      <AdminTable head={["Email", "Organizations", "Sign-in", "2FA", "Last active", "Created"]}>
+      {message && <p role="status" className={`text-sm ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
+      <AdminTable head={["Email", "Organizations", "Sign-in", "2FA", "Last active", "Created", ""]}>
         {rows.map((u) => (
           <tr key={u.id}>
             <td className="whitespace-nowrap px-4 py-2.5 text-ink">
@@ -54,10 +59,23 @@ export default function AdminUsersPage() {
             <td className={td}>{u.totpEnabled ? "on" : "off"}</td>
             <td className={td}>{ago(u.lastActiveAt)}</td>
             <td className={td}>{day(u.createdAt)}</td>
+            <td className="px-4 py-2.5 text-right">
+              {u.id === userId ? (
+                <span className="text-xs text-ink-subtle">you</span>
+              ) : (
+                <UserActions
+                  user={u}
+                  onDone={(m) => {
+                    setMessage(m);
+                    reload();
+                  }}
+                />
+              )}
+            </td>
           </tr>
         ))}
       </AdminTable>
-      <p className="text-xs text-ink-subtle">Actions on users (sign out, reset 2FA, remove, delete) come in the next version.</p>
+      <p className="text-xs text-ink-subtle">To remove someone from one organization only, use that organization's page. Platform admins can't be deleted here: revoke the role with the script first.</p>
     </AdminShell>
   );
 }

@@ -369,8 +369,17 @@ selected brand is remembered per browser.
   searches. Every job picks brands through `listMonitoredBrands()` / `MONITORED_BRAND`, and a job
   queued just before a pause checks again when it runs. Manual triggers (run discovery, social
   search, manual submit) return 409 `monitoring_paused`; public scam reports are still saved but
-  not scanned. Data is kept, and the org's members see a banner. Next admin steps: user actions,
-  delete org, read-only view into any org (`ADMIN_PLAN.md`).
+  not scanned. Data is kept, and the org's members see a banner.
+- **Admin actions on users** (Users tab, "Actions…"): sign out everywhere, send a 7-day
+  set-password link, reset 2FA (only after confirming outside the app that they lost phone and
+  codes), delete user. On an org's page: remove a member. None can target the admin's own account;
+  nothing may leave an org without an owner; another platform admin can't be deleted (revoke the
+  role with the script first). A deleted user's notes and takedown records stay, unattributed.
+- **Delete organization** (bottom of an org's page, type its exact name): one transaction removes
+  every brand, finding, scan, report, setting, invite and alert record, and members who belong to
+  no other org (except platform admins); then its screenshot files (`admin/deleteOrg.ts`). The
+  audit row keeps the name and counts. Next admin step: a read-only view into any org
+  (`ADMIN_PLAN.md`).
 - **Account and security** (`/account`, from the avatar menu): name; password change (needs the
   current one, signs out every other device, emails a notice); email change (needs the current
   password, confirmed through a 1-hour link sent to the new address, notice to the old one); and

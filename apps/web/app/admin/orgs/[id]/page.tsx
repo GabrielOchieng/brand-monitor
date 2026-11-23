@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { AdminShell, AdminTable, MonitoringStatus, ago, day, td, useAdminData } from "../../../../components/admin/AdminShell";
 
@@ -72,6 +73,63 @@ function InviteForm({ orgId, hasOwner, onDone }: { orgId: string; hasOwner: bool
   );
 }
 
+// Typing the exact name is the confirmation; the API checks it too.
+function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string }; brands: number; findings: number }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/admin/orgs/${org.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmName: typed }),
+      });
+      router.push("/admin");
+    } catch (err: any) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-red-200 bg-red-50/40 p-4">
+      <h2 className="text-base font-semibold text-red-700">Delete organization</h2>
+      <p className="mt-1 text-sm text-ink-muted">
+        Permanently deletes {org.name}: {brands} brand{brands === 1 ? "" : "s"}, {findings.toLocaleString()} finding{findings === 1 ? "" : "s"}, every scan,
+        report and setting, and its screenshots. Members who belong to no other organization are deleted too. This can't be undone.
+      </p>
+      {!open ? (
+        <button className="btn-danger mt-3 border border-red-200 px-3.5 py-2" onClick={() => setOpen(true)}>
+          Delete organization…
+        </button>
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-2 sm:max-w-md">
+          <label htmlFor="confirm-org-name" className="block text-sm text-ink">
+            Type <span className="font-semibold">{org.name}</span> to confirm
+          </label>
+          <input id="confirm-org-name" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} className="field w-full" />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy || typed.trim() !== org.name.trim()} className="btn bg-red-600 px-3.5 py-2 text-white hover:bg-red-700">
+              {busy ? "Deleting…" : "Delete permanently"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
 function OrgPage() {
   const { id } = useParams<{ id: string }>();
   const created = useSearchParams().get("created") === "1";
@@ -90,6 +148,23 @@ function OrgPage() {
 
   const hasOwner = !!data?.members.some((m) => m.role === "owner");
   const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function removeMember(userId: string, email: string) {
+    if (!window.confirm(`Remove ${email} from ${data?.org.name}? Their assignments here are cleared. Their account stays.`)) return;
+    setActionError(null);
+    setNotice(null);
+    setBusy(userId);
+    try {
+      await apiFetch(`/api/admin/orgs/${id}/members/${userId}`, { method: "DELETE" });
+      setNotice(`${email} was removed from ${data?.org.name}.`);
+      await reload();
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function setPaused(kind: "orgs" | "brands", targetId: string, name: string, pause: boolean) {
     const what = kind === "orgs" ? `all monitoring for ${name}` : `monitoring of ${name}`;
@@ -132,6 +207,7 @@ function OrgPage() {
               {data.org.pausedAt ? "Resume organization" : "Pause organization"}
             </button>
           </div>
+          {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
           {created && !hasOwner && (
             <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Organization created. Invite its first owner below.</p>
           )}
@@ -142,7 +218,7 @@ function OrgPage() {
             {data.members.length === 0 ? (
               <p className="text-sm text-ink-subtle">No members yet.</p>
             ) : (
-              <AdminTable head={["Email", "Role", "Sign-in", "2FA", "Last active", "Joined"]}>
+              <AdminTable head={["Email", "Role", "Sign-in", "2FA", "Last active", "Joined", ""]}>
                 {data.members.map((m) => (
                   <tr key={m.userId}>
                     <td className="whitespace-nowrap px-4 py-2.5 text-ink">
@@ -154,6 +230,11 @@ function OrgPage() {
                     <td className={td}>{m.totpEnabled ? "on" : "off"}</td>
                     <td className={td}>{ago(m.lastActiveAt)}</td>
                     <td className={td}>{day(m.joinedAt)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button className="btn-danger text-xs" disabled={busy === m.userId} onClick={() => removeMember(m.userId, m.email)}>
+                        Remove
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </AdminTable>
@@ -213,6 +294,7 @@ function OrgPage() {
             )}
           </section>
           <p className="text-xs text-ink-subtle">Created {day(data.org.createdAt)} · {data.org.id}</p>
+          <DeleteOrg org={data.org} brands={data.brands.length} findings={data.brands.reduce((a, b) => a + b.findings, 0)} />
         </>
       )}
     </AdminShell>

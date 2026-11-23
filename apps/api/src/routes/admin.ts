@@ -6,7 +6,9 @@ import { requirePlatformAdmin, VALID_ROLES } from "../lib/auth";
 import { normalizeEmail } from "../auth/crypto";
 import { createOrganization } from "../auth/orgs";
 import { issueToken, revokeTokens } from "../auth/tokens";
-import { sendInviteEmail } from "../auth/emails";
+import { sendAdminPasswordLinkEmail, sendInviteEmail } from "../auth/emails";
+import { TOTP_OFF } from "../auth/mfa";
+import { deleteOrganization } from "../admin/deleteOrg";
 import { recordAdminAction } from "../auth/audit";
 import { tavilyPeriod } from "../lib/tavily";
 
@@ -219,6 +221,119 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     });
   }
+
+  // ---- User actions. None of them can target the admin's own account (use the account page).
+
+  app.post("/api/admin/users/:id/sign-out", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (id === request.user!.userId) return reply.status(400).send({ error: "cannot_target_self" });
+    const user = await adminPrisma.user.findUnique({ where: { id } });
+    if (!user) return reply.status(404).send({ error: "not_found" });
+    const admin = await adminOf(request);
+    const sessions = await adminPrisma.$transaction(async (tx) => {
+      const { count } = await tx.session.deleteMany({ where: { userId: id } });
+      await recordAdminAction(admin, "user.sign_out_all", { type: "user", id }, { email: user.email, sessions: count }, tx);
+      return count;
+    });
+    return reply.send({ sessions });
+  });
+
+  // Same as `npm run auth:disable-2fa`: for someone who lost both their phone and their codes.
+  app.post("/api/admin/users/:id/reset-2fa", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (id === request.user!.userId) return reply.status(400).send({ error: "cannot_target_self" });
+    const user = await adminPrisma.user.findUnique({ where: { id }, include: { auth: true } });
+    if (!user) return reply.status(404).send({ error: "not_found" });
+    if (!user.auth?.totpEnabledAt && !user.auth?.totpSecretEnc) return reply.status(400).send({ error: "totp_not_enabled" });
+    const admin = await adminOf(request);
+    await adminPrisma.$transaction(async (tx) => {
+      await tx.userAuth.update({ where: { userId: id }, data: TOTP_OFF });
+      await tx.session.deleteMany({ where: { userId: id } });
+      await recordAdminAction(admin, "user.reset_2fa", { type: "user", id }, { email: user.email }, tx);
+    });
+    return reply.status(204).send();
+  });
+
+  // A 7-day set-password link by email; their current password keeps working until it's used.
+  app.post("/api/admin/users/:id/password-link", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (id === request.user!.userId) return reply.status(400).send({ error: "cannot_target_self" });
+    const user = await adminPrisma.user.findUnique({ where: { id } });
+    if (!user) return reply.status(404).send({ error: "not_found" });
+    const admin = await adminOf(request);
+    await revokeTokens({ purpose: "reset_password", userId: id });
+    const token = await issueToken("reset_password", { userId: id, email: user.email }, 7 * 24 * 60 * 60 * 1000);
+    try {
+      await sendAdminPasswordLinkEmail(user.email, token);
+    } catch (err) {
+      request.log.error({ err }, "admin password-link email failed");
+      await revokeTokens({ purpose: "reset_password", userId: id });
+      return reply.status(502).send({ error: "email_failed" });
+    }
+    await recordAdminAction(admin, "user.send_password_link", { type: "user", id }, { email: user.email });
+    return reply.status(204).send();
+  });
+
+  // Refused when it would leave the org without an owner. Their assignments in that org are
+  // cleared, and sessions pointing at it lose it as the active org.
+  app.delete("/api/admin/orgs/:id/members/:userId", async (request, reply) => {
+    const { id, userId } = request.params as { id: string; userId: string };
+    const admin = await adminOf(request);
+    const result = await adminPrisma.$transaction(async (tx) => {
+      const m = await tx.membership.findUnique({ where: { userId_organizationId: { userId, organizationId: id } }, include: { user: true, organization: true } });
+      if (!m) return "not_found" as const;
+      if (m.role === "owner" && (await tx.membership.count({ where: { organizationId: id, role: "owner" } })) <= 1) return "last_owner" as const;
+      await tx.finding.updateMany({ where: { assigneeId: userId, brand: { organizationId: id } }, data: { assigneeId: null } });
+      await tx.membership.delete({ where: { id: m.id } });
+      await tx.session.updateMany({ where: { userId, activeOrgId: id }, data: { activeOrgId: null } });
+      await recordAdminAction(admin, "user.remove_from_org", { type: "user", id: userId }, { email: m.user.email, org: m.organization.name, role: m.role }, tx);
+      return "ok" as const;
+    });
+    if (result === "not_found") return reply.status(404).send({ error: "not_found" });
+    if (result === "last_owner") return reply.status(409).send({ error: "last_owner" });
+    return reply.status(204).send();
+  });
+
+  // Removes the account: memberships, sessions, credentials, pending tokens. Their notes and
+  // takedown records stay (no author shown); assignments are cleared. Refused for another
+  // platform admin (revoke with the script first) and for an org's only owner.
+  app.delete("/api/admin/users/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (id === request.user!.userId) return reply.status(400).send({ error: "cannot_target_self" });
+    const user = await adminPrisma.user.findUnique({ where: { id }, include: { memberships: { include: { organization: true } } } });
+    if (!user) return reply.status(404).send({ error: "not_found" });
+    if (user.platformRole) return reply.status(409).send({ error: "is_platform_admin" });
+    const soleOwnerOf: string[] = [];
+    for (const m of user.memberships.filter((m) => m.role === "owner")) {
+      if ((await adminPrisma.membership.count({ where: { organizationId: m.organizationId, role: "owner" } })) <= 1) soleOwnerOf.push(m.organization.name);
+    }
+    if (soleOwnerOf.length) return reply.status(409).send({ error: "last_owner", orgs: soleOwnerOf });
+    const admin = await adminOf(request);
+    await adminPrisma.$transaction(async (tx) => {
+      await tx.finding.updateMany({ where: { assigneeId: id }, data: { assigneeId: null } });
+      await tx.membership.deleteMany({ where: { userId: id } });
+      await tx.authToken.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } }); // sessions and user_auth cascade
+      await recordAdminAction(admin, "user.delete", { type: "user", id }, { email: user.email, orgs: user.memberships.map((m) => `${m.organization.name} (${m.role})`) }, tx);
+    });
+    return reply.status(204).send();
+  });
+
+  // Deletes the org and everything in it (admin/deleteOrg.ts). The admin types the org's
+  // exact name to confirm; the audit row keeps the name and counts.
+  app.delete("/api/admin/orgs/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const confirmName = String((request.body as { confirmName?: unknown } | undefined)?.confirmName ?? "").trim();
+    const org = await adminPrisma.organization.findUnique({ where: { id } });
+    if (!org) return reply.status(404).send({ error: "not_found" });
+    if (confirmName !== org.name.trim()) return reply.status(400).send({ error: "confirm_mismatch" });
+    const admin = await adminOf(request);
+    const result = await deleteOrganization(id, (tx, r) =>
+      recordAdminAction(admin, "org.delete", { type: "org", id }, { name: r.name, brands: r.brands, findings: r.findings, scans: r.scans, deletedUsers: r.deletedUsers }, tx)
+    );
+    if (!result) return reply.status(404).send({ error: "not_found" });
+    return reply.send(result);
+  });
 
   // Every user, with their orgs, sign-in methods and last activity.
   app.get("/api/admin/users", async () => {

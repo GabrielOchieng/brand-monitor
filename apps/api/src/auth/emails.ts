@@ -56,6 +56,20 @@ export async function sendSetPasswordEmail(to: string, token: string): Promise<v
   });
 }
 
+// Sent from the admin panel (e.g. someone locked out who can't receive "forgot password").
+export async function sendAdminPasswordLinkEmail(to: string, token: string): Promise<void> {
+  await sendMail({
+    to,
+    ...buildAuthEmail({
+      subject: "Set your Brand Monitor password",
+      intro: "A Brand Monitor administrator sent you this link to set a new password for your account. It works once and expires in 7 days.",
+      buttonLabel: "Set your password",
+      url: link("/reset-password", token),
+      footer: "If you didn't ask for this, ignore this email; your current password keeps working until the link is used.",
+    }),
+  });
+}
+
 export async function sendConfirmNewEmail(to: string, token: string): Promise<void> {
   await sendMail({
     to,
