@@ -359,8 +359,9 @@ selected brand is remembered per browser.
 - **Platform admin panel** (`/admin`, "Admin panel" in the avatar menu; `routes/admin.ts`): for
   `users.platform_role = 'admin'`, set only with `npm run auth:make-admin -- --email <email>`
   (`--revoke` to remove), never through the API. The panel also requires 2FA on the account. It
-  lists every organization (members, brands, findings, this month's scans and alert emails, last
-  member activity) and every user (orgs, sign-in methods, 2FA, last activity), shows the month's
+  lists every organization (members, brands, findings, this month's scans, alert emails and Tavily
+  searches, last member activity; Tavily is counted per brand in `brand_usage` since 2026-11-24, older
+  searches show as "not attributed") and every user (orgs, sign-in methods, 2FA, last activity), shows the month's
   Tavily usage, creates organizations (without joining them) and invites their first owner. Every
   admin action goes to `admin_audit_log`, shown on the Audit log tab. A `superadmin` role that can
   make admins from the panel is planned.

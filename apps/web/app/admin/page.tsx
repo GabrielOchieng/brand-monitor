@@ -8,7 +8,7 @@ import { AdminShell, AdminTable, MonitoringStatus, StatCard, ago, day, td, useAd
 
 interface Overview {
   month: string;
-  totals: { orgs: number; users: number; brands: number; monitoredBrands: number; scansThisMonth: number; emailsThisMonth: number; tavilyThisMonth: number; tavilyCap: number };
+  totals: { orgs: number; users: number; brands: number; monitoredBrands: number; scansThisMonth: number; emailsThisMonth: number; tavilyThisMonth: number; tavilyCap: number; tavilyUnattributed: number };
   orgs: Array<{
     id: string;
     name: string;
@@ -20,6 +20,7 @@ interface Overview {
     findings: number;
     scansThisMonth: number;
     emailsThisMonth: number;
+    tavilyThisMonth: number;
     lastActiveAt: string | null;
   }>;
 }
@@ -81,9 +82,9 @@ export default function AdminOrgsPage() {
             <StatCard label="Brands" value={t.brands} hint={t.monitoredBrands === t.brands ? "all monitored" : `${t.monitoredBrands} monitored, ${t.brands - t.monitoredBrands} paused`} />
             <StatCard label="Scans" value={t.scansThisMonth.toLocaleString()} hint={`in ${data.month}`} />
             <StatCard label="Alert emails" value={t.emailsThisMonth} hint={`sent in ${data.month}`} />
-            <StatCard label="Tavily searches" value={`${t.tavilyThisMonth} / ${t.tavilyCap}`} hint={`in ${data.month}, all brands`} />
+            <StatCard label="Tavily searches" value={`${t.tavilyThisMonth} / ${t.tavilyCap}`} hint={t.tavilyUnattributed > 0 ? `in ${data.month}; ${t.tavilyUnattributed} not attributed` : `in ${data.month}`} />
           </div>
-          <AdminTable head={["Organization", "Monitoring", "Members", "Brands", "Findings", "Scans this month", "Emails this month", "Last active", "Created"]}>
+          <AdminTable head={["Organization", "Monitoring", "Members", "Brands", "Findings", "Scans this month", "Emails this month", "Tavily this month", "Last active", "Created"]}>
             {data.orgs.map((o) => (
               <tr key={o.id} className="hover:bg-elevated/50">
                 <td className="whitespace-nowrap px-4 py-2.5">
@@ -99,13 +100,14 @@ export default function AdminOrgsPage() {
                 <td className={td}>{o.findings.toLocaleString()}</td>
                 <td className={td}>{o.scansThisMonth.toLocaleString()}</td>
                 <td className={td}>{o.emailsThisMonth}</td>
+                <td className={td}>{o.tavilyThisMonth}</td>
                 <td className={td}>{ago(o.lastActiveAt)}</td>
                 <td className={td}>{day(o.createdAt)}</td>
               </tr>
             ))}
           </AdminTable>
           <p className="text-xs text-ink-subtle">
-            Last active: the most recent sign-in activity of any member. Scans and emails count this calendar month (UTC). Tavily usage per brand comes in a later version.
+            Last active: the most recent sign-in activity of any member. Scans, emails and Tavily searches count this calendar month (UTC). Tavily is counted per brand since 2026-11-24; searches before that show as not attributed.
           </p>
         </>
       )}

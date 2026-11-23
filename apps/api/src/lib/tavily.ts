@@ -47,12 +47,21 @@ async function reserveCredit(now: Date): Promise<boolean> {
   return rows[0].count <= env.tavilyMonthlyCap;
 }
 
+// Also counted per brand (brand_usage) for the admin panel's usage view. Best effort: a failed
+// per-brand count never blocks the search; the global counter above is what enforces the cap.
+async function countForBrand(brandId: string, now: Date): Promise<void> {
+  await adminPrisma.$executeRaw`
+    INSERT INTO "brand_usage" ("brand_id", "period", "provider", "count") VALUES (${brandId}, ${tavilyPeriod(now)}, ${PROVIDER}, 1)
+    ON CONFLICT ("brand_id", "period", "provider") DO UPDATE SET "count" = "brand_usage"."count" + 1`;
+}
+
 export async function tavilySearch(
   query: string,
-  options: { includeDomains?: string[]; excludeDomains?: string[]; timeRange: "week" | "month"; maxResults?: number },
+  options: { brandId: string; includeDomains?: string[]; excludeDomains?: string[]; timeRange: "week" | "month"; maxResults?: number },
   now: Date = new Date()
 ): Promise<TavilySearchOutcome> {
   if (!(await reserveCredit(now))) return { status: "budget_exhausted" };
+  await countForBrand(options.brandId, now).catch((err) => console.warn(`[tavily] per-brand count failed: ${String(err)}`));
   try {
     const res = await fetch(TAVILY_SEARCH_URL, {
       method: "POST",

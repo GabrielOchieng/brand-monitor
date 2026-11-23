@@ -122,7 +122,7 @@ export async function runSocialSearchForBrand(organizationId: string, brandId: s
 
   const outcome: SocialSearchOutcome = { searchesRun: 0, newFindings: 0, newMentions: 0, budgetExhausted: false };
   for (const { query, includeDomains, excludeDomains, pivot } of searches) {
-    const search = await tavilySearch(query, { includeDomains, excludeDomains, timeRange: "month" });
+    const search = await tavilySearch(query, { brandId, includeDomains, excludeDomains, timeRange: "month" });
     if (search.status === "budget_exhausted") {
       console.warn("[social-search] monthly Tavily cap reached -- skipping until next month");
       outcome.budgetExhausted = true;
@@ -247,7 +247,7 @@ export async function runFactCheckMonitorJob(): Promise<void> {
   for (const { id: brandId, organizationId } of await listBrands()) {
     const brand = await withTenant(organizationId, (tx) => tx.brand.findUniqueOrThrow({ where: { id: brandId } }));
     const brandRoot = brand.primaryDomain.split(".")[0].toLowerCase();
-    const outcome = await tavilySearch(brand.name, { includeDomains: FACT_CHECK_DOMAINS, timeRange: "month" });
+    const outcome = await tavilySearch(brand.name, { brandId, includeDomains: FACT_CHECK_DOMAINS, timeRange: "month" });
     if (outcome.status === "budget_exhausted") return;
     if (outcome.status === "error") {
       console.warn(`[fact-check] search for brand ${brandId} failed: ${outcome.error}`);

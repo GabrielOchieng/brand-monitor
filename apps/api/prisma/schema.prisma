@@ -633,3 +633,17 @@ model AdminAuditLog {
   @@index([createdAt])
   @@map("admin_audit_log")
 }
+
+// Per-brand, per-month usage of metered providers (so far Tavily: lib/tavily.ts), for the
+// admin panel. Counted next to provider_usage, which holds the global monthly total that
+// enforces the cap. No FK, no RLS, no app-role grants: written by the jobs and read by the
+// admin routes, both through adminPrisma. Counting started 2026-11-24.
+model BrandUsage {
+  brandId  String @map("brand_id")
+  period   String // YYYY-MM
+  provider String
+  count    Int    @default(0)
+
+  @@id([brandId, period, provider])
+  @@map("brand_usage")
+}

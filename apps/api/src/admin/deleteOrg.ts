@@ -61,6 +61,7 @@ export async function deleteOrganization(orgId: string, record: (tx: Prisma.Tran
         Prisma.sql`DELETE FROM brand_keywords       WHERE brand_id IN (SELECT id FROM d_brands)`,
         Prisma.sql`DELETE FROM brand_mentions       WHERE brand_id IN (SELECT id FROM d_brands)`,
         Prisma.sql`DELETE FROM pipeline_runs        WHERE brand_id IN (SELECT id FROM d_brands)`,
+        Prisma.sql`DELETE FROM brand_usage          WHERE brand_id IN (SELECT id FROM d_brands)`,
         Prisma.sql`DELETE FROM brands               WHERE id IN (SELECT id FROM d_brands)`,
         Prisma.sql`DELETE FROM alert_rules          WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM webhook_configs      WHERE organization_id = ${orgId}`,

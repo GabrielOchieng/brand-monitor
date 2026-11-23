@@ -40,7 +40,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/api/admin/overview", async () => {
     const since = monthStart();
     const orgs = await adminPrisma.$queryRaw<
-      Array<{ id: string; name: string; created_at: Date; monitoring_paused_at: Date | null; paused_brands: bigint; members: bigint; brands: bigint; findings: bigint; scans_month: bigint; emails_month: bigint; last_active: Date | null }>
+      Array<{ id: string; name: string; created_at: Date; monitoring_paused_at: Date | null; paused_brands: bigint; members: bigint; brands: bigint; findings: bigint; scans_month: bigint; emails_month: bigint; last_active: Date | null; tavily_month: bigint }>
     >`
       SELECT o.id, o.name, o.created_at, o.monitoring_paused_at,
         (SELECT count(*) FROM brands b WHERE b.organization_id = o.id AND b.monitoring_paused_at IS NOT NULL) AS paused_brands,
@@ -51,7 +51,9 @@ export async function adminRoutes(app: FastifyInstance) {
            WHERE b.organization_id = o.id AND s.started_at >= ${since}) AS scans_month,
         (SELECT count(*) FROM alert_deliveries d JOIN findings f ON f.id = d.finding_id JOIN brands b ON b.id = f.brand_id
            WHERE b.organization_id = o.id AND d.channel = 'email' AND d.status = 'sent' AND d.created_at >= ${since}) AS emails_month,
-        (SELECT max(se.last_seen_at) FROM sessions se JOIN memberships m ON m.user_id = se.user_id WHERE m.organization_id = o.id) AS last_active
+        (SELECT max(se.last_seen_at) FROM sessions se JOIN memberships m ON m.user_id = se.user_id WHERE m.organization_id = o.id) AS last_active,
+        (SELECT coalesce(sum(u.count), 0) FROM brand_usage u JOIN brands b ON b.id = u.brand_id
+           WHERE b.organization_id = o.id AND u.provider = 'tavily' AND u.period = ${tavilyPeriod()}) AS tavily_month
       FROM organizations o
       ORDER BY o.created_at`;
     const [users, tavily] = await Promise.all([
@@ -68,6 +70,8 @@ export async function adminRoutes(app: FastifyInstance) {
         scansThisMonth: orgs.reduce((a, o) => a + n(o.scans_month), 0),
         emailsThisMonth: orgs.reduce((a, o) => a + n(o.emails_month), 0),
         tavilyThisMonth: tavily?.count ?? 0,
+        // Searches made before per-brand counting started (or for since-deleted brands).
+        tavilyUnattributed: Math.max(0, (tavily?.count ?? 0) - orgs.reduce((a, o) => a + n(o.tavily_month), 0)),
         tavilyCap: env.tavilyMonthlyCap,
       },
       orgs: orgs.map((o) => ({
@@ -81,6 +85,7 @@ export async function adminRoutes(app: FastifyInstance) {
         findings: n(o.findings),
         scansThisMonth: n(o.scans_month),
         emailsThisMonth: n(o.emails_month),
+        tavilyThisMonth: n(o.tavily_month),
         lastActiveAt: o.last_active,
       })),
     };
@@ -97,13 +102,14 @@ export async function adminRoutes(app: FastifyInstance) {
         include: { user: { include: { auth: true, sessions: { select: { lastSeenAt: true }, orderBy: { lastSeenAt: "desc" }, take: 1 } } } },
         orderBy: { createdAt: "asc" },
       }),
-      adminPrisma.$queryRaw<Array<{ id: string; name: string; primary_domain: string; created_at: Date; monitoring_paused_at: Date | null; monitoring_paused_by: string | null; findings: bigint; scans_month: bigint; emails_month: bigint; last_scan: Date | null }>>`
+      adminPrisma.$queryRaw<Array<{ id: string; name: string; primary_domain: string; created_at: Date; monitoring_paused_at: Date | null; monitoring_paused_by: string | null; findings: bigint; scans_month: bigint; emails_month: bigint; last_scan: Date | null; tavily_month: bigint }>>`
         SELECT b.id, b.name, b.primary_domain, b.created_at, b.monitoring_paused_at, b.monitoring_paused_by,
           (SELECT count(*) FROM findings f WHERE f.brand_id = b.id) AS findings,
           (SELECT count(*) FROM scans s JOIN findings f ON f.id = s.finding_id WHERE f.brand_id = b.id AND s.started_at >= ${since}) AS scans_month,
           (SELECT count(*) FROM alert_deliveries d JOIN findings f ON f.id = d.finding_id
              WHERE f.brand_id = b.id AND d.channel = 'email' AND d.status = 'sent' AND d.created_at >= ${since}) AS emails_month,
-          (SELECT max(s.started_at) FROM scans s JOIN findings f ON f.id = s.finding_id WHERE f.brand_id = b.id) AS last_scan
+          (SELECT max(s.started_at) FROM scans s JOIN findings f ON f.id = s.finding_id WHERE f.brand_id = b.id) AS last_scan,
+          (SELECT coalesce(sum(u.count), 0) FROM brand_usage u WHERE u.brand_id = b.id AND u.provider = 'tavily' AND u.period = ${tavilyPeriod()}) AS tavily_month
         FROM brands b WHERE b.organization_id = ${id} ORDER BY b.created_at`,
       adminPrisma.authToken.findMany({
         where: { purpose: "invite", organizationId: id, usedAt: null, expiresAt: { gt: new Date() } },
@@ -133,6 +139,7 @@ export async function adminRoutes(app: FastifyInstance) {
         findings: n(b.findings),
         scansThisMonth: n(b.scans_month),
         emailsThisMonth: n(b.emails_month),
+        tavilyThisMonth: n(b.tavily_month),
         lastScanAt: b.last_scan,
       })),
       invites: invites.map((i) => ({ id: i.id, email: i.email, role: i.role, createdAt: i.createdAt, expiresAt: i.expiresAt })),

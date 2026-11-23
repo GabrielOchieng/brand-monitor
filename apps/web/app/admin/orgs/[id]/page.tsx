@@ -22,7 +22,7 @@ interface OrgDetail {
     googleLinked: boolean;
     lastActiveAt: string | null;
   }>;
-  brands: Array<{ id: string; name: string; primaryDomain: string; createdAt: string; pausedAt: string | null; pausedBy: string | null; findings: number; scansThisMonth: number; emailsThisMonth: number; lastScanAt: string | null }>;
+  brands: Array<{ id: string; name: string; primaryDomain: string; createdAt: string; pausedAt: string | null; pausedBy: string | null; findings: number; scansThisMonth: number; emailsThisMonth: number; tavilyThisMonth: number; lastScanAt: string | null }>;
   invites: Array<{ id: string; email: string; role: string; createdAt: string; expiresAt: string }>;
 }
 
@@ -284,7 +284,7 @@ function OrgPage() {
             {data.brands.length === 0 ? (
               <p className="text-sm text-ink-subtle">No brands yet.</p>
             ) : (
-              <AdminTable head={["Brand", "Domain", "Monitoring", "Findings", "Scans this month", "Emails this month", "Last scan", "Created", ""]}>
+              <AdminTable head={["Brand", "Domain", "Monitoring", "Findings", "Scans this month", "Emails this month", "Tavily this month", "Last scan", "Created", ""]}>
                 {data.brands.map((b) => (
                   <tr key={b.id}>
                     <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink">{b.name}</td>
@@ -295,6 +295,7 @@ function OrgPage() {
                     <td className={td}>{b.findings.toLocaleString()}</td>
                     <td className={td}>{b.scansThisMonth.toLocaleString()}</td>
                     <td className={td}>{b.emailsThisMonth}</td>
+                    <td className={td}>{b.tavilyThisMonth}</td>
                     <td className={td}>{ago(b.lastScanAt)}</td>
                     <td className={td}>{day(b.createdAt)}</td>
                     <td className="px-4 py-2.5 text-right">
