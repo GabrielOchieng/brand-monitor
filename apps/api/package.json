@@ -13,7 +13,8 @@
     "db:sync-app-role-password": "tsx scripts/syncAppRolePassword.ts",
     "auth:create-user": "tsx scripts/createUser.ts",
     "auth:migrate-from-clerk": "tsx scripts/migrateFromClerk.ts",
-    "auth:disable-2fa": "tsx scripts/disable2fa.ts"
+    "auth:disable-2fa": "tsx scripts/disable2fa.ts",
+    "auth:make-admin": "tsx scripts/makeAdmin.ts"
   },
   "dependencies": {
     "@brand-monitor/shared": "*",

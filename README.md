@@ -353,9 +353,18 @@ selected brand is remembered per browser.
 - **Sign-in** is our own (no auth provider since 2026-11): email + password, invite-only. Owners
   and admins invite people by email under **Settings → Team**, choosing their role (only owners
   invite owners); the invite link lasts 7 days, and the new person sets a password on accepting.
-  "Forgot password" emails a 1-hour reset link. Any signed-in user can start a new organization
-  from the organization menu and becomes its owner. The very first account is created from the
-  CLI (`npm run auth:create-user`, see Local setup).
+  "Forgot password" emails a 1-hour reset link. Only platform admins create organizations (see
+  below). The very first account is created from the CLI (`npm run auth:create-user`, see Local
+  setup).
+- **Platform admin panel** (`/admin`, "Admin panel" in the avatar menu; `routes/admin.ts`): for
+  `users.platform_role = 'admin'`, set only with `npm run auth:make-admin -- --email <email>`
+  (`--revoke` to remove), never through the API. The panel also requires 2FA on the account. It
+  lists every organization (members, brands, findings, this month's scans and alert emails, last
+  member activity) and every user (orgs, sign-in methods, 2FA, last activity), shows the month's
+  Tavily usage, creates organizations (without joining them) and invites their first owner. Every
+  admin action goes to `admin_audit_log`, shown on the Audit log tab. A `superadmin` role that can
+  make admins from the panel is planned. Next steps: pause/resume monitoring, user actions, delete
+  org, and a read-only view into any org (`ADMIN_PLAN.md`).
 - **Account and security** (`/account`, from the avatar menu): name; password change (needs the
   current one, signs out every other device, emails a notice); email change (needs the current
   password, confirmed through a 1-hour link sent to the new address, notice to the old one); and

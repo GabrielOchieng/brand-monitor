@@ -27,6 +27,10 @@ model User {
   id        String   @id
   email     String   @unique // stored lowercased
   name      String?
+  // Platform-wide role, above every organization: null (normal user) or "admin" (the admin
+  // panel). Set only from the container (scripts/makeAdmin.ts), never through the API.
+  // "superadmin" (can make other admins) is reserved for later.
+  platformRole String? @map("platform_role")
   createdAt DateTime @default(now()) @map("created_at")
 
   memberships      Membership[]
@@ -603,4 +607,20 @@ model BrandMention {
   @@unique([brandId, url])
   @@index([brandId, firstSeenAt])
   @@map("brand_mentions")
+}
+
+// Every platform-admin action, for the admin panel's audit page. No RLS and no app-role grants:
+// written and read only through adminPrisma by the admin routes.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String   @map("admin_user_id")
+  adminEmail  String   @map("admin_email") // kept even if that user is deleted later
+  action      String // e.g. org.create, org.invite_owner
+  targetType  String   @map("target_type") // org | user | brand
+  targetId    String   @map("target_id")
+  details     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("admin_audit_log")
 }

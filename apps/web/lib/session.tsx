@@ -8,6 +8,8 @@ export type Role = "owner" | "admin" | "analyst" | "viewer";
 
 export interface Me {
   user: { id: string; email: string; name: string | null };
+  // "admin" = platform admin (the /admin panel). null for everyone else.
+  platformRole: "admin" | "superadmin" | null;
   activeOrgId: string | null;
   organizations: Array<{ id: string; name: string; role: Role }>;
   security: { hasPassword: boolean; totpEnabled: boolean; recoveryCodesLeft: number; googleLinked: boolean };

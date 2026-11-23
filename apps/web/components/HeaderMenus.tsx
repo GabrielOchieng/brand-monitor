@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSession } from "../lib/session";
-import { CheckIcon, ChevronDownIcon, PlusIcon } from "./icons";
+import { CheckIcon, ChevronDownIcon } from "./icons";
 
 // A button plus a panel that closes on outside click or Escape.
 function Dropdown({ label, trigger, children }: { label: string; trigger: ReactNode; children: (close: () => void) => ReactNode }) {
@@ -77,11 +77,6 @@ export function OrgSwitcher() {
               {o.id === orgId && <CheckIcon className="h-4 w-4 shrink-0 text-brand" />}
             </button>
           ))}
-          <div className="my-1 h-px bg-line" />
-          <Link href="/organizations/new" role="menuitem" className={itemClass} onClick={close}>
-            <PlusIcon className="h-4 w-4" />
-            New organization
-          </Link>
           {error && <p className="px-2.5 py-1 text-xs text-red-600">{error}</p>}
         </>
       )}
@@ -108,6 +103,11 @@ export function UserMenu() {
           <Link href="/account" role="menuitem" className={itemClass} onClick={close}>
             Account and security
           </Link>
+          {me.platformRole && (
+            <Link href="/admin" role="menuitem" className={itemClass} onClick={close}>
+              Admin panel
+            </Link>
+          )}
           <button
             role="menuitem"
             className={itemClass}

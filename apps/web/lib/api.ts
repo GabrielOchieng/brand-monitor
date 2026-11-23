@@ -36,6 +36,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   google_email_mismatch: "That Google account's email isn't the one this invite was sent to. Pick the invited address, or set a password instead.",
   google_not_configured: "Google sign-in isn't set up on this server.",
   google_not_linked: "No Google account is linked.",
+  admin_requires_2fa: "The admin panel needs two-factor sign-in. Turn it on under Account and security.",
   forbidden: "Your role doesn't allow this. Ask an owner or admin.",
   no_active_organization: "Choose an organization first.",
   rate_limited: "Too many requests. Wait a minute and try again.",

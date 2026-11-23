@@ -253,11 +253,8 @@ export default function DashboardPage() {
   if (!orgId) {
     return (
       <div className="card mx-auto max-w-lg p-8 text-center">
-        <h1 className="text-xl font-semibold text-ink">Select or create an organization</h1>
-        <p className="mt-2 text-sm text-ink-muted">Pick one from the menu in the top bar, or start a new one.</p>
-        <Link href="/organizations/new" className="btn-primary mt-5">
-          New organization
-        </Link>
+        <h1 className="text-xl font-semibold text-ink">No organization selected</h1>
+        <p className="mt-2 text-sm text-ink-muted">Pick one from the menu in the top bar. If the menu is empty, you're not a member of any organization yet: ask its owner or admin to invite you.</p>
       </div>
     );
   }

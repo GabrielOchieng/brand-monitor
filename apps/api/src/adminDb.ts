@@ -13,6 +13,8 @@ import { env } from "./env";
 //      no single request context could ever express it. Kept to narrow, read-only,
 //      id-only selects there; the actual per-brand/per-finding work is still done via
 //      withTenant() once the dispatcher knows which org it's dealing with.
+//   3. The platform admin panel (src/routes/admin.ts): reads across every organization by design,
+//      behind requirePlatformAdmin (platform role + 2FA); every change is audit-logged.
 // Do not import this anywhere else -- request-handling routes and pipeline job handlers
 // must go through withTenant() (src/lib/tenant.ts) and the restricted client in src/db.ts.
 export const adminPrisma = new PrismaClient({

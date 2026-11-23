@@ -22,12 +22,13 @@ export async function createDefaultAlertRules(orgId: string): Promise<void> {
 }
 
 // adminPrisma because the org row has to exist before any tenant context can point at it.
-// The creator becomes its owner.
-export async function createOrganization(name: string, ownerUserId: string): Promise<{ id: string; name: string }> {
+// With ownerUserId, that user becomes its owner (the CLI script); without, it starts empty
+// and the platform admin invites its first owner (the admin panel).
+export async function createOrganization(name: string, ownerUserId?: string): Promise<{ id: string; name: string }> {
   const id = newId("org");
   const org = await adminPrisma.$transaction(async (tx) => {
     const created = await tx.organization.create({ data: { id, name } });
-    await tx.membership.create({ data: { userId: ownerUserId, organizationId: id, role: "owner" } });
+    if (ownerUserId) await tx.membership.create({ data: { userId: ownerUserId, organizationId: id, role: "owner" } });
     return created;
   });
   await createDefaultAlertRules(id);

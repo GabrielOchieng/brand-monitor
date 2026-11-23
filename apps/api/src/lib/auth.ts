@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { findSession } from "../auth/sessions";
+import { adminPrisma } from "../adminDb";
 import { withTenant } from "./tenant";
 
 // The app's 4-tier role model, stored in our `memberships` table.
@@ -48,6 +49,21 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return reply.status(403).send({ error: "no_active_organization", message: "Select an organization to continue" });
   }
   request.auth = { userId, orgId: activeOrgId, role: membership.role as Role, sessionId };
+}
+
+// The admin panel (routes/admin.ts): a session whose user has a platform role, AND has 2FA on.
+// An admin account reaches every organization, so a password alone isn't enough. Sets
+// request.user like authenticateUser.
+export async function requirePlatformAdmin(request: FastifyRequest, reply: FastifyReply) {
+  await authenticateUser(request, reply);
+  if (reply.sent || !request.user) return;
+  const user = await adminPrisma.user.findUnique({ where: { id: request.user.userId }, include: { auth: true } });
+  if (!user?.platformRole) {
+    return reply.status(403).send({ error: "forbidden", message: "Platform admins only" });
+  }
+  if (!user.auth?.totpEnabledAt) {
+    return reply.status(403).send({ error: "admin_requires_2fa", message: "Turn on two-factor sign-in to use the admin panel" });
+  }
 }
 
 // Compose after `authenticate` on routes that need a specific role, e.g.:

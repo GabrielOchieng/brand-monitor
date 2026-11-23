@@ -124,6 +124,10 @@ Then *Clients* → Create client → **Web application**, authorized redirect UR
 step asks for a billing account or card, stop**: leave the vars empty and the Google button just
 doesn't appear (the $0 rule). Not verified with a real Google client yet; tested against a fake one.
 
+**Platform admin.** Turn on two-factor sign-in for the account first (the panel refuses admins
+without it), then in the API container (`cd /app/apps/api`): `npm run auth:make-admin -- --email
+<email>`. `--revoke` removes it. The panel is at `/admin` ("Admin panel" in the avatar menu).
+
 Lost authenticator *and* recovery codes: `npm run auth:disable-2fa -- --email <email>` (confirm it's
 really them first, out of band). It also signs them out everywhere.
 

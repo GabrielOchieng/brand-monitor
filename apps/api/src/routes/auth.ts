@@ -16,7 +16,6 @@ import {
 import { clearSessionCookie, createSession, deleteSessionFromRequest, revokeUserSessions } from "../auth/sessions";
 import { consumeToken, issueToken, peekToken, purgeOldTokens, revokeTokens } from "../auth/tokens";
 import { sendResetPasswordEmail } from "../auth/emails";
-import { createOrganization } from "../auth/orgs";
 import { consumeSecondFactor } from "../auth/mfa";
 
 const MINUTE = 60 * 1000;
@@ -45,7 +44,6 @@ const MFA_ATTEMPTS = 5;
 const ForgotSchema = z.object({ email: Email });
 const ResetSchema = z.object({ token: z.string().min(1).max(200), password: NewPassword });
 const SwitchOrgSchema = z.object({ orgId: z.string().min(1).max(100) });
-const CreateOrgSchema = z.object({ name: z.string().trim().min(1).max(100) });
 const AcceptInviteSchema = z.object({
   token: z.string().min(1).max(200),
   password: NewPassword.optional(),
@@ -66,6 +64,7 @@ export async function describeUser(userId: string, activeOrgId: string | null) {
   const organizations = user.memberships.map((m) => ({ id: m.organizationId, name: m.organization.name, role: m.role }));
   return {
     user: { id: user.id, email: user.email, name: user.name },
+    platformRole: user.platformRole,
     activeOrgId: organizations.some((o) => o.id === activeOrgId) ? activeOrgId : null,
     organizations,
     security: {
@@ -205,16 +204,7 @@ export async function authRoutes(app: FastifyInstance) {
     return sendMe(request, reply, userId, parsed.data.orgId);
   });
 
-  // Any signed-in user can start a new organization; they become its owner and it becomes
-  // their active one. (Accounts themselves only come from invites.)
-  app.post("/api/orgs", { preHandler: authenticateUser }, async (request, reply) => {
-    const parsed = CreateOrgSchema.safeParse(request.body);
-    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
-    const { userId, sessionId } = request.user!;
-    const org = await createOrganization(parsed.data.name, userId);
-    await adminPrisma.session.update({ where: { id: sessionId }, data: { activeOrgId: org.id } });
-    return sendMe(request, reply, userId, org.id);
-  });
+  // Organizations are created only by platform admins (routes/admin.ts).
 
   // What the accept-invite page shows before anything is used up.
   app.get("/auth/invite", async (request, reply) => {

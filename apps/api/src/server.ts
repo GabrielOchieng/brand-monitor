@@ -10,6 +10,7 @@ import { brandRoutes } from "./routes/brands";
 import { authRoutes } from "./routes/auth";
 import { accountRoutes } from "./routes/account";
 import { googleRoutes } from "./routes/google";
+import { adminRoutes } from "./routes/admin";
 import { notificationsRoutes } from "./routes/notifications";
 import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { alertRuleRoutes } from "./routes/alertRules";
@@ -83,6 +84,7 @@ async function main() {
   await app.register(authRoutes);
   await app.register(accountRoutes);
   await app.register(googleRoutes);
+  await app.register(adminRoutes);
   await app.register(brandRoutes);
   await app.register(pipelineRoutes);
   await app.register(findingsRoutes);
