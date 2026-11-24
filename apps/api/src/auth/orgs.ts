@@ -11,6 +11,7 @@ export async function createDefaultAlertRules(orgId: string): Promise<void> {
     { id: `default-site-reactivated-${orgId}`, kind: "site_reactivated", config: {}, channels: ["email", "in_app"] },
     // In-app only -- see routes/publicReports.ts.
     { id: `default-public-report-${orgId}`, kind: "public_report", config: {}, channels: ["in_app"] },
+    { id: `default-takedown-activity-${orgId}`, kind: "takedown_activity", config: {}, channels: ["in_app", "email"] },
   ];
   for (const r of rules) {
     await adminPrisma.alertRule.upsert({

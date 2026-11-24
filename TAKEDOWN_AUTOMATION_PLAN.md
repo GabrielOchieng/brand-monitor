@@ -253,6 +253,12 @@ the national CERT is no longer built in (each org adds its own); the own-domain 
 so Cc/Bcc to the org's own people (e.g. legal) is allowed; bounce entries arrive with step 5.
 Redirect mode is stored and shown; it takes effect when sending exists (step 4).
 
+Step 4 shipped 2026-11-28: sending. Differences: "live on 2 scans" needed a new counter
+(`findings.live_streak`); approving a report by hand needs the same switches as automatic sending; a
+report interrupted mid-send is marked failed (check the sent folder), never re-sent automatically;
+blocklist channel can only be off or "approval", which makes a manual task (they're web forms).
+The per-registrar daily digest (§7) is not built.
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety

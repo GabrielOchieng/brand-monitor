@@ -20,6 +20,9 @@ export const ALERT_KINDS = {
   registration_changed: { channels: ["email", "in_app", "webhook"], defaults: {} },
   // In-app only: the email template is finding-shaped (routes/publicReports.ts).
   public_report: { channels: ["in_app"], defaults: {} },
+  // Automatic takedown reports: queued for veto, waiting for approval, sent, failed, replies.
+  // Email only for the important ones (a failure), to owners and admins (lib/takedownNotify.ts).
+  takedown_activity: { channels: ["in_app", "email"], defaults: {} },
 } as const satisfies Record<string, { channels: readonly string[]; defaults: Record<string, unknown> }>;
 
 export type AlertKind = keyof typeof ALERT_KINDS;

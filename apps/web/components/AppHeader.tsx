@@ -19,6 +19,7 @@ const NAV = [
   { href: "/threats", label: "Threats", Icon: ListIcon },
   { href: "/mentions", label: "Mentions", Icon: MessageIcon },
   { href: "/reports", label: "Reports", Icon: FlagIcon },
+  { href: "/takedowns", label: "Takedowns", Icon: ShieldIcon },
   { href: "/settings", label: "Settings", Icon: SettingsIcon },
 ];
 

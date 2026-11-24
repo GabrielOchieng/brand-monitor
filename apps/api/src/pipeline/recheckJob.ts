@@ -283,11 +283,12 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
     // Post-takedown watch -- see takedownWatch.ts. Resolved findings keep being rechecked
     // (queue/dispatch.ts) precisely so this can catch a taken-down site coming back.
     const completedTakedowns = await tx.takedown.count({ where: { findingId, status: "completed" } });
+    const definitelyDown = isDefinitelyDown({ isDomainType, dnsExists: dns.exists, hasAddress: ip !== null, result: websiteResult });
     const watch = nextTakedownWatch({
       underWatch: previous.status === "resolved" || completedTakedowns > 0,
       downSince: previous.downSince,
       downStreak: previous.downStreak,
-      definitelyDown: isDefinitelyDown({ isDomainType, dnsExists: dns.exists, hasAddress: ip !== null, result: websiteResult }),
+      definitelyDown,
       live: currentlyActive,
       now: new Date(),
     });
@@ -376,6 +377,9 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
         nextScanAt: computeNextScanAt(previous.firstDetectedAt, new Date(), isDormant),
         downSince: watch.downSince,
         downStreak: watch.downStreak,
+        // Automatic takedown reports wait for 2 live scans in a row (lib/takedownPolicy.ts).
+        liveStreak: currentlyActive ? previous.liveStreak + 1 : definitelyDown ? 0 : previous.liveStreak,
+        ...(watch.reactivated ? { lastReactivatedAt: new Date() } : {}),
         ...(justActivated ? { firstLiveAt: new Date() } : {}),
         // Back into the triage queue: it needs a new takedown.
         ...(watch.reactivated && previous.status === "resolved" ? { status: "new" } : {}),

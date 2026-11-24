@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { timeAgo } from "../lib/format";
 import { useMyRole } from "../lib/useMyRole";
-import { CHANNEL_LABELS, DOCUMENT_KIND_LABELS, KIND_LABELS } from "../lib/autoTakedown";
+import { ACTION_STATUS_LABELS, ACTION_STATUS_TONE, CHANNEL_LABELS, DOCUMENT_KIND_LABELS, KIND_LABELS } from "../lib/autoTakedown";
+
+// Not sent yet, so still editable (EDITABLE_STATUSES in the API's lib/takedownPolicy.ts).
+const EDITABLE = ["draft", "awaiting_approval", "pending_veto", "queued", "manual", "failed"];
+const SENDABLE = ["draft", "awaiting_approval", "pending_veto", "queued", "failed"];
+const CANCELLABLE = ["awaiting_approval", "pending_veto", "queued", "manual", "failed", "shadow"];
 
 interface Draft {
   id: string;
@@ -27,6 +32,11 @@ interface Draft {
   updatedAt: string;
   lastTestAt: string | null;
   routing: Routing | null;
+  sentAt: string | null;
+  redirected: boolean;
+  holdReason: string | null;
+  skipReason: string | null;
+  error: string | null;
 }
 
 interface Routing {
@@ -124,11 +134,11 @@ export function ReportDrafts({ findingId }: { findingId: string }) {
   }
 
   return (
-    <section className="card p-5">
-      <h2 className="label">Report drafts</h2>
+    <section id="report-drafts" className="card scroll-mt-20 p-5">
+      <h2 className="label">Takedown reports</h2>
       <p className="mt-1 text-xs leading-relaxed text-ink-subtle">
-        Reports written from your report templates, with this finding&apos;s evidence filled in. Edit and save them here, and send a test to yourself. Sending them to the
-        registrar or host from here comes in a later update: until then, copy the text or use the kit above.
+        Reports written from your report templates with this finding&apos;s evidence, by you or automatically. Edit them until they&apos;re sent, test them on yourself,
+        and send them from your organization&apos;s mailbox once automatic reporting is set up (Settings → Automatic reporting).
       </p>
 
       {canEdit && data.channels.length > 0 && (
@@ -167,7 +177,8 @@ export function ReportDrafts({ findingId }: { findingId: string }) {
                 <span className="text-ink-muted"> · {KIND_LABELS[d.kind] ?? d.kind}</span>
                 <span className="ml-2 font-mono text-xs text-ink-subtle">{d.reportRef}</span>
               </span>
-              <span className="shrink-0 text-xs text-ink-subtle">
+              <span className="flex shrink-0 items-center gap-2 text-xs text-ink-subtle">
+                <span className={`rounded-full border px-2 py-0.5 ${ACTION_STATUS_TONE[d.status] ?? ""}`}>{ACTION_STATUS_LABELS[d.status] ?? d.status}</span>
                 {d.edited ? "edited · " : ""}
                 {timeAgo(d.updatedAt)}
               </span>
@@ -191,6 +202,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const isForm = draft.channel === "blocklist";
+  const editable = canEdit && EDITABLE.includes(draft.status);
 
   const dirty =
     to !== draft.to.join(", ") ||
@@ -236,24 +248,24 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
           ).map(([label, value, set]) => (
             <label key={label} className="flex items-center gap-2">
               <span className="w-8 shrink-0 text-xs text-ink-subtle">{label}</span>
-              <input className="field-sm min-w-0 flex-1" value={value} disabled={!canEdit} onChange={(e) => set(e.target.value)} placeholder={label === "To" ? "abuse@registrar.example" : ""} />
+              <input className="field-sm min-w-0 flex-1" value={value} disabled={!editable} onChange={(e) => set(e.target.value)} placeholder={label === "To" ? "abuse@registrar.example" : ""} />
             </label>
           ))}
           {data.senderAddress && <p className="text-xs text-ink-subtle">From {data.senderAddress}.</p>}
           <label className="flex items-center gap-2">
             <span className="w-8 shrink-0 text-xs text-ink-subtle">Subj.</span>
-            <input className="field-sm min-w-0 flex-1 font-mono text-xs" value={subject} disabled={!canEdit} onChange={(e) => setSubject(e.target.value)} />
+            <input className="field-sm min-w-0 flex-1 font-mono text-xs" value={subject} disabled={!editable} onChange={(e) => setSubject(e.target.value)} />
           </label>
         </div>
       )}
-      <textarea rows={16} className="field w-full font-mono text-xs leading-relaxed" value={body} disabled={!canEdit} onChange={(e) => setBody(e.target.value)} />
+      <textarea rows={16} className="field w-full font-mono text-xs leading-relaxed" value={body} disabled={!editable} onChange={(e) => setBody(e.target.value)} />
 
       {!isForm && (data.hasScreenshot || data.documents.length > 0) && (
         <fieldset className="space-y-1">
           <legend className="text-xs text-ink-subtle">Attachments</legend>
           {data.hasScreenshot && (
             <label className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={includeScreenshot} disabled={!canEdit} onChange={(e) => setIncludeScreenshot(e.target.checked)} />
+              <input type="checkbox" checked={includeScreenshot} disabled={!editable} onChange={(e) => setIncludeScreenshot(e.target.checked)} />
               Latest screenshot
             </label>
           )}
@@ -262,7 +274,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
               <input
                 type="checkbox"
                 checked={documentIds.includes(doc.id)}
-                disabled={!canEdit}
+                disabled={!editable}
                 onChange={(e) => setDocumentIds((ids) => (e.target.checked ? [...ids, doc.id] : ids.filter((x) => x !== doc.id)))}
               />
               {doc.filename} <span className="text-ink-subtle">({DOCUMENT_KIND_LABELS[doc.kind] ?? doc.kind})</span>
@@ -273,14 +285,66 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
 
       {message && <p className={`text-xs ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
       <div className="flex flex-wrap gap-2">
-        {canEdit && (
-          <button className="btn-primary text-xs" disabled={!!busy || !dirty} onClick={() => run("save", async () => (await save(), setMessage({ ok: true, text: "Saved." })))}>
+        {editable && (
+          <button className="btn-secondary text-xs" disabled={!!busy || !dirty} onClick={() => run("save", async () => (await save(), setMessage({ ok: true, text: "Saved." })))}>
             {busy === "save" ? "Saving…" : "Save"}
+          </button>
+        )}
+        {canEdit && !isForm && SENDABLE.includes(draft.status) && (
+          <button
+            className="btn-primary text-xs"
+            disabled={!!busy || list(to).length === 0}
+            onClick={() =>
+              run("send", async () => {
+                if (!window.confirm(`Send this report from your organization's mailbox to ${list(to).join(", ")} now?`)) return;
+                if (dirty) await save();
+                const r = await apiFetch<{ status: string; detail?: string }>(`/api/takedown-actions/${draft.id}/send`, { method: "POST" });
+                setMessage(r.status === "sent" ? { ok: true, text: "Sent." } : { ok: false, text: `${r.status === "held" ? "On hold" : r.status === "skipped" ? "Not sent" : "Failed"}${r.detail ? `: ${r.detail}` : ""}` });
+                await onChanged();
+              })
+            }
+          >
+            {busy === "send" ? "Sending…" : draft.status === "failed" ? "Retry sending" : "Send"}
+          </button>
+        )}
+        {canEdit && draft.status === "manual" && (
+          <button
+            className="btn-primary text-xs"
+            disabled={!!busy}
+            onClick={() =>
+              run("manual", async () => {
+                const reference = window.prompt("Reported it through the web form? Ticket or case number, if you got one (optional):");
+                if (reference === null) return;
+                await apiFetch(`/api/takedown-actions/${draft.id}/mark-reported`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ provider: `${CHANNEL_LABELS[draft.channel] ?? draft.channel} (web form)`, reference }),
+                });
+                await onChanged();
+              })
+            }
+          >
+            Mark as reported
+          </button>
+        )}
+        {canEdit && CANCELLABLE.includes(draft.status) && (
+          <button
+            className="btn-ghost text-xs text-red-600"
+            disabled={!!busy}
+            onClick={() =>
+              run("cancel", async () => {
+                if (!window.confirm("Cancel this report? It won't be made again automatically.")) return;
+                await apiFetch(`/api/takedown-actions/${draft.id}/cancel`, { method: "POST" });
+                await onChanged();
+              })
+            }
+          >
+            Cancel report
           </button>
         )}
         {canEdit && !isForm && (
           <button
-            className="btn-secondary text-xs"
+            className="btn-ghost text-xs"
             disabled={!!busy}
             title={dirty ? "Saves your changes first" : undefined}
             onClick={() =>
@@ -303,7 +367,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
         >
           Copy text
         </button>
-        {canEdit && (
+        {editable && (
           <button
             className="btn-ghost text-xs"
             disabled={!!busy}
@@ -320,7 +384,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
             Rewrite from template
           </button>
         )}
-        {canEdit && (
+        {canEdit && draft.status === "draft" && (
           <button
             className="btn-ghost text-xs text-red-600"
             disabled={!!busy}
@@ -339,6 +403,10 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
       <p className="text-xs text-ink-subtle">
         {draft.templateSource === "default" ? "Written from the built-in text" : "Written from your published template"}
         {draft.edited ? ", then edited by hand" : ""}. Last saved by {draft.updatedBy}.{draft.lastTestAt ? ` Tested ${timeAgo(draft.lastTestAt)}.` : ""}
+        {draft.sentAt ? ` Sent ${timeAgo(draft.sentAt)}${draft.redirected ? " (redirect mode)" : ""}.` : ""}
+        {draft.holdReason ? ` On hold: ${draft.holdReason}.` : ""}
+        {draft.skipReason ? ` Not sent: ${draft.skipReason}` : ""}
+        {draft.error ? ` Error: ${draft.error}` : ""}
       </p>
     </div>
   );

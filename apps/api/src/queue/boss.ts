@@ -47,6 +47,8 @@ export const QUEUE_DISPATCH_DISCOVERY = "dispatch-discovery";
 export const QUEUE_DISPATCH_RECHECK = "dispatch-recheck";
 export const QUEUE_DISPATCH_APP_STORE_MONITOR = "dispatch-app-store-monitor";
 export const QUEUE_ALERT_DISPATCH = "alert-dispatch";
+// Automatic takedown reports (pipeline/takedownDispatch.ts): global, no per-brand fan-out.
+export const QUEUE_TAKEDOWN_DISPATCH = "takedown-dispatch";
 
 // Queues must exist (createQueue) before send()/work() -- this is idempotent, safe to
 // call every boot.
@@ -92,4 +94,7 @@ export async function ensureQueues(): Promise<void> {
   // AlertDelivery-row level (see queue/alertDispatch.ts), not the job-queue level --
   // concurrent alert-dispatch jobs for different findings should run freely.
   await boss.createQueue(QUEUE_ALERT_DISPATCH, { retryLimit: 1 });
+  // Exclusive: two overlapping runs could otherwise both pick up the same due report (sendAction
+  // also claims each report atomically, so this is belt and braces).
+  await ensureExclusiveQueue(QUEUE_TAKEDOWN_DISPATCH, { retryLimit: 0, expireInSeconds: 600 });
 }

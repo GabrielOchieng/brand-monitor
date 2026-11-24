@@ -26,8 +26,9 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   `listMonitoredBrands()` / `MONITORED_BRAND` (`lib/monitoredBrands.ts`)**, never `brand.findMany` directly.
 - Admins can view any org read-only (session `admin_view_org_id`): `authenticate()` refuses all non-GET
   requests then. **So a GET route must never write** (it would let a read-only view change data).
-- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; steps 1-3 shipped 2026-11-25..27 = setup,
-  templates, report drafts and recipient rules (`lib/recipients.ts`); nothing is sent to a real recipient yet, only tests to the member asking). **Websites only, never social.** Each org sends from its OWN mailbox
+- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; steps 1-4 shipped 2026-11-25..28 = setup,
+  templates, drafts, recipients (`lib/recipients.ts`) and sending (`pipeline/takedownDispatch.ts`, `lib/takedownSend.ts`).
+  **`AUTO_TAKEDOWN_ENABLED` is unset in production: setting it lets the dispatcher email real registrars** for orgs that are fully set up and live). **Websites only, never social.** Each org sends from its OWN mailbox
   (`lib/orgMailer.ts`: Graph / Gmail API / SMTP, never our SMTP). Anything that sends must first check
   `automationBlockers()` (`lib/takedownAutomation.ts`) is empty for the brand: global `AUTO_TAKEDOWN_ENABLED`,
   platform-admin allowance, tested sender, authorization in force, owner switch, stop-all, pause, brand switch.
@@ -51,7 +52,8 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   (208.91.112.55, HTTP 403), so local scans of real threats don't match production.
 - pg-boss cron (registered in `apps/api/src/queue/dispatch.ts`): discovery 4h, recheck 5min,
   ct-tiles-monitor 5min (global; replaced the per-brand crt.sh poll 2026-11-21), app-store-monitor 4h (App Store + Google Play), nrd-monitor 6h, phish-feed-monitor 1h and
-  social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher). Queues are declared in `queue/boss.ts`.
+  social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher), takedown-dispatch 5min
+  (automatic takedown reports; does nothing unless `AUTO_TAKEDOWN_ENABLED=1`). Queues are declared in `queue/boss.ts`.
 
 ## Deployment (auto-deploys on push to `main`)
 Since 2026-11-19: Vercel (web) + an OVH VPS running Dokploy (`panel.gabrielochieng.com`): the API and

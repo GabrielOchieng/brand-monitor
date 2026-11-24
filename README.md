@@ -361,6 +361,25 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   and **redirect mode** (owner only: every report delivered to one address of theirs instead; used by
   the sender in step 4). The org's own domains (brand domains and the sender's) are never a report's
   To; copies to them are fine. Drafts refuse recipients that break these rules.
+- **Sending** (step 4; `lib/takedownPolicy.ts`, `lib/takedownSend.ts`, `pipeline/takedownDispatch.ts`,
+  queue `takedown-dispatch` every 5 min). Every 5 minutes, for each org with automatic reporting on and
+  every switch on, the dispatcher prepares a first report on each channel whose **mode** isn't off
+  (*approval*: an analyst sends it; *delayed*: sent after the **veto window**, default 6h, unless
+  cancelled; *automatic*: sent at once) for every website finding that **qualifies**: live on 2 scans
+  in a row (`findings.live_streak`), a screenshot from the last 24h, not dismissed or the org's own
+  domain, and either confirmed by an analyst or at the policy's severity (default critical) with a
+  fraud signal from the latest scan (login form, payment form/details, shared contact details, scam
+  pattern; visual match optional). One report per finding and channel until the site comes back
+  (`findings.last_reactivated_at`); a cancel counts. Web-form-only recipients become **manual tasks**.
+  **Stages**: *shadow* (default, 14 days: reports are recorded, never sent; analysts mark them right or
+  wrong) → *redirect* (sent to the org's redirect address only) → *live* (going live is refused before
+  the shadow period ends). At send time everything is checked again: switches off, stop-all, pause or
+  a **cap** (25/day per org, 5/day per recipient) put a report on hold; a dismissed or down finding, or
+  one that no longer qualifies, skips it. A send creates the tracker row (`Takedown`, reference =
+  the `[BM-…]` tag). Analysts approve/send, cancel, retry and close manual tasks on **/takedowns**
+  (tabs: needs approval, veto window, manual tasks, failed, shadow review, sent, closed) or on the
+  finding. Alerts: the `takedown_activity` rule (in-app; email to owners/admins when a send fails).
+  Nothing runs unless `AUTO_TAKEDOWN_ENABLED=1`.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is
@@ -389,7 +408,8 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
 |---|---|
 | **Overview** (`/dashboard`) | Open threats by severity, new this week, a **Needs attention** list (open high/critical, untriaged first), takedowns in progress, source health, recent activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
 | **Threats** (`/threats`) | The threat feed. Open findings by default ("All" shows everything), filters, sorting, paging, bulk actions, CSV export. Targets shown by name (`@handle` + platform, app id, host + path). |
-| **Finding page** (`/threats/[id]`) | Left: evidence (screenshot or social post, score breakdown, AI explanation, contacts, reports, related findings). Right: triage, takedown kit and tracker, domain details and history. |
+| **Finding page** (`/threats/[id]`) | Left: evidence (screenshot or social post, score breakdown, AI explanation, contacts, reports, related findings). Right: triage, takedown kit and tracker, takedown reports (drafts and sent), domain details and history. |
+| **Takedowns** (`/takedowns`) | The org's takedown report queue: needs approval, veto window, manual tasks, failed, shadow review, sent, closed. |
 | **Mentions** (`/mentions`) | Non-threat brand mentions with 7-day counts and filters. |
 | **Reports** (`/reports`) | Public scam reports and the per-brand report link. |
 | **Notifications** (`/notifications`) | In-app alerts. |

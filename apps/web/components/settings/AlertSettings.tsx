@@ -23,6 +23,7 @@ const KINDS: Record<string, { title: string; description: string }> = {
   site_reactivated: { title: "Site back online", description: "A site confirmed down after a takedown is live again." },
   registration_changed: { title: "Registration changed", description: "A domain's registrar, nameservers, IP or registry status changes." },
   public_report: { title: "Public report", description: "Someone submits the public scam-report form. In-app only." },
+  takedown_activity: { title: "Takedown reports", description: "Automatic takedown reports: one is waiting for its veto window or for approval, was sent, or failed. Email (to owners and admins) only for failures." },
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = { email: "Email", in_app: "In-app", webhook: "Webhook" };

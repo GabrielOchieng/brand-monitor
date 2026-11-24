@@ -8,6 +8,7 @@ import { authorizationStatus, BLOCKER_LABELS, DOCUMENT_KIND_LABELS, EVENT_LABELS
 import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
 import { Field, Toggle } from "./Section";
+import { AutoTakedownSending, type SendingData } from "./AutoTakedownSending";
 
 type Provider = "graph" | "gmail" | "smtp";
 
@@ -53,12 +54,12 @@ interface Authorization {
   documents: Doc[];
 }
 
-interface Overview {
+interface Overview extends Omit<SendingData, "automation"> {
   platformEnabled: boolean;
   encryptionConfigured: boolean;
   allowedAt: string | null;
   allowedBy: string | null;
-  automation: { enabledAt: string | null; enabledBy: string | null; stoppedAt: string | null; stoppedBy: string | null; stopReason: string | null } | null;
+  automation: (NonNullable<SendingData["automation"]> & { enabledBy: string | null; stoppedAt: string | null; stoppedBy: string | null; stopReason: string | null }) | null;
   sender: Sender | null;
   authorizations: Authorization[];
   brands: Array<{ id: string; name: string; primaryDomain: string; autoTakedownEnabled: boolean; blockers: string[] }>;
@@ -132,9 +133,9 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
           Abuse reports for lookalike <strong>websites</strong> sent from your own mailbox, to registrars, hosts and CERTs. Social media accounts are always reported by
           hand. Every switch below must be on before anything is sent.
         </div>
-        <p className="mt-3 max-w-2xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Automatic sending isn&apos;t built yet. This page sets up the sender and the authorization; until the sending step ships, nothing is sent automatically,
-          whatever these settings say. Takedown reports are still sent by hand from each finding.
+        <p className="mt-3 max-w-2xl rounded-md border border-line bg-elevated/60 px-3 py-2 text-xs text-ink-muted">
+          Order of setup: sender mailbox and authorization here, wording under Report templates, recipients under Report recipients, then the platform admin allows
+          it and an owner turns it on. It starts in shadow mode: nothing is sent until you move it to redirect and then live.
         </p>
       </div>
 
@@ -198,6 +199,8 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
           )}
         </div>
       </Card>
+
+      <AutoTakedownSending data={data} role={role} onChange={load} onError={setError} />
 
       <SenderCard data={data} isOwner={isOwner} canTest={canManage} onChange={load} />
       <AuthorizationCard data={data} isOwner={isOwner} onChange={load} />

@@ -92,3 +92,46 @@ export const LANGUAGE_LABELS: Record<string, string> = {
   zh: "Chinese",
   ru: "Russian",
 };
+
+export const ACTION_STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  shadow: "Shadow (not sent)",
+  manual: "Manual task",
+  awaiting_approval: "Needs approval",
+  pending_veto: "Waiting (veto window)",
+  queued: "Queued",
+  sending: "Sending",
+  sent: "Sent",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  skipped: "Skipped",
+};
+
+export const ACTION_STATUS_TONE: Record<string, string> = {
+  draft: "border-line bg-elevated text-ink-muted",
+  shadow: "border-violet-200 bg-violet-50 text-violet-800",
+  manual: "border-amber-200 bg-amber-50 text-amber-800",
+  awaiting_approval: "border-amber-200 bg-amber-50 text-amber-800",
+  pending_veto: "border-sky-200 bg-sky-50 text-sky-800",
+  queued: "border-sky-200 bg-sky-50 text-sky-800",
+  sending: "border-sky-200 bg-sky-50 text-sky-800",
+  sent: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  failed: "border-red-200 bg-red-50 text-red-700",
+  cancelled: "border-line bg-elevated text-ink-subtle",
+  skipped: "border-line bg-elevated text-ink-subtle",
+};
+
+export const MODE_LABELS: Record<string, string> = {
+  off: "Off (by hand only)",
+  approval: "Approval: prepared, an analyst sends",
+  delayed: "Delayed: sent after the veto window",
+  automatic: "Automatic: sent at once",
+};
+
+export const SIGNAL_LABELS: Record<string, string> = {
+  login_form: "Login form on the page",
+  payment_form: "Payment form or payment details",
+  shared_indicator: "Contact details shared with another finding",
+  scam_pattern: "Scam pattern (recruitment fee, listed in a phishing feed)",
+  visual_match: "Looks like your real website",
+};

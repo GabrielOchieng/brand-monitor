@@ -21,6 +21,8 @@ import {
   type SenderSecrets,
 } from "../lib/orgMailer";
 import { env } from "../env";
+import { CHANNEL_MODES, SIGNALS, STAGES } from "../lib/takedownPolicy";
+import { CHANNELS } from "../lib/reportTemplates";
 import { testsToday, TESTS_PER_DAY } from "../lib/selfTestSend";
 
 // Settings for automatic takedown reporting (TAKEDOWN_AUTOMATION_PLAN.md, step 1): the org's
@@ -129,6 +131,11 @@ async function overview(orgId: string) {
       }),
       tx.takedownAutomationEvent.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: "desc" }, take: 50 }),
     ]);
+    const [settings, shadow] = await Promise.all([
+      tx.takedownChannelSetting.findMany({ where: { organizationId: orgId }, select: { channel: true, mode: true } }),
+      tx.takedownAction.groupBy({ by: ["shadowVerdict"], where: { organizationId: orgId, status: "shadow" }, _count: { _all: true } }),
+    ]);
+    const verdict = (v: string | null) => shadow.find((x) => x.shadowVerdict === v)?._count._all ?? 0;
     return {
       platformEnabled: env.autoTakedownEnabled,
       encryptionConfigured: encryptionConfigured(),
@@ -140,6 +147,8 @@ async function overview(orgId: string) {
       brands: brands.map((b) => ({ ...b, blockers: automationBlockers(state, b) })),
       blockers: automationBlockers(state),
       events,
+      channelModes: Object.fromEntries(CHANNELS.map((c) => [c, settings.find((x) => x.channel === c)?.mode ?? "off"])),
+      shadowStats: { right: verdict("right"), wrong: verdict("wrong"), unreviewed: verdict(null) },
     };
   });
 }
@@ -396,7 +405,9 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
       const missing = automationBlockers(await loadAutomationState(tx, orgId)).filter((b) => ENABLE_REQUIRES.includes(b));
       if (missing.length > 0) return reply.status(409).send({ error: "automation_not_ready", blockers: missing });
       const actor = await actorOf(tx, request.auth!.userId);
-      const data = { enabledAt: new Date(), enabledBy: actor.email };
+      const existing = await tx.takedownAutomation.findUnique({ where: { organizationId: orgId }, select: { shadowStartedAt: true } });
+      // The shadow period (TAKEDOWN_AUTOMATION_PLAN.md §10) starts the first time it's turned on.
+      const data = { enabledAt: new Date(), enabledBy: actor.email, ...(existing?.shadowStartedAt ? {} : { shadowStartedAt: new Date() }) };
       await tx.takedownAutomation.upsert({ where: { organizationId: orgId }, create: { organizationId: orgId, ...data }, update: data });
       await recordAutomationEvent(tx, orgId, actor, "enable");
       return reply.send({ ok: true });
@@ -450,6 +461,67 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
       if (count === 0) return reply.status(404).send({ error: "not_found" });
       await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), parsed.data.enabled ? "brand.on" : "brand.off", { brandId: id });
       return reply.send({ ok: true });
+    });
+  });
+  // --- Sending (step 4): policy, a mode per channel, and the stage ----------------------------
+
+  const PolicySchema = z.object({
+    minSeverity: z.enum(["high", "critical"]),
+    signals: z.array(z.enum(SIGNALS)).max(SIGNALS.length),
+    confirmedSkipsVeto: z.boolean(),
+    vetoHours: z.number().int().min(1).max(72),
+    dailyCap: z.number().int().min(1).max(200),
+    perRecipientCap: z.number().int().min(1).max(50),
+  });
+
+  app.put("/api/takedown-automation/policy", { preHandler: [authenticate, requireRole("owner", "admin")] }, async (request, reply) => {
+    const parsed = PolicySchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      await tx.takedownAutomation.upsert({ where: { organizationId: orgId }, create: { organizationId: orgId, ...parsed.data }, update: parsed.data });
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "policy.save", parsed.data);
+      return reply.send(parsed.data);
+    });
+  });
+
+  app.put("/api/takedown-automation/channel-modes", { preHandler: [authenticate, requireRole("owner", "admin")] }, async (request, reply) => {
+    const parsed = z.record(z.enum(CHANNELS), z.enum(CHANNEL_MODES)).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      for (const [channel, mode] of Object.entries(parsed.data)) {
+        await tx.takedownChannelSetting.upsert({
+          where: { organizationId_channel: { organizationId: orgId, channel } },
+          create: { organizationId: orgId, channel, mode },
+          update: { mode },
+        });
+      }
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "modes.save", parsed.data);
+      return reply.send(parsed.data);
+    });
+  });
+
+  // shadow -> redirect -> live. Live needs the shadow period first, and redirect an address.
+  app.post("/api/takedown-automation/stage", { preHandler: [authenticate, requireRole("owner")] }, async (request, reply) => {
+    const parsed = z.object({ stage: z.enum(STAGES) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
+    const stage = parsed.data.stage;
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      const a = await tx.takedownAutomation.findUnique({ where: { organizationId: orgId } });
+      if (!a) return reply.status(409).send({ error: "automation_not_ready" });
+      if (stage === "redirect" && !a.redirectTo) return reply.status(409).send({ error: "redirect_needs_address" });
+      if (stage === "live") {
+        const until = a.shadowStartedAt ? new Date(a.shadowStartedAt.getTime() + a.shadowDays * 86400_000) : null;
+        if (!until || until > new Date()) return reply.status(409).send({ error: "shadow_not_done", until });
+      }
+      await tx.takedownAutomation.update({
+        where: { organizationId: orgId },
+        data: { stage, stageChangedAt: new Date(), ...(stage === "shadow" && !a.shadowStartedAt ? { shadowStartedAt: new Date() } : {}) },
+      });
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "stage.change", { from: a.stage, to: stage });
+      return reply.send({ stage });
     });
   });
 }

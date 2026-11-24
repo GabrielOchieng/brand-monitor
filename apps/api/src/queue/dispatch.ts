@@ -15,6 +15,7 @@ import {
   QUEUE_DISPATCH_DISCOVERY,
   QUEUE_DISPATCH_RECHECK,
   QUEUE_DISPATCH_APP_STORE_MONITOR,
+  QUEUE_TAKEDOWN_DISPATCH,
 } from "./boss";
 import { runDiscoveryJob, type DiscoveryJobData } from "../pipeline/discoveryJob";
 import { runRecheckJob, type RecheckJobData } from "../pipeline/recheckJob";
@@ -25,6 +26,7 @@ import { runPhishFeedMonitorJob } from "../pipeline/phishFeedMonitorJob";
 import { runSocialSearchMonitorJob, runFactCheckMonitorJob, runManualSocialSearch } from "../pipeline/socialSearchMonitorJob";
 import { markRecheckDispatched } from "./health";
 import { MONITORED_BRAND, isBrandPaused, isFindingPaused, listMonitoredBrands } from "../lib/monitoredBrands";
+import { runTakedownDispatch } from "../pipeline/takedownDispatch";
 
 // Deliberate, narrow RLS bypass -- same documented category as adminDb.ts's
 // other callers. A "find everything due, across every org" query is inherently
@@ -132,6 +134,10 @@ export async function registerQueueWorkers(): Promise<void> {
     }
   );
 
+  await boss.work(QUEUE_TAKEDOWN_DISPATCH, WORKER_POLLING, async () => {
+    await runTakedownDispatch();
+  });
+
   await boss.work(QUEUE_DISPATCH_APP_STORE_MONITOR, WORKER_POLLING, async () => {
     const brands = await listAllBrandsForDispatch();
     for (const { brandId, organizationId } of brands) {
@@ -161,6 +167,9 @@ export async function scheduleDispatchers(): Promise<void> {
   // Daily and weekly: metered by Tavily's free 1,000 searches/month (lib/tavily.ts), and
   // fake social accounts live for weeks, not hours. 06:20 UTC is 09:20 in Nairobi, so a
   // new finding lands at the start of the working day.
+  // Every 5 min: a report waiting out its veto window goes at most ~5 min late. Does nothing
+  // unless AUTO_TAKEDOWN_ENABLED=1.
+  await boss.schedule(QUEUE_TAKEDOWN_DISPATCH, "4-59/5 * * * *", undefined, { singletonKey: "takedown-dispatch" });
   await boss.schedule(QUEUE_SOCIAL_SEARCH_MONITOR, "20 6 * * *", { kind: "social" }, { key: "social" });
   await boss.schedule(QUEUE_SOCIAL_SEARCH_MONITOR, "50 6 * * 1", { kind: "fact_check" }, { key: "fact_check" });
 }

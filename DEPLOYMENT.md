@@ -128,9 +128,10 @@ doesn't appear (the $0 rule). Not verified with a real Google client yet; tested
 without it), then in the API container (`cd /app/apps/api`): `npm run auth:make-admin -- --email
 <email>`. `--revoke` removes it. The panel is at `/admin` ("Admin panel" in the avatar menu).
 
-**Automatic takedown reporting** (README §6; setup only so far, nothing is sent automatically).
-Leave `AUTO_TAKEDOWN_ENABLED` unset (global off) until the sending step ships and an org has run shadow
-mode. To let an org set it up: its owner connects a sender mailbox, passes a test send and records
+**Automatic takedown reporting** (README §6). `AUTO_TAKEDOWN_ENABLED=1` turns on the dispatcher (queue
+`takedown-dispatch`): it then emails real registrars and hosts for orgs that are allowed, set up, turned on
+and moved from shadow to live by their owner. Unset = nothing is prepared or sent, and approving a report
+by hand is refused too. Set it when the first org is ready for its shadow period. To let an org set it up: its owner connects a sender mailbox, passes a test send and records
 an authorization (Settings → Automatic reporting); you read the authorization and its documents on
 its `/admin` org page and press **Allow** (audit-logged; refused without an authorization in force).
 Sender credentials are encrypted with `AUTH_ENCRYPTION_KEY`: changing the key means every org must

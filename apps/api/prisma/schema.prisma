@@ -185,44 +185,50 @@ model BrandAsset {
 }
 
 model Finding {
-  id              String    @id @default(cuid())
-  brandId         String    @map("brand_id")
-  brand           Brand     @relation(fields: [brandId], references: [id])
+  id                String    @id @default(cuid())
+  brandId           String    @map("brand_id")
+  brand             Brand     @relation(fields: [brandId], references: [id])
   // domain | url | social (a social-media account; identifier is its canonical profile URL)
-  type            String    @default("domain")
-  source          String    @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | nrd_hagezi | isc_recent | phish_feed | public_report | social_search | web_search
-  identifier      String // the candidate domain
-  riskScore       Int       @default(0) @map("risk_score")
-  severity        String    @default("low")
-  status          String    @default("new")
-  firstDetectedAt DateTime  @default(now()) @map("first_detected_at")
-  lastScannedAt   DateTime  @default(now()) @map("last_scanned_at")
+  type              String    @default("domain")
+  source            String    @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | nrd_hagezi | isc_recent | phish_feed | public_report | social_search | web_search
+  identifier        String // the candidate domain
+  riskScore         Int       @default(0) @map("risk_score")
+  severity          String    @default("low")
+  status            String    @default("new")
+  firstDetectedAt   DateTime  @default(now()) @map("first_detected_at")
+  lastScannedAt     DateTime  @default(now()) @map("last_scanned_at")
   // Drives the recheck dispatcher (apps/api/src/queue/dispatch.ts) -- null means never
   // enrolled for recheck (shouldn't happen once discovery sets it at creation).
-  nextScanAt      DateTime? @map("next_scan_at")
+  nextScanAt        DateTime? @map("next_scan_at")
   // Points at this finding's most recent Scan -- the O(1) way to fetch "current"
   // score-event/evidence breakdown without a MAX(createdAt) aggregate, now that scans
   // are append-only (see Scan below).
-  lastScanId      String?   @map("last_scan_id")
+  lastScanId        String?   @map("last_scan_id")
   // Lifecycle: who's investigating (must be a member of this finding's org -- enforced
   // in the route, not by this FK alone, since a raw User row isn't tenant-scoped) and
   // free-form labels. Neither drives any pipeline behavior; display/filtering only.
-  assigneeId      String?   @map("assignee_id")
-  assignee        User?     @relation("FindingAssignee", fields: [assigneeId], references: [id])
-  tags            String[]  @default([])
+  assigneeId        String?   @map("assignee_id")
+  assignee          User?     @relation("FindingAssignee", fields: [assigneeId], references: [id])
+  tags              String[]  @default([])
   // Post-takedown watch (see recheckJob.ts): set when a scan of a resolved / taken-down
   // finding definitively shows the site down (no DNS, parked, or HTTP 404/410/451), cleared
   // when it comes back live -- which is what fires site_reactivated. Requiring a definite
   // "down" first stops a single failed scan from looking like a reactivation.
-  downSince       DateTime? @map("down_since")
+  downSince         DateTime? @map("down_since")
   // Consecutive definitely-down scans while not yet confirmed down: downSince is only set at 2,
   // because the parked-page detector occasionally misreads one scan of a live site.
-  downStreak      Int       @default(0) @map("down_streak")
+  downStreak        Int       @default(0) @map("down_streak")
   // First scan that saw live, non-parked content. website_activated fires only when this was
   // still null, so a live site whose scans flap live/parked doesn't re-alert on every return.
-  firstLiveAt     DateTime? @map("first_live_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  firstLiveAt       DateTime? @map("first_live_at")
+  // Consecutive scans that saw live content (a failed scan leaves it; a down scan resets it).
+  // Automatic takedown reports need 2, so one misread scan never triggers one.
+  liveStreak        Int       @default(0) @map("live_streak")
+  // Last time a confirmed-down site came back (site_reactivated): reports from before it don't
+  // count as "already reported" any more.
+  lastReactivatedAt DateTime? @map("last_reactivated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   domainIntel    DomainIntel?
   websiteIntel   WebsiteIntel?
@@ -662,19 +668,34 @@ model BrandUsage {
 // The org's own switches. enabledAt: the owner turned it on. stoppedAt: anyone from analyst up hit
 // "Stop all sending"; only an owner clears it.
 model TakedownAutomation {
-  organizationId String    @id @map("organization_id")
-  enabledAt      DateTime? @map("enabled_at")
-  enabledBy      String?   @map("enabled_by")
-  stoppedAt      DateTime? @map("stopped_at")
-  stoppedBy      String?   @map("stopped_by")
-  stopReason     String?   @map("stop_reason")
+  organizationId     String    @id @map("organization_id")
+  enabledAt          DateTime? @map("enabled_at")
+  enabledBy          String?   @map("enabled_by")
+  stoppedAt          DateTime? @map("stopped_at")
+  stoppedBy          String?   @map("stopped_by")
+  stopReason         String?   @map("stop_reason")
   // Fixed text every report can use (templates: {{org.details}}, {{disclaimer}}).
-  companyDetails String?   @map("company_details")
-  disclaimer     String?
+  companyDetails     String?   @map("company_details")
+  disclaimer         String?
   // Redirect (test) mode: when set, every report is delivered to this address instead of its real
   // recipients (lib/recipients.ts deliveryRecipients). Owner only.
-  redirectTo     String?   @map("redirect_to")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  redirectTo         String?   @map("redirect_to")
+  // Sending (lib/takedownPolicy.ts, pipeline/takedownDispatch.ts). stage: shadow (record what
+  // would be sent, send nothing) -> redirect (deliver to redirectTo) -> live. Going live needs
+  // shadowDays of shadow mode first.
+  stage              String    @default("shadow")
+  stageChangedAt     DateTime? @map("stage_changed_at")
+  shadowStartedAt    DateTime? @map("shadow_started_at")
+  shadowDays         Int       @default(14) @map("shadow_days")
+  // Which findings qualify: at least this severity (unless an analyst confirmed it) and at least
+  // one of these signals (login_form, payment_form, shared_indicator, scam_pattern, visual_match).
+  minSeverity        String    @default("critical") @map("min_severity")
+  signals            String[]  @default(["login_form", "payment_form", "shared_indicator", "scam_pattern"])
+  confirmedSkipsVeto Boolean   @default(true) @map("confirmed_skips_veto")
+  vetoHours          Int       @default(6) @map("veto_hours")
+  dailyCap           Int       @default(25) @map("daily_cap")
+  perRecipientCap    Int       @default(5) @map("per_recipient_cap")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@map("takedown_automation")
 }
@@ -834,6 +855,25 @@ model TakedownAction {
   // How the recipients were chosen (lib/recipients.ts Routing): which contact-book rule or registry
   // record, the method (email / web form / none) and why. Shown on the finding page.
   routing           Json?
+  // Sending. createdAuto: made by the dispatcher (else by an analyst). qualifiedBy: why the policy
+  // picked the finding. holdReason: why a due report is waiting (cap, stop, ...).
+  createdAuto       Boolean   @default(false) @map("created_auto")
+  qualifiedBy       Json?     @map("qualified_by")
+  sendAfter         DateTime? @map("send_after")
+  approvedBy        String?   @map("approved_by")
+  cancelledBy       String?   @map("cancelled_by")
+  holdReason        String?   @map("hold_reason")
+  skipReason        String?   @map("skip_reason")
+  attempts          Int       @default(0)
+  error             String?
+  sentAt            DateTime? @map("sent_at")
+  deliveredTo       String[]  @default([]) @map("delivered_to")
+  redirected        Boolean   @default(false)
+  messageId         String?   @map("message_id")
+  takedownId        String?   @map("takedown_id")
+  // Shadow mode review: right | wrong, and by whom.
+  shadowVerdict     String?   @map("shadow_verdict")
+  shadowVerdictBy   String?   @map("shadow_verdict_by")
 
   @@index([findingId])
   @@index([organizationId, status])
@@ -895,6 +935,9 @@ model TakedownChannelSetting {
   to             String[] @default([])
   cc             String[] @default([])
   bcc            String[] @default([])
+  // off (manual only) | approval (prepared, an analyst sends) | delayed (sent after the veto
+  // window unless cancelled) | automatic (sent at once).
+  mode           String   @default("off")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@id([organizationId, channel])

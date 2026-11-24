@@ -11,6 +11,7 @@ import { CHANNEL_KINDS, CHANNELS, KINDS, LANGUAGES, MAX_BODY, MAX_SUBJECT, newRe
 import { channelsFor, factsOf, hostnameOf, loadReportContext, resolveTemplate } from "../lib/reportContext";
 import { loadRoutingData, recipientProblems, resolveRouting, type RoutingData } from "../lib/recipients";
 import { sendTestToSelf } from "../lib/selfTestSend";
+import { EDITABLE_STATUSES } from "../lib/takedownPolicy";
 
 // Report drafts per finding (TAKEDOWN_AUTOMATION_PLAN.md §5.3): rendered from the published
 // template, then edited by hand and saved. Step 2 has no real send: a draft can only be tested
@@ -149,7 +150,7 @@ export async function reportDraftRoutes(app: FastifyInstance) {
     return withTenant(orgId, async (tx) => {
       const draft = await tx.takedownAction.findFirst({ where: { id, organizationId: orgId } });
       if (!draft) return reply.status(404).send({ error: "not_found" });
-      if (draft.status !== "draft") return reply.status(409).send({ error: "not_a_draft" });
+      if (!EDITABLE_STATUSES.includes(draft.status)) return reply.status(409).send({ error: "not_a_draft" });
       if (draft.channel !== "blocklist" && !d.subject.includes(`[${draft.reportRef}]`)) return reply.status(400).send({ error: "report_ref_removed" });
       const routingData = await loadRoutingData(tx, orgId);
       const problems = recipientProblems(d, routingData.ownDomains, routingData.blocked);
@@ -173,7 +174,7 @@ export async function reportDraftRoutes(app: FastifyInstance) {
     return withTenant(orgId, async (tx) => {
       const draft = await tx.takedownAction.findFirst({ where: { id, organizationId: orgId } });
       if (!draft) return reply.status(404).send({ error: "not_found" });
-      if (draft.status !== "draft") return reply.status(409).send({ error: "not_a_draft" });
+      if (!EDITABLE_STATUSES.includes(draft.status)) return reply.status(409).send({ error: "not_a_draft" });
       const loaded = await loadReportContext(tx, orgId, draft.findingId, { reportRef: draft.reportRef, apiOrigin: apiOrigin(request) });
       if (!loaded) return reply.status(404).send({ error: "not_found" });
       const template = await resolveTemplate(tx, orgId, draft.brandId, draft.channel as Channel, draft.kind as Kind, draft.language);
