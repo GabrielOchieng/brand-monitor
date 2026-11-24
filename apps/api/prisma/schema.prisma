@@ -361,6 +361,7 @@ model DomainIntel {
   statusCodes         String[]  @default([]) @map("status_codes")
   registrarAbuseEmail String?   @map("registrar_abuse_email")
   registrarAbusePhone String?   @map("registrar_abuse_phone")
+  registrarIanaId     String?   @map("registrar_iana_id")
   // Who hosts the IP, from IP RDAP. hostingLookupIp is the IP these describe, so the
   // lookup only re-runs when the IP changes.
   hostingOrg          String?   @map("hosting_org")
@@ -667,6 +668,9 @@ model TakedownAutomation {
   stoppedAt      DateTime? @map("stopped_at")
   stoppedBy      String?   @map("stopped_by")
   stopReason     String?   @map("stop_reason")
+  // Fixed text every report can use (templates: {{org.details}}, {{disclaimer}}).
+  companyDetails String?   @map("company_details")
+  disclaimer     String?
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("takedown_automation")
@@ -752,4 +756,80 @@ model TakedownAutomationEvent {
 
   @@index([organizationId, createdAt])
   @@map("takedown_automation_events")
+}
+
+// Report templates (lib/reportTemplates.ts). One template per org (or brand) x channel x kind x
+// language; its text lives in versions. scopeKey = "org" or the brand id (a plain unique key, since
+// Postgres treats NULL brand ids as distinct). With no template, the built-in default is used.
+model TakedownTemplate {
+  id             String                    @id @default(cuid())
+  organizationId String                    @map("organization_id")
+  brandId        String?                   @map("brand_id")
+  scopeKey       String                    @map("scope_key")
+  channel        String // registrar | host | cert | blocklist
+  kind           String // first | follow_up | escalation
+  language       String                    @default("en")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  versions       TakedownTemplateVersion[]
+
+  @@unique([organizationId, scopeKey, channel, kind, language])
+  @@map("takedown_templates")
+}
+
+// draft: being edited (at most one per template); published: what reports use (at most one);
+// archived: an earlier published version, kept because sent reports name the version they used.
+model TakedownTemplateVersion {
+  id             String           @id @default(cuid())
+  templateId     String           @map("template_id")
+  template       TakedownTemplate @relation(fields: [templateId], references: [id])
+  organizationId String           @map("organization_id")
+  version        Int
+  status         String // draft | published | archived
+  subject        String
+  body           String
+  createdBy      String           @map("created_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  publishedBy    String?          @map("published_by")
+  publishedAt    DateTime?        @map("published_at")
+
+  @@unique([templateId, version])
+  @@index([templateId, status])
+  @@map("takedown_template_versions")
+}
+
+// One report to one channel about one finding. Step 2 only creates drafts: an analyst prepares
+// one from the template, edits it and tests it on themself. Sending (and the other statuses:
+// shadow, awaiting_approval, pending_veto, sending, sent, failed, cancelled, skipped) comes with
+// the dispatcher. reportRef ([BM-...] in the subject) matches replies to the report.
+model TakedownAction {
+  id                String    @id @default(cuid())
+  organizationId    String    @map("organization_id")
+  brandId           String    @map("brand_id")
+  findingId         String    @map("finding_id")
+  channel           String
+  kind              String
+  language          String    @default("en")
+  status            String    @default("draft")
+  reportRef         String    @unique @map("report_ref")
+  to                String[]  @default([])
+  cc                String[]  @default([])
+  bcc               String[]  @default([])
+  subject           String
+  body              String
+  includeScreenshot Boolean   @default(true) @map("include_screenshot")
+  documentIds       String[]  @default([]) @map("document_ids")
+  // "default" (built-in text) or a TakedownTemplateVersion id.
+  templateSource    String    @map("template_source")
+  // Someone changed the rendered text by hand.
+  edited            Boolean   @default(false)
+  createdBy         String    @map("created_by")
+  updatedBy         String    @map("updated_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  lastTestAt        DateTime? @map("last_test_at")
+
+  @@index([findingId])
+  @@index([organizationId, status])
+  @@map("takedown_actions")
 }

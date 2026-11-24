@@ -21,6 +21,7 @@ import {
   type SenderSecrets,
 } from "../lib/orgMailer";
 import { env } from "../env";
+import { testsToday, TESTS_PER_DAY } from "../lib/selfTestSend";
 
 // Settings for automatic takedown reporting (TAKEDOWN_AUTOMATION_PLAN.md, step 1): the org's
 // switches, its sender mailbox, and who authorizes reports in its name. Nothing here sends a
@@ -31,7 +32,6 @@ import { env } from "../env";
 
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENTS_PER_AUTHORIZATION = 20;
-const TESTS_PER_DAY = 20;
 const DOCUMENT_TYPES: Record<string, { magic: number[] }> = {
   "application/pdf": { magic: [0x25, 0x50, 0x44, 0x46] }, // %PDF
   "image/png": { magic: [0x89, 0x50, 0x4e, 0x47] },
@@ -218,8 +218,7 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
 
     const prep = await withTenant(orgId, async (tx) => {
       const sender = await tx.takedownSender.findUnique({ where: { organizationId: orgId } });
-      const since = new Date(Date.now() - 24 * 3600_000);
-      const recent = await tx.takedownAutomationEvent.count({ where: { organizationId: orgId, action: "sender.test", createdAt: { gte: since } } });
+      const recent = await testsToday(tx, orgId);
       const org = await tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { name: true } });
       return { sender, recent, orgName: org.name, actor: await actorOf(tx, request.auth!.userId) };
     });

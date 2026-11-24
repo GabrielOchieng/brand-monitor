@@ -240,6 +240,13 @@ plan: an uploaded LOA is recommended, not required (the authorization record is)
 and `sender_broken` alerts move to step 4 with the dispatcher; Microsoft Graph and Gmail sending were
 checked only up to their sign-in errors (no real tenant yet), SMTP end to end against Mailpit.
 
+Step 2 shipped 2026-11-26: templates and per-finding drafts. Differences: a draft can't be sent to its
+recipients yet (no "Send now" / "Queue" until step 4, so nothing reaches a real recipient before shadow
+and redirect mode); drafts and templates can only be tested on the member asking. The per-channel
+"attach LOA" setting (§4) became a per-draft choice. Channels: registrar, host, cert, blocklist (one
+web-form text for Netcraft/NetBeacon/Safe Browsing). The registrar IANA ID wasn't stored anywhere;
+it now is (`domain_intel.registrar_iana_id`, filled on the next recheck of each finding).
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety

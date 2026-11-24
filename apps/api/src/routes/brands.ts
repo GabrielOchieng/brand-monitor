@@ -297,6 +297,7 @@ export async function brandRoutes(app: FastifyInstance) {
         await tx.findingChange.deleteMany({ where: { findingId: { in: findingIds } } });
         await tx.socialIntel.deleteMany({ where: { findingId: { in: findingIds } } });
         await tx.takedown.deleteMany({ where: { findingId: { in: findingIds } } });
+        await tx.takedownAction.deleteMany({ where: { brandId: id } });
         // Scan last among finding-children -- FindingEvidence/FindingScoreEvent/
         // AiExplanation all also carry a scanId FK, so Scan must outlive them.
         await tx.scan.deleteMany({ where: { findingId: { in: findingIds } } });
@@ -307,6 +308,9 @@ export async function brandRoutes(app: FastifyInstance) {
         await tx.brandAsset.deleteMany({ where: { brandId: id } });
         await tx.pipelineRun.deleteMany({ where: { brandId: id } });
         await tx.brandMention.deleteMany({ where: { brandId: id } });
+        // The brand's own template overrides (versions first: they reference the template).
+        await tx.takedownTemplateVersion.deleteMany({ where: { template: { brandId: id } } });
+        await tx.takedownTemplate.deleteMany({ where: { brandId: id } });
         await tx.brand.delete({ where: { id } });
 
         return { findingIds };

@@ -15,6 +15,8 @@ export interface RegistrationInfo {
   statusCodes: string[];
   registrarAbuseEmail: string | null;
   registrarAbusePhone: string | null;
+  // The registrar's IANA ID (abuse reports name it; abuse desks and ICANN key on it).
+  registrarIanaId: string | null;
   nameservers: string[];
   source: "rdap" | "whois" | "unavailable";
   raw: unknown;
@@ -53,6 +55,15 @@ function eventDate(data: any, action: string): string | null {
   return (data.events ?? []).find((e: any) => e.eventAction === action)?.eventDate ?? null;
 }
 
+// The registrar entity's IANA ID: its publicIds entry ("IANA Registrar ID"), else its handle
+// when that's the bare number, as most gTLD registries publish it.
+export function registrarIanaIdOf(entity: any): string | null {
+  const pub = (entity?.publicIds ?? []).find((p: any) => /iana/i.test(String(p?.type ?? "")));
+  if (pub?.identifier && /^[0-9]+$/.test(String(pub.identifier))) return String(pub.identifier);
+  if (entity?.handle && /^[0-9]+$/.test(String(entity.handle))) return String(entity.handle);
+  return null;
+}
+
 // Split from lookupRdap so it can be unit-tested against a saved response.
 export function parseRdapDomain(data: any): RegistrationInfo {
   const registrarEntity = (data.entities ?? []).find((e: any) => (e.roles ?? []).includes("registrar"));
@@ -70,6 +81,7 @@ export function parseRdapDomain(data: any): RegistrationInfo {
     statusCodes: (data.status ?? []).map((s: string) => normalizeStatusCode(String(s))).filter(Boolean),
     registrarAbuseEmail: vcardValue(abuseEntity, "email"),
     registrarAbusePhone: abusePhone ? abusePhone.replace(/^tel:/, "") : null,
+    registrarIanaId: registrarIanaIdOf(registrarEntity),
     nameservers,
     source: "rdap",
     raw: data,

@@ -67,6 +67,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   too_many_documents: "An authorization can have at most 20 documents.",
   automation_not_ready: "Finish the setup first: a tested sender mailbox, an authorization in force, and the platform admin's approval.",
   no_authorization: "This organization has no authorization in force, so automatic reporting can't be allowed yet.",
+  invalid_template: "The template has problems; they are listed below the editor.",
+  no_sender: "Connect a sender mailbox first (Settings → Automatic reporting).",
+  websites_only: "Reports can only be prepared for websites. Report social accounts through the platform.",
+  channel_not_applicable: "That channel doesn't apply to this finding.",
+  too_many_drafts: "This finding has the maximum of 30 report drafts. Delete some first.",
+  not_a_draft: "This report was already sent and can't be edited.",
+  report_ref_removed: "Keep the [BM-…] reference tag in the subject: replies are matched by it.",
   webhook_https_only: "The webhook address must start with https://.",
   not_yet_scanned: "This finding hasn't been scanned yet. Its first scan normally runs within about 5 minutes; try again after that.",
 };

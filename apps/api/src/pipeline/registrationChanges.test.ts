@@ -20,6 +20,7 @@ const next: RegistrationInfo = {
   statusCodes: ["clientTransferProhibited"],
   registrarAbuseEmail: "abuse@name.com",
   registrarAbusePhone: null,
+  registrarIanaId: "625",
   nameservers: ["NS2CKR.NAME.COM.", "ns1cny.name.com"],
   source: "rdap",
   raw: null,

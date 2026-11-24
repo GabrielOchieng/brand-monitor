@@ -327,6 +327,25 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
     in force), a tested sender, an authorization in force, the owner's switch, no "Stop all sending"
     (analyst and up can stop, only an owner resumes), monitoring not paused, the brand switch on.
   - Every change and test send is in the org's history (`takedown_automation_events`).
+- **Report templates** (Settings → Takedowns → Report templates; `lib/reportTemplates.ts`,
+  `routes/reportTemplates.ts`, step 2). One template per channel (registrar, hosting provider,
+  national CERT, blocklist web-form text) and message kind (first report, follow-up, escalation),
+  for all brands or one brand, per language (falls back to English, then to the built-in text).
+  Placeholders like `{{registrar.name}}`, `{{domain.defanged}}`; three locked ones a template can't
+  be saved without: `{{reportRef}}` in the subject (`[BM-XXXXXXXX]`, for matching replies),
+  `{{evidence}}` (URL, reasons, registrar + IANA ID, dates, nameservers, IP/host, UTC timeline,
+  contact details, screenshot) and `{{signature}}` (sender signature, who authorizes it, company
+  details). Analysts save drafts; owners/admins publish them; earlier versions are archived, never
+  edited. Preview against a real finding (or made-up data) and "send test to me". Company details
+  and a disclaimer are set once per org. Placeholders are filled in one pass, so text from a scanned
+  page can't inject another placeholder.
+- **Report drafts** (finding page, websites only; `routes/reportDrafts.ts`): "Prepare report"
+  renders the published template with the finding's data into a draft (`takedown_actions`, status
+  `draft`) addressed to the registrar/host abuse contact (KE-CIRT for the CERT channel). Analysts edit
+  recipients, subject, body and attachments (latest screenshot, documents of the authorization in
+  force), save, rewrite from the template, copy, or send a test to themselves only. The `[BM-...]`
+  tag must stay in the subject. There is no real send yet: that comes with the dispatcher (step 4).
+  Test sends (sender, template, draft) share a limit of 20 a day per org.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is

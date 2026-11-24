@@ -76,6 +76,7 @@ describe("parseRdapDomain", () => {
       statusCodes: ["clientTransferProhibited"],
       registrarAbuseEmail: "abuse@name.com",
       registrarAbusePhone: "+1.7203101849",
+      registrarIanaId: "625",
       nameservers: ["ns1cny.name.com", "ns2ckr.name.com"],
       source: "rdap",
     });

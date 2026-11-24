@@ -251,6 +251,7 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
             statusCodes: registration.statusCodes,
             registrarAbuseEmail: registration.registrarAbuseEmail,
             registrarAbusePhone: registration.registrarAbusePhone,
+            registrarIanaId: registration.registrarIanaId,
           }
         : {};
       const hostingFields = hosting && ip ? { hostingOrg: hosting.org, hostingAbuseEmail: hosting.abuseEmail, hostingLookupIp: ip } : {};

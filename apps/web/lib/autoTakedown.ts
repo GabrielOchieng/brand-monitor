@@ -34,6 +34,11 @@ export const EVENT_LABELS: Record<string, string> = {
   "brand.off": "Turned it off for a brand",
   "platform.allow": "Allowed it for this organization",
   "platform.disallow": "Withdrew the allowance",
+  "template.publish": "Published a report template",
+  "template.retire": "Stopped using a report template",
+  "template.test": "Sent a template test",
+  "draft.test": "Sent a report draft test",
+  "profile.save": "Saved the fixed report text",
 };
 
 export const DOCUMENT_KIND_LABELS: Record<string, string> = {
@@ -54,3 +59,28 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
+
+export const CHANNEL_LABELS: Record<string, string> = {
+  registrar: "Registrar",
+  host: "Hosting provider",
+  cert: "National CERT",
+  blocklist: "Blocklist web forms",
+};
+
+export const KIND_LABELS: Record<string, string> = {
+  first: "First report",
+  follow_up: "Follow-up",
+  escalation: "Escalation",
+};
+
+export const LANGUAGE_LABELS: Record<string, string> = {
+  en: "English",
+  fr: "French",
+  es: "Spanish",
+  pt: "Portuguese",
+  de: "German",
+  sw: "Swahili",
+  ar: "Arabic",
+  zh: "Chinese",
+  ru: "Russian",
+};

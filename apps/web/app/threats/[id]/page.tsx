@@ -8,6 +8,7 @@ import { TakedownTracker } from "../../../components/TakedownTracker";
 import { RelatedFindingsPanel } from "../../../components/RelatedFindingsPanel";
 import { ScreenshotImage } from "../../../components/ScreenshotImage";
 import { IndicatorsPanel, type FindingIndicatorView } from "../../../components/IndicatorsPanel";
+import { ReportDrafts } from "../../../components/ReportDrafts";
 import { TargetIcon } from "../../../components/ThreatsTable";
 import { ChevronDownIcon, ChevronLeftIcon, ExternalLinkIcon } from "../../../components/icons";
 import { cleanSnippet, describeTarget, fullDate, sourceLabel, statusLabel, STATUS_PILL, timeAgo } from "../../../lib/format";
@@ -245,6 +246,8 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
           <FindingLifecycle findingId={finding.id} initialStatus={finding.status} initialAssigneeId={finding.assigneeId} initialTags={finding.tags} />
 
           <TakedownTracker findingId={finding.id} contacts={takedownContacts} siteLive={siteLive} />
+
+          {!isSocial && <ReportDrafts findingId={finding.id} />}
 
           {!isSocial && (
             <section className="card p-5">

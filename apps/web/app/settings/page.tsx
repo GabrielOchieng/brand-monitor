@@ -18,6 +18,7 @@ import {
 import { AlertSettings } from "../../components/settings/AlertSettings";
 import { IntegrationSettings } from "../../components/settings/IntegrationSettings";
 import { AutoTakedownSettings } from "../../components/settings/AutoTakedownSettings";
+import { ReportTemplateSettings } from "../../components/settings/ReportTemplateSettings";
 import { ReadOnlyNote, Section } from "../../components/settings/Section";
 import { TeamMembers } from "../../components/TeamMembers";
 import { SettingsSkeleton } from "../../components/PageSkeletons";
@@ -25,7 +26,7 @@ import { ChevronDownIcon, PlusIcon } from "../../components/icons";
 import { canManage, useMyRole } from "../../lib/useMyRole";
 import { pickBrand, writeSelectedBrand } from "../../lib/selectedBrand";
 
-type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "team" | "add-brand";
+type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "report-templates" | "team" | "add-brand";
 
 interface NavItem {
   id: SectionId;
@@ -58,7 +59,10 @@ const GROUPS: Array<{ label: string; brandScoped: boolean; items: NavItem[] }> =
   {
     label: "Takedowns",
     brandScoped: false,
-    items: [{ id: "auto-takedown", label: "Automatic reporting" }],
+    items: [
+      { id: "auto-takedown", label: "Automatic reporting" },
+      { id: "report-templates", label: "Report templates" },
+    ],
   },
   {
     label: "Organization",
@@ -269,6 +273,7 @@ function Settings() {
               {section === "alerts" && <AlertSettings editable={editable} />}
               {section === "webhook" && <IntegrationSettings editable={editable} />}
               {section === "auto-takedown" && <AutoTakedownSettings role={role} />}
+              {section === "report-templates" && <ReportTemplateSettings role={role} brands={brands} />}
               {section === "team" && (
                 <Section
                   title="Team"

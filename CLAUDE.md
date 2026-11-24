@@ -26,8 +26,8 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   `listMonitoredBrands()` / `MONITORED_BRAND` (`lib/monitoredBrands.ts`)**, never `brand.findMany` directly.
 - Admins can view any org read-only (session `admin_view_org_id`): `authenticate()` refuses all non-GET
   requests then. **So a GET route must never write** (it would let a read-only view change data).
-- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; step 1 shipped 2026-11-25 = setup only,
-  nothing is sent automatically yet). **Websites only, never social.** Each org sends from its OWN mailbox
+- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; steps 1-2 shipped 2026-11-25/26 = setup,
+  templates and report drafts; nothing is sent to a real recipient yet, only tests to the member asking). **Websites only, never social.** Each org sends from its OWN mailbox
   (`lib/orgMailer.ts`: Graph / Gmail API / SMTP, never our SMTP). Anything that sends must first check
   `automationBlockers()` (`lib/takedownAutomation.ts`) is empty for the brand: global `AUTO_TAKEDOWN_ENABLED`,
   platform-admin allowance, tested sender, authorization in force, owner switch, stop-all, pause, brand switch.

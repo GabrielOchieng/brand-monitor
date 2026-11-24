@@ -6,6 +6,7 @@ const UPDATED_KEYS = ["Updated Date", "Last Updated", "last-update", "changed", 
 const EXPIRY_KEYS = ["Registry Expiry Date", "Registrar Registration Expiration Date", "Expiry Date", "Expiration Date", "expires", "paid-till"];
 const STATUS_KEYS = ["Domain Status", "Status", "status"];
 const ABUSE_EMAIL_KEYS = ["Registrar Abuse Contact Email"];
+const IANA_ID_KEYS = ["Registrar IANA ID"];
 const ABUSE_PHONE_KEYS = ["Registrar Abuse Contact Phone"];
 const REGISTRAR_KEYS = ["Registrar", "registrar", "Sponsoring Registrar"];
 const NS_KEYS = ["Name Server", "Name Servers", "nameServers", "nserver"];
@@ -26,6 +27,11 @@ function allMatchingValues(obj: Record<string, any>, keys: string[]): string[] {
     return Array.isArray(value) ? value.map(String) : [String(value)];
   }
   return [];
+}
+
+function ianaId(value: string | null): string | null {
+  const v = value?.trim();
+  return v && /^[0-9]+$/.test(v) ? v : null;
 }
 
 function toIso(value: string | null): string | null {
@@ -58,6 +64,7 @@ export async function lookupWhois(domain: string): Promise<RegistrationInfo | nu
       statusCodes: [...new Set(allMatchingValues(merged, STATUS_KEYS).map(normalizeStatusCode).filter(Boolean))],
       registrarAbuseEmail: firstMatchingValue(merged, ABUSE_EMAIL_KEYS),
       registrarAbusePhone: firstMatchingValue(merged, ABUSE_PHONE_KEYS),
+      registrarIanaId: ianaId(firstMatchingValue(merged, IANA_ID_KEYS)),
       nameservers,
       source: "whois",
       raw: result,
