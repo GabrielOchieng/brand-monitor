@@ -26,6 +26,9 @@ interface QueueAction {
   error: string | null;
   redirected: boolean;
   shadowVerdict: string | null;
+  replyCount: number;
+  ticketRef: string | null;
+  bouncedAt: string | null;
   routing: { forms?: Array<{ url: string; instructions: string | null }> } | null;
   updatedAt: string;
   finding: { id: string; identifier: string; type: string; severity: string; brand: { name: string } } | null;
@@ -152,7 +155,15 @@ export default function TakedownQueuePage() {
                   {a.holdReason && <div className="mt-1 text-xs text-amber-800">On hold: {a.holdReason}</div>}
                   {a.skipReason && <div className="mt-1 text-xs text-ink-subtle">Skipped: {a.skipReason}</div>}
                   {a.error && <div className="mt-1 text-xs text-red-700">{a.error}</div>}
-                  {a.sentAt && <div className="mt-1 text-xs text-ink-subtle">Sent {timeAgo(a.sentAt)}{a.redirected ? " (redirect mode: to your test address)" : ""}</div>}
+                  {a.sentAt && (
+                    <div className="mt-1 text-xs text-ink-subtle">
+                      Sent {timeAgo(a.sentAt)}
+                      {a.redirected ? " (redirect mode: to your test address)" : ""}
+                      {a.replyCount > 0 ? ` · ${a.replyCount} repl${a.replyCount === 1 ? "y" : "ies"}` : ""}
+                      {a.ticketRef ? ` · their ticket ${a.ticketRef}` : ""}
+                      {a.bouncedAt ? " · bounced" : ""}
+                    </div>
+                  )}
                   {a.status === "manual" &&
                     a.routing?.forms?.map((f) => (
                       <div key={f.url} className="mt-1 text-xs">

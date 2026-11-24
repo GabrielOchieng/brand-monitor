@@ -7,10 +7,12 @@ import { listMonitoredBrands } from "../lib/monitoredBrands";
 import { automationBlockers, loadAutomationState } from "../lib/takedownAutomation";
 import { evaluatePolicy, initialStatus, sendAfterFor } from "../lib/takedownPolicy";
 import { channelsFor, hostnameOf, loadReportContext, resolveTemplate } from "../lib/reportContext";
-import { newReportRef, renderTemplate, type Channel } from "../lib/reportTemplates";
-import { loadRoutingData, resolveRouting } from "../lib/recipients";
+import { newReportRef, renderTemplate, type Channel, type Kind } from "../lib/reportTemplates";
+import { loadRoutingData, recipientProblems, resolveRouting } from "../lib/recipients";
 import { releaseStuck, sendAction } from "../lib/takedownSend";
 import { notifyTakedown } from "../lib/takedownNotify";
+import { createAutoReport } from "./autoReport";
+import { followUpAndEscalate, processReplies } from "./takedownReplies";
 
 // The takedown dispatcher (every 5 min, queue takedown-dispatch; TAKEDOWN_AUTOMATION_PLAN.md §9).
 // Per org with automatic reporting on: prepares first reports for qualifying website findings on
@@ -20,23 +22,26 @@ import { notifyTakedown } from "../lib/takedownNotify";
 const MAX_NEW_PER_RUN = 50;
 const MAX_SENDS_PER_RUN = 30;
 
-export async function runTakedownDispatch(now = new Date()): Promise<{ created: number; sent: number }> {
-  if (!env.autoTakedownEnabled) return { created: 0, sent: 0 };
+export async function runTakedownDispatch(now = new Date()): Promise<{ created: number; sent: number; replies: number }> {
+  if (!env.autoTakedownEnabled) return { created: 0, sent: 0, replies: 0 };
   // Cross-tenant, id-only: orgs whose owner turned it on.
   const orgs = await adminPrisma.takedownAutomation.findMany({ where: { enabledAt: { not: null } }, select: { organizationId: true } });
   const brands = await listMonitoredBrands();
   let created = 0;
   let sent = 0;
+  let replies = 0;
   for (const { organizationId } of orgs) {
     const orgBrands = brands.filter((b) => b.organizationId === organizationId).map((b) => b.id);
     try {
+      replies += await processReplies(organizationId, now);
       created += await prepareReports(organizationId, orgBrands, now);
+      created += await followUpAndEscalate(organizationId, now);
       sent += await sendDue(organizationId, now);
     } catch (err) {
       console.error(`takedown dispatch failed for org ${organizationId}`, err);
     }
   }
-  return { created, sent };
+  return { created, sent, replies };
 }
 
 async function prepareReports(orgId: string, brandIds: string[], now: Date): Promise<number> {
@@ -99,61 +104,6 @@ async function prepareReports(orgId: string, brandIds: string[], now: Date): Pro
   });
   for (const x of notices) await notifyTakedown(orgId, x.findingId, x.message);
   return created;
-}
-
-async function createAutoReport(
-  tx: Prisma.TransactionClient,
-  orgId: string,
-  findingId: string,
-  channel: Channel,
-  mode: string,
-  automation: { stage: string; vetoHours: number; confirmedSkipsVeto: boolean },
-  policy: Extract<ReturnType<typeof evaluatePolicy>, { qualifies: true }>,
-  routingData: Awaited<ReturnType<typeof loadRoutingData>>,
-  now: Date,
-  notices: Array<{ findingId: string; message: string }>
-): Promise<number> {
-  let reportRef = newReportRef(randomBytes);
-  while (await tx.takedownAction.findUnique({ where: { reportRef }, select: { id: true } })) reportRef = newReportRef(randomBytes);
-  const loaded = await loadReportContext(tx, orgId, findingId, { reportRef, apiOrigin: env.apiPublicUrl });
-  if (!loaded) return 0;
-  const routing = resolveRouting(channel, loaded.finding.facts, routingData.rules, routingData.fixed.get(channel) ?? null, routingData.ownDomains, routingData.blocked, now);
-  if (routing.method === "skip") return 0;
-  const language = routing.language ?? "en";
-  const template = await resolveTemplate(tx, orgId, loaded.finding.brandId, channel, "first", language);
-  const rendered = renderTemplate(template, loaded.context);
-  const status = initialStatus(automation.stage, mode, routing.method);
-  const sendAfter = status === "pending_veto" || status === "queued" ? sendAfterFor(mode, policy.via === "confirmed", automation, now) : null;
-  await tx.takedownAction.create({
-    data: {
-      organizationId: orgId,
-      brandId: loaded.finding.brandId,
-      findingId,
-      channel,
-      kind: "first",
-      language,
-      status,
-      reportRef,
-      to: routing.to,
-      cc: routing.cc,
-      bcc: routing.bcc,
-      subject: rendered.subject,
-      body: rendered.body,
-      includeScreenshot: !!loaded.finding.screenshotFile,
-      templateSource: template.source,
-      routing: routing as object,
-      createdAuto: true,
-      qualifiedBy: policy as object,
-      sendAfter,
-      createdBy: "automatic",
-      updatedBy: "automatic",
-    },
-  });
-  const target = loaded.finding.identifier;
-  if (status === "pending_veto") notices.push({ findingId, message: `Takedown report to the ${channel} for ${target} goes out ${sendAfter && sendAfter > now ? `at ${sendAfter.toISOString().slice(11, 16)} UTC` : "shortly"} unless cancelled` });
-  else if (status === "awaiting_approval") notices.push({ findingId, message: `Takedown report to the ${channel} for ${target} is waiting for approval` });
-  else if (status === "manual") notices.push({ findingId, message: `Takedown report to the ${channel} for ${target} needs to be sent by hand (web form or no address)` });
-  return 1;
 }
 
 async function sendDue(orgId: string, now: Date): Promise<number> {

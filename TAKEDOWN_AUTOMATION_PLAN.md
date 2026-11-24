@@ -259,6 +259,12 @@ report interrupted mid-send is marked failed (check the sent folder), never re-s
 blocklist channel can only be off or "approval", which makes a manual task (they're web forms).
 The per-registrar daily digest (§7) is not built.
 
+Step 5 shipped 2026-11-29: replies (Graph and Gmail only, no IMAP, by decision), bounces, follow-ups,
+escalation, completion. Differences: the recipient's ticket number replaces our tag as the tracker
+reference; out-of-office replies are ignored; escalation goes registrar -> host -> CERT, one step per
+report; open takedown requests now put a finding under the post-takedown watch so "confirmed down" can
+close them.
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety

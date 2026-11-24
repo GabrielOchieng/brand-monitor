@@ -12,6 +12,7 @@ import {
   recordAutomationEvent,
 } from "../lib/takedownAutomation";
 import {
+  canReadMailbox,
   checkSenderDns,
   MailSendError,
   parseServiceAccountKey,
@@ -91,6 +92,7 @@ const DOCUMENT_FIELDS = { id: true, authorizationId: true, kind: true, filename:
 const SENDER_FIELDS = {
   provider: true, fromAddress: true, fromName: true, replyTo: true, bccArchive: true, signature: true, publicConfig: true,
   lastTestAt: true, lastTestOk: true, lastTestError: true, lastTestTo: true, updatedAt: true, updatedBy: true,
+  readReplies: true, repliesCheckedAt: true, repliesError: true,
 } as const;
 
 const DocumentQuery = z.object({
@@ -201,6 +203,7 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
         lastTestError: null,
         lastTestTo: null,
         updatedBy: actor.email,
+        ...(canReadMailbox(secrets.data.provider) ? {} : { readReplies: false }),
       };
       await tx.takedownSender.upsert({ where: { organizationId: orgId }, create: { organizationId: orgId, ...data }, update: data });
       await recordAutomationEvent(tx, orgId, actor, "sender.save", { provider: data.provider, fromAddress: data.fromAddress });
@@ -472,6 +475,23 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
     vetoHours: z.number().int().min(1).max(72),
     dailyCap: z.number().int().min(1).max(200),
     perRecipientCap: z.number().int().min(1).max(50),
+    followUpDays: z.number().int().min(1).max(30),
+    escalateDays: z.number().int().min(1).max(60),
+  });
+
+  // Reading replies needs an extra permission in the org's mail system (Mail.Read / gmail.readonly).
+  app.put("/api/takedown-automation/sender/read-replies", { preHandler: [authenticate, requireRole("owner")] }, async (request, reply) => {
+    const parsed = z.object({ enabled: z.boolean() }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      const sender = await tx.takedownSender.findUnique({ where: { organizationId: orgId }, select: { provider: true } });
+      if (!sender) return reply.status(404).send({ error: "not_found" });
+      if (parsed.data.enabled && !canReadMailbox(sender.provider)) return reply.status(400).send({ error: "replies_not_supported" });
+      await tx.takedownSender.update({ where: { organizationId: orgId }, data: { readReplies: parsed.data.enabled, repliesCheckedAt: null, repliesError: null } });
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), parsed.data.enabled ? "replies.on" : "replies.off");
+      return reply.send({ readReplies: parsed.data.enabled });
+    });
   });
 
   app.put("/api/takedown-automation/policy", { preHandler: [authenticate, requireRole("owner", "admin")] }, async (request, reply) => {

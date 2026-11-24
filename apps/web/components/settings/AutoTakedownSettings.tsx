@@ -26,6 +26,9 @@ interface Sender {
   lastTestTo: string | null;
   updatedAt: string;
   updatedBy: string | null;
+  readReplies: boolean;
+  repliesCheckedAt: string | null;
+  repliesError: string | null;
 }
 
 interface Doc {
@@ -446,6 +449,38 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
               )}
             </p>
           )}
+
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-line pt-3">
+            <div className="min-w-0 text-sm">
+              <div className="text-ink">Read replies and bounces</div>
+              <p className="mt-0.5 text-xs leading-relaxed text-ink-subtle">
+                {s.provider === "smtp"
+                  ? "Not available for SMTP senders: log replies by hand on the finding."
+                  : s.provider === "graph"
+                    ? "Matches replies to reports by their [BM-…] tag, marks takedowns acknowledged and stops reporting to addresses that bounce. Needs the Mail.Read application permission too, limited to the same mailbox."
+                    : "Matches replies to reports by their [BM-…] tag, marks takedowns acknowledged and stops reporting to addresses that bounce. Needs the gmail.readonly scope in the domain-wide delegation too."}
+              </p>
+              {s.readReplies && (
+                <p className={`mt-1 text-xs ${s.repliesError ? "text-red-600" : "text-ink-subtle"}`}>
+                  {s.repliesError ? `Last check failed: ${s.repliesError}` : s.repliesCheckedAt ? `Last checked ${timeAgo(s.repliesCheckedAt)}.` : "Not checked yet (every 10 minutes)."}
+                </p>
+              )}
+            </div>
+            <Toggle
+              checked={s.readReplies}
+              disabled={!isOwner || s.provider === "smtp"}
+              label="Read replies and bounces"
+              onChange={async (next) => {
+                setError(null);
+                try {
+                  await apiFetch("/api/takedown-automation/sender/read-replies", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }) });
+                  await onChange();
+                } catch (err: any) {
+                  setError(err.message);
+                }
+              }}
+            />
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <button className="btn-ghost text-xs" onClick={checkDns}>

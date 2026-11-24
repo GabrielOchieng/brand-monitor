@@ -695,6 +695,10 @@ model TakedownAutomation {
   vetoHours          Int       @default(6) @map("veto_hours")
   dailyCap           Int       @default(25) @map("daily_cap")
   perRecipientCap    Int       @default(5) @map("per_recipient_cap")
+  // No reply after followUpDays and the site is still live: one follow-up. Still live after
+  // escalateDays: report to the next channel (registrar -> host -> CERT). Both follow the channel's mode.
+  followUpDays       Int       @default(2) @map("follow_up_days")
+  escalateDays       Int       @default(5) @map("escalate_days")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@map("takedown_automation")
@@ -705,21 +709,26 @@ model TakedownAutomation {
 // publicConfig = the non-secret parts, for display. Any change clears the test result: a sender
 // counts as working only after a successful test send of its current settings.
 model TakedownSender {
-  organizationId String    @id @map("organization_id")
-  provider       String // graph | gmail | smtp
-  fromAddress    String    @map("from_address")
-  fromName       String?   @map("from_name")
-  replyTo        String?   @map("reply_to")
-  bccArchive     String?   @map("bcc_archive")
-  signature      String?
-  config         String
-  publicConfig   Json      @map("public_config")
-  lastTestAt     DateTime? @map("last_test_at")
-  lastTestOk     Boolean?  @map("last_test_ok")
-  lastTestError  String?   @map("last_test_error")
-  lastTestTo     String?   @map("last_test_to")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  updatedBy      String?   @map("updated_by")
+  organizationId   String    @id @map("organization_id")
+  provider         String // graph | gmail | smtp
+  fromAddress      String    @map("from_address")
+  fromName         String?   @map("from_name")
+  replyTo          String?   @map("reply_to")
+  bccArchive       String?   @map("bcc_archive")
+  signature        String?
+  config           String
+  publicConfig     Json      @map("public_config")
+  lastTestAt       DateTime? @map("last_test_at")
+  lastTestOk       Boolean?  @map("last_test_ok")
+  lastTestError    String?   @map("last_test_error")
+  lastTestTo       String?   @map("last_test_to")
+  // Read the mailbox for replies and bounces (needs Mail.Read on Graph / gmail.readonly on Gmail;
+  // not available for SMTP senders). repliesCheckedAt is the cursor.
+  readReplies      Boolean   @default(false) @map("read_replies")
+  repliesCheckedAt DateTime? @map("replies_checked_at")
+  repliesError     String?   @map("replies_error")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  updatedBy        String?   @map("updated_by")
 
   @@map("takedown_senders")
 }
@@ -874,6 +883,13 @@ model TakedownAction {
   // Shadow mode review: right | wrong, and by whom.
   shadowVerdict     String?   @map("shadow_verdict")
   shadowVerdictBy   String?   @map("shadow_verdict_by")
+  // Replies (pipeline/takedownReplies.ts).
+  replyCount        Int       @default(0) @map("reply_count")
+  lastReplyAt       DateTime? @map("last_reply_at")
+  ticketRef         String?   @map("ticket_ref")
+  bouncedAt         DateTime? @map("bounced_at")
+  // The report a follow-up or escalation follows on from.
+  previousActionId  String?   @map("previous_action_id")
 
   @@index([findingId])
   @@index([organizationId, status])
@@ -958,4 +974,25 @@ model TakedownBlockedRecipient {
 
   @@unique([organizationId, value])
   @@map("takedown_blocked_recipients")
+}
+
+// A message in the sender mailbox that names a report's [BM-...] tag: a reply from the abuse desk,
+// or a bounce. Stored as metadata and a short preview, not the whole message.
+model TakedownReply {
+  id                String   @id @default(cuid())
+  organizationId    String   @map("organization_id")
+  actionId          String   @map("action_id")
+  findingId         String   @map("finding_id")
+  kind              String // reply | bounce
+  providerMessageId String   @map("provider_message_id")
+  fromAddress       String   @map("from_address")
+  subject           String
+  snippet           String
+  ticketRef         String?  @map("ticket_ref")
+  receivedAt        DateTime @map("received_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([organizationId, providerMessageId])
+  @@index([actionId])
+  @@map("takedown_replies")
 }

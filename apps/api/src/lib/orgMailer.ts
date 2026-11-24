@@ -344,3 +344,105 @@ export async function checkSenderDns(fromAddress: string): Promise<SenderDnsChec
   const dmarcPolicy = dmarc?.match(/;\s*p=([a-z]+)/i)?.[1]?.toLowerCase() ?? null;
   return { domain, spf, dmarc, dmarcPolicy };
 }
+
+// --- Reading the mailbox (replies and bounces; pipeline/takedownReplies.ts) -----------------
+// Graph needs the Mail.Read application permission (scoped to the same mailbox with RBAC for
+// Applications); Gmail needs gmail.readonly in the service account's domain-wide delegation.
+// SMTP senders can't be read (no IMAP, by decision).
+
+export interface InboxMessage {
+  id: string;
+  from: string;
+  subject: string;
+  snippet: string;
+  receivedAt: Date;
+}
+
+const MAX_READ = 50;
+
+async function graphToken(s: z.infer<typeof GraphConfigSchema>): Promise<string> {
+  const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(s.tenantId)}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "client_credentials", client_id: s.clientId, client_secret: s.clientSecret, scope: "https://graph.microsoft.com/.default" }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new MailSendError(`Microsoft sign-in failed: ${await readError(res)}`);
+  return ((await res.json()) as { access_token: string }).access_token;
+}
+
+async function gmailToken(key: ServiceAccountKey, subject: string, scope: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = b64url(JSON.stringify({ iss: key.client_email, sub: subject, scope, aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }));
+  const assertion = `${header}.${claims}.${b64url(createSign("RSA-SHA256").update(`${header}.${claims}`).sign(key.private_key))}`;
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new MailSendError(`Google sign-in failed: ${await readError(res)}`);
+  return ((await res.json()) as { access_token: string }).access_token;
+}
+
+export function canReadMailbox(provider: string): boolean {
+  return provider === "graph" || provider === "gmail";
+}
+
+// Messages received since `since`, oldest first, at most 50 per call.
+export async function readInbox(secrets: SenderSecrets, mailbox: string, since: Date): Promise<InboxMessage[]> {
+  if (secrets.provider === "graph") {
+    const token = await graphToken(secrets);
+    const q = new URLSearchParams({
+      $filter: `receivedDateTime ge ${since.toISOString()}`,
+      $orderby: "receivedDateTime asc",
+      $top: String(MAX_READ),
+      $select: "id,subject,from,receivedDateTime,bodyPreview",
+    });
+    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}/mailFolders/inbox/messages?${q}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) throw new MailSendError(`Reading the mailbox failed: ${await readError(res)}`);
+    const data = (await res.json()) as { value: Array<{ id: string; subject?: string; from?: { emailAddress?: { address?: string } }; receivedDateTime: string; bodyPreview?: string }> };
+    return data.value.map((m) => ({
+      id: m.id,
+      from: m.from?.emailAddress?.address?.toLowerCase() ?? "",
+      subject: m.subject ?? "",
+      snippet: (m.bodyPreview ?? "").slice(0, 1000),
+      receivedAt: new Date(m.receivedDateTime),
+    }));
+  }
+  if (secrets.provider === "gmail") {
+    const key = parseServiceAccountKey(secrets.serviceAccountKey);
+    if (!key) throw new MailSendError("The service account key isn't a valid Google JSON key file");
+    const token = await gmailToken(key, mailbox, "https://www.googleapis.com/auth/gmail.readonly");
+    const headers = { Authorization: `Bearer ${token}` };
+    const list = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ q: `in:inbox after:${Math.floor(since.getTime() / 1000)}`, maxResults: String(MAX_READ) })}`, {
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!list.ok) throw new MailSendError(`Reading the mailbox failed: ${await readError(list)}`);
+    const ids = (((await list.json()) as { messages?: Array<{ id: string }> }).messages ?? []).map((m) => m.id);
+    const out: InboxMessage[] = [];
+    for (const id of ids) {
+      const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`, {
+        headers,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const m = (await res.json()) as { id: string; snippet?: string; internalDate?: string; payload?: { headers?: Array<{ name: string; value: string }> } };
+      const h = (n: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? "";
+      out.push({
+        id: m.id,
+        from: (h("from").match(/<([^>]+)>/)?.[1] ?? h("from")).trim().toLowerCase(),
+        subject: h("subject"),
+        snippet: (m.snippet ?? "").slice(0, 1000),
+        receivedAt: new Date(Number(m.internalDate ?? Date.now())),
+      });
+    }
+    return out.sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime());
+  }
+  return [];
+}

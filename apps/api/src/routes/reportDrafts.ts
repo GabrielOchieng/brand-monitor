@@ -72,11 +72,12 @@ export async function reportDraftRoutes(app: FastifyInstance) {
     return withTenant(orgId, async (tx) => {
       const finding = await tx.finding.findUnique({ where: { id }, include: { domainIntel: true, websiteIntel: { select: { screenshotPath: true } } } });
       if (!finding) return reply.status(404).send({ error: "not_found" });
-      const [drafts, documents, sender, routingData] = await Promise.all([
+      const [drafts, documents, sender, routingData, replies] = await Promise.all([
         tx.takedownAction.findMany({ where: { findingId: id, organizationId: orgId }, orderBy: { createdAt: "desc" } }),
         attachableDocuments(tx, orgId, finding.brandId),
         tx.takedownSender.findUnique({ where: { organizationId: orgId }, select: { fromAddress: true } }),
         loadRoutingData(tx, orgId),
+        tx.takedownReply.findMany({ where: { findingId: id, organizationId: orgId }, orderBy: { receivedAt: "asc" } }),
       ]);
       const facts = factsOf(hostnameOf(finding.identifier), finding.domainIntel);
       return reply.send({
@@ -84,6 +85,7 @@ export async function reportDraftRoutes(app: FastifyInstance) {
         // Where a new report on each channel would go, and why (lib/recipients.ts).
         channels: channelsFor(finding.type).map((c) => ({ channel: c, kinds: CHANNEL_KINDS[c], routing: routeFor(c, facts, routingData) })),
         redirectTo: routingData.redirectTo,
+        replies,
         hasScreenshot: !!finding.websiteIntel?.screenshotPath,
         documents,
         senderAddress: sender?.fromAddress ?? null,

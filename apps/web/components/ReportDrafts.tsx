@@ -79,6 +79,7 @@ interface DraftsData {
   websitesOnly: boolean;
   channels: Array<{ channel: string; kinds: string[]; routing: Routing }>;
   redirectTo: string | null;
+  replies: Array<{ id: string; actionId: string; kind: string; fromAddress: string; subject: string; snippet: string; ticketRef: string | null; receivedAt: string }>;
   hasScreenshot: boolean;
   documents: Array<{ id: string; kind: string; filename: string }>;
   senderAddress: string | null;
@@ -237,6 +238,16 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
   return (
     <div className="space-y-3 border-t border-line px-3 py-3 text-sm">
       {draft.routing && <RoutingNote routing={draft.routing} />}
+      {data.replies.filter((r) => r.actionId === draft.id).map((r) => (
+        <div key={r.id} className={`rounded-md border px-3 py-2 text-xs ${r.kind === "bounce" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+          <div className="font-medium">
+            {r.kind === "bounce" ? "Bounced" : `Reply from ${r.fromAddress}`} · {timeAgo(r.receivedAt)}
+            {r.ticketRef ? ` · their ticket ${r.ticketRef}` : ""}
+          </div>
+          <div className="mt-0.5">{r.subject}</div>
+          <p className="mt-1 whitespace-pre-wrap text-[11px] opacity-90">{r.snippet}</p>
+        </div>
+      ))}
       {!isForm && (
         <div className="grid gap-2">
           {(

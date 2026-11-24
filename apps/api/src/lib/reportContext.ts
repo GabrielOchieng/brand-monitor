@@ -47,7 +47,7 @@ export async function loadReportContext(
   tx: Prisma.TransactionClient,
   orgId: string,
   findingId: string,
-  opts: { reportRef: string; apiOrigin: string; now?: Date }
+  opts: { reportRef: string; apiOrigin: string; now?: Date; previous?: ReportContext["previous"] }
 ): Promise<{ context: ReportContext; finding: LoadedFinding } | null> {
   const finding = await tx.finding.findUnique({
     where: { id: findingId },
@@ -101,7 +101,7 @@ export async function loadReportContext(
     signature: sender?.signature ?? null,
     signatory: signatory ? { name: signatory.signatoryName, title: signatory.signatoryTitle, email: signatory.signatoryEmail } : null,
     reportRef: opts.reportRef,
-    previous: null,
+    previous: opts.previous ?? null,
   };
   return {
     context,

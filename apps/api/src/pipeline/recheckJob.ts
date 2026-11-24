@@ -283,9 +283,12 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
     // Post-takedown watch -- see takedownWatch.ts. Resolved findings keep being rechecked
     // (queue/dispatch.ts) precisely so this can catch a taken-down site coming back.
     const completedTakedowns = await tx.takedown.count({ where: { findingId, status: "completed" } });
+    // Open takedown requests put a site under watch too, so "confirmed down" can close them
+    // (automatic takedown reporting, step 5).
+    const openTakedowns = await tx.takedown.count({ where: { findingId, status: { in: ["requested", "acknowledged"] } } });
     const definitelyDown = isDefinitelyDown({ isDomainType, dnsExists: dns.exists, hasAddress: ip !== null, result: websiteResult });
     const watch = nextTakedownWatch({
-      underWatch: previous.status === "resolved" || completedTakedowns > 0,
+      underWatch: previous.status === "resolved" || completedTakedowns > 0 || openTakedowns > 0,
       downSince: previous.downSince,
       downStreak: previous.downStreak,
       definitelyDown,
@@ -385,6 +388,18 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
         ...(watch.reactivated && previous.status === "resolved" ? { status: "new" } : {}),
       },
     });
+
+    // Newly confirmed down (2 down scans in a row): the open takedowns worked. Close them, and
+    // drop reports that haven't gone out yet. A comeback later fires site_reactivated as before.
+    if (!previous.downSince && watch.downSince && openTakedowns > 0) {
+      // resolvedAt is set once, ever (routes/findings.ts): only where it's still empty.
+      await tx.takedown.updateMany({ where: { findingId, status: { in: ["requested", "acknowledged"] }, resolvedAt: null }, data: { status: "completed", resolvedAt: new Date() } });
+      await tx.takedown.updateMany({ where: { findingId, status: { in: ["requested", "acknowledged"] } }, data: { status: "completed" } });
+      await tx.takedownAction.updateMany({
+        where: { findingId, status: { in: ["awaiting_approval", "pending_veto", "queued", "manual"] } },
+        data: { status: "skipped", skipReason: "The site went down before this report was sent." },
+      });
+    }
 
     const alertData: AlertDispatchJobData = {
       findingId,

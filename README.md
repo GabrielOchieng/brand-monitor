@@ -380,6 +380,19 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   (tabs: needs approval, veto window, manual tasks, failed, shadow review, sent, closed) or on the
   finding. Alerts: the `takedown_activity` rule (in-app; email to owners/admins when a send fails).
   Nothing runs unless `AUTO_TAKEDOWN_ENABLED=1`.
+- **Replies, follow-ups, escalation, completion** (step 5; `pipeline/takedownReplies.ts`,
+  `lib/replyParsing.ts`). With **Read replies** on (owner; Microsoft 365 needs `Mail.Read`, Google
+  Workspace `gmail.readonly`; not for SMTP senders) the dispatcher reads the sender's inbox every 10
+  minutes and matches messages to reports by the `[BM-…]` tag: a reply is stored on the finding, the
+  takedown becomes *acknowledged* and the recipient's ticket number replaces our tag as its reference;
+  a bounce marks the report bounced and puts the address on never-send-to for 30 days; out-of-office
+  notes are ignored. It never answers a registrar. **Follow-up**: a live report with no reply after
+  2 days (setting) and the site still up gets one follow-up to the same recipients. **Escalation**: still
+  up after 5 days, the next channel (registrar → hosting provider → CERT) gets an escalation report,
+  if that channel is on. Both go through the channel's mode. **Completion**: sites with open takedown
+  requests are now under the post-takedown watch too; once confirmed down (2 down scans), their open
+  takedowns are marked completed and unsent reports skipped. A comeback fires `site_reactivated` and a
+  new reporting cycle starts.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is

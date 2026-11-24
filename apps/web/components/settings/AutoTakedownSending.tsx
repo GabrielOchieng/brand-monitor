@@ -18,6 +18,8 @@ export interface SendingData {
     vetoHours?: number;
     dailyCap?: number;
     perRecipientCap?: number;
+    followUpDays?: number;
+    escalateDays?: number;
   } | null;
   channelModes: Record<string, string>;
   shadowStats: { right: number; wrong: number; unreviewed: number };
@@ -55,6 +57,8 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
     vetoHours: a?.vetoHours ?? 6,
     dailyCap: a?.dailyCap ?? 25,
     perRecipientCap: a?.perRecipientCap ?? 5,
+    followUpDays: a?.followUpDays ?? 2,
+    escalateDays: a?.escalateDays ?? 5,
   });
   const [modes, setModes] = useState<Record<string, string>>(data.channelModes);
   const [saved, setSaved] = useState<string | null>(null);
@@ -156,6 +160,14 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
             </Field>
             <Field label="Per recipient per day, at most">
               <input type="number" min={1} max={50} className="field w-full" value={policy.perRecipientCap} disabled={!canManage} onChange={(e) => setPolicy((p) => ({ ...p, perRecipientCap: Number(e.target.value) }))} />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Follow up after (days without a reply)" hint="Once, to the same recipients, while the site is still live.">
+              <input type="number" min={1} max={30} className="field w-full" value={policy.followUpDays} disabled={!canManage} onChange={(e) => setPolicy((p) => ({ ...p, followUpDays: Number(e.target.value) }))} />
+            </Field>
+            <Field label="Escalate after (days still live)" hint="Registrar → hosting provider → CERT, if that channel is on.">
+              <input type="number" min={1} max={60} className="field w-full" value={policy.escalateDays} disabled={!canManage} onChange={(e) => setPolicy((p) => ({ ...p, escalateDays: Number(e.target.value) }))} />
             </Field>
           </div>
           <label className="flex items-center gap-2">

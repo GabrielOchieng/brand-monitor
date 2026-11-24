@@ -47,6 +47,16 @@ export const EVENT_LABELS: Record<string, string> = {
   "blocked.remove": "Removed from never send to",
   "redirect.on": "Turned redirect mode on",
   "redirect.off": "Turned redirect mode off",
+  "report.sent": "A report was sent",
+  "report.approve": "Approved a report",
+  "report.cancel": "Cancelled a report",
+  "report.manual_done": "Marked a manual task done",
+  "report.bounced": "A report bounced",
+  "policy.save": "Changed which findings qualify",
+  "modes.save": "Changed the channel modes",
+  "stage.change": "Changed the stage",
+  "replies.on": "Turned reply reading on",
+  "replies.off": "Turned reply reading off",
 };
 
 export const DOCUMENT_KIND_LABELS: Record<string, string> = {
