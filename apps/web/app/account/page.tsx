@@ -7,6 +7,8 @@ import { timeAgo } from "../../lib/format";
 import { NewPasswordFields, newPasswordError } from "../../components/NewPasswordFields";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { GoogleButton, errorText, googleStartUrl, useGoogleEnabled } from "../../components/GoogleButton";
+import { PasswordInput } from "../../components/ui/PasswordInput";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 type Status = { ok: boolean; text: string } | null;
 
@@ -104,7 +106,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           <label htmlFor="current-password" className="label mb-1">
             Current password
           </label>
-          <input id="current-password" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="field w-full" />
+          <PasswordInput id="current-password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="field w-full" />
         </div>
         <NewPasswordFields password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
         <StatusLine status={status} />
@@ -151,7 +153,7 @@ function EmailSection({ me }: { me: Me }) {
           <label htmlFor="email-current-password" className="label mb-1">
             Current password
           </label>
-          <input id="email-current-password" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="field w-full" />
+          <PasswordInput id="email-current-password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="field w-full" />
         </div>
         <StatusLine status={status} />
         <button type="submit" disabled={busy} className="btn-secondary">
@@ -288,7 +290,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
       <label htmlFor={id} className="label mb-1">
         Current password
       </label>
-      <input id={id} type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field w-full" />
+      <PasswordInput id={id} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field w-full" />
     </div>
   );
 
@@ -611,7 +613,7 @@ export default function AccountPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Account and security</h1>
+      <PageHeader title="Account and security" description="Your profile, password, two-factor sign-in, linked Google account and the devices you're signed in on." />
       <ProfileSection me={me} />
       <PasswordSection onChanged={() => setSessionsKey((k) => k + 1)} />
       <TwoFactorSection me={me} onChanged={() => setSessionsKey((k) => k + 1)} />

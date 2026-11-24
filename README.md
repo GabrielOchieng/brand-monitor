@@ -431,6 +431,21 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
 
 ### 8. Web app
 
+**Layout and design system** (redesign 2026-11-30). Signed in, every page sits in one frame
+(`components/AppFrame.tsx`): a navy sidebar grouped as *Monitor* (Overview, Threats, Mentions),
+*Respond* (Takedowns, Public reports, Notifications), *Configure* (Settings, Account & security) and,
+for platform admins, *Platform* (Admin panel); a drawer on small screens (focus kept inside, Escape
+closes); a slim top bar with the organization switcher, notifications and account menu. Signed out:
+the landing page (`/`, `components/landing/Landing.tsx`: what the product does, how it works,
+capabilities, security; "Request access" opens an email to `NEXT_PUBLIC_CONTACT_EMAIL`, hidden when
+unset; a visitor with a session goes straight to the dashboard), the sign-in pages (split layout,
+`components/AuthCard.tsx`) and the public scam-report form (no app chrome). Tokens live in
+`tailwind.config.js` (petrol-teal accent `brand`, navy `shell`, cool neutrals, severity colours),
+shared classes in `app/globals.css` (`.btn-*`, `.field`, `.pill`, `.data-table`, `.ident` =
+JetBrains Mono for domains, URLs, IPs and references, one keyboard focus ring), shared pieces in
+`components/ui/` (`PageHeader`, `EmptyState`, `PasswordInput` with a show/hide toggle on every
+password and secret field, `Logo`).
+
 | Page | What it shows |
 |---|---|
 | **Overview** (`/dashboard`) | Open threats by severity, new this week, a **Needs attention** list (open high/critical, untriaged first), takedowns in progress, source health, recent activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
@@ -610,7 +625,8 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `TAKEDOWN_SMTP_ALLOW_PRIVATE` | Local testing only: lets an org's SMTP sender point at a private address (e.g. Mailpit). Never in production |
 
 Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL` and optionally
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_CONTACT_EMAIL` (the landing page's "Request access"
+address; unset = the button is hidden).
 
 A missing optional key turns its feature off rather than crashing: no Tavily key means no
 social/web search, no AI key means the explain button shows an error.

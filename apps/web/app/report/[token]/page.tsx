@@ -19,7 +19,9 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     unavailable = true;
   }
 
+  // Seen by a brand's customers, not our users: no app chrome, just the form.
   return (
+    <main className="min-h-screen bg-base px-4 py-10 sm:py-16">
     <div className="mx-auto max-w-lg">
       {unavailable ? (
         <div className="card p-6 text-center">
@@ -43,5 +45,6 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
         </div>
       )}
     </div>
+    </main>
   );
 }

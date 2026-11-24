@@ -7,6 +7,7 @@ import { ApiError, apiFetch } from "../../lib/api";
 import { safeNext } from "../../lib/session";
 import { AuthCard, FormError } from "../../components/AuthCard";
 import { GoogleButton, OrDivider, errorText, googleStartUrl, useGoogleEnabled } from "../../components/GoogleButton";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 
 type LoginResponse = { mfaRequired: true; challenge: string } | { user: unknown };
 
@@ -85,7 +86,7 @@ function LoginForm() {
             Forgot password?
           </Link>
         </div>
-        <input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field w-full" />
+        <PasswordInput id="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="field w-full" />
       </div>
       <FormError message={error} />
       <button type="submit" disabled={busy} className="btn-primary w-full">

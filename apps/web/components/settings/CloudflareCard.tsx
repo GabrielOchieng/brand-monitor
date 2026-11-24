@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
 import { timeAgo } from "../../lib/format";
 import { Field } from "./Section";
+import { PasswordInput } from "../ui/PasswordInput";
 
 export interface IntegrationView {
   provider: string;
@@ -121,7 +122,7 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
               <input required className="field w-full font-mono text-xs" value={f.accountId} onChange={set("accountId")} />
             </Field>
             <Field label="API token" hint={integration ? "Stored. Leave blank to keep it." : "Trust and Safety Write permission."}>
-              <input type="password" required={!integration} className="field w-full" value={f.apiToken} onChange={set("apiToken")} autoComplete="new-password" />
+              <PasswordInput required={!integration} className="field w-full" value={f.apiToken} onChange={set("apiToken")} autoComplete="new-password" />
             </Field>
             <Field label="Reporter name">
               <input required className="field w-full" value={f.name} onChange={set("name")} />

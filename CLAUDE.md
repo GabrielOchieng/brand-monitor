@@ -56,6 +56,12 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher), takedown-dispatch 5min
   (automatic takedown reports; does nothing unless `AUTO_TAKEDOWN_ENABLED=1`). Queues are declared in `queue/boss.ts`.
 
+- Web UI (redesign 2026-11-30): signed-in pages render inside `components/AppFrame.tsx` (sidebar +
+  top bar); `/`, sign-in pages and `/report/*` are bare (`isBarePath`). Use the design system, not ad hoc
+  styles: tokens in `tailwind.config.js`, classes in `app/globals.css` (`.btn-*`, `.field`, `.pill`,
+  `.data-table`, `.ident` for domains/URLs/IPs), `components/ui/PageHeader` on every page, `PasswordInput`
+  for every password or secret field.
+
 ## Deployment (auto-deploys on push to `main`)
 Since 2026-11-19: Vercel (web) + an OVH VPS running Dokploy (`panel.gabrielochieng.com`): the API and
 scanner in ONE container at `brand-monitor-api.gabrielochieng.com`, and a **shared Postgres 18 server**

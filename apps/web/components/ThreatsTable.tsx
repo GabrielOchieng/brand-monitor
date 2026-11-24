@@ -155,7 +155,7 @@ export function ThreatsTable({
 
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-left text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          <thead className="bg-elevated/50 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle">
             <tr className="border-b border-line">
               <th className="w-10 py-3 pl-5 pr-2">
                 <input type="checkbox" checked={allSelected} onChange={(e) => toggleAll(e.target.checked)} aria-label="Select all" className="accent-brand" />
@@ -201,7 +201,7 @@ export function ThreatsTable({
                         <Link
                           href={`/threats/${f.id}`}
                           title={f.identifier}
-                          className="block truncate font-medium text-ink group-hover:text-brand"
+                          className={`block truncate font-medium text-ink group-hover:text-brand ${f.type === "social" ? "" : "ident"}`}
                         >
                           {target.primary}
                         </Link>

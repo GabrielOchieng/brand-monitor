@@ -11,6 +11,7 @@ import { DashboardSkeleton } from "../../components/PageSkeletons";
 import { LoadingRegion, Skeleton } from "../../components/Skeleton";
 import { describeTarget, fullDate, sourceLabel, statusLabel, STATUS_PILL, timeAgo } from "../../lib/format";
 import { pickBrand, writeSelectedBrand } from "../../lib/selectedBrand";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 interface AttentionItem {
   id: string;
@@ -297,10 +298,10 @@ export default function DashboardPage() {
         </p>
       )}
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Overview</h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-ink-subtle">
+      <PageHeader
+        title="Overview"
+        description={
+          <div className="flex items-center gap-2">
             {brands && brands.length > 1 ? (
               <div className="relative">
                 <select value={brandId ?? ""} onChange={(e) => selectBrand(e.target.value)} className="field-sm appearance-none py-1 pr-7 font-medium text-ink" aria-label="Brand">
@@ -316,10 +317,11 @@ export default function DashboardPage() {
               <span className="font-medium text-ink-muted">{summary.brand.name}</span>
             )}
             <span>·</span>
-            <span>{summary.brand.primaryDomain}</span>
+            <span className="ident">{summary.brand.primaryDomain}</span>
           </div>
-        </div>
-        {/* Hidden in a platform admin's read-only view (the API refuses them anyway). */}
+        }
+        actions={
+        /* Hidden in a platform admin's read-only view (the API refuses them anyway). */
         <div className={`flex flex-wrap gap-2 ${me?.adminView ? "hidden" : ""}`}>
           <button onClick={runDiscovery} disabled={run?.status === "running"} className="btn-secondary">
             <RadarIcon className="h-4 w-4" /> {run?.status === "running" ? "Discovery running…" : "Run discovery"}
@@ -331,7 +333,8 @@ export default function DashboardPage() {
             <FlagIcon className="h-4 w-4" /> Add a suspicious link
           </button>
         </div>
-      </div>
+        }
+      />
 
       {showReport && (
         <form onSubmit={submitManual} className="card mt-4 p-4">

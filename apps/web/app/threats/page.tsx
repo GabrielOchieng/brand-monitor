@@ -6,6 +6,7 @@ import { ThreatFilters } from "../../components/ThreatFilters";
 import { PendingLink, PendingProvider, PendingSwap } from "../../components/PendingNavigation";
 import { SkeletonTable } from "../../components/Skeleton";
 import { statusLabel } from "../../lib/format";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 export interface FindingRow {
   id: string;
@@ -105,15 +106,11 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
 
   return (
     <PendingProvider>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Threats</h1>
-          <p className="mt-1 text-sm text-ink-subtle">
-            {data.total} {viewLabel} finding{data.total === 1 ? "" : "s"}
-          </p>
-        </div>
-        <ExportCsvButton query={exportQs.toString()} />
-      </div>
+      <PageHeader
+        title="Threats"
+        description={`${data.total} ${viewLabel} finding${data.total === 1 ? "" : "s"}: lookalike domains, scam pages, fake apps and accounts.`}
+        actions={<ExportCsvButton query={exportQs.toString()} />}
+      />
 
       <ThreatFilters brands={brands} members={members} />
 

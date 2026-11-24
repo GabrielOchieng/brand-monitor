@@ -6,6 +6,7 @@ import { apiFetch } from "../../lib/api";
 import { ExternalLinkIcon } from "../../components/icons";
 import { LoadingRegion, Skeleton, SkeletonList } from "../../components/Skeleton";
 import { cleanSnippet, fullDate, timeAgo } from "../../lib/format";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 interface Brand {
   id: string;
@@ -127,16 +128,10 @@ export default function MentionsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Mentions</h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">
-            Social media posts that mention the brand but aren&apos;t threats: news, complaints, promotions and general chatter.
-            Collected by the daily social search from posts search engines have indexed in the past month, so this is a
-            sample, not full social listening. Labels are AI-generated.
-          </p>
-        </div>
-        {brands.length > 1 && (
+      <PageHeader
+        title="Mentions"
+        description="Social media posts that mention the brand but aren't threats: news, complaints, promotions and general chatter. A sample from the daily social search (posts search engines indexed in the past month), not full social listening. Labels are AI-generated."
+        actions={brands.length > 1 && (
           <select
             value={brandId ?? ""}
             onChange={(e) => {
@@ -153,7 +148,7 @@ export default function MentionsPage() {
             ))}
           </select>
         )}
-      </div>
+      />
 
       {!summary && !error && (
         <LoadingRegion label="Loading summary" className="card mt-6 flex flex-wrap gap-10 p-5">

@@ -36,6 +36,8 @@ const SessionContext = createContext<SessionValue | null>(null);
 // session cookie at all; this provider handles a cookie that's there but no longer valid.
 export const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/confirm-email", "/report/"];
 export function isPublicPath(pathname: string | null): boolean {
+  // "/" is the public landing page (exact match only: as a prefix it would cover everything).
+  if (pathname === "/") return true;
   return !!pathname && PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p.endsWith("/") ? p : `${p}/`));
 }
 

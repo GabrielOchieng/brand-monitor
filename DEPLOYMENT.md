@@ -81,7 +81,8 @@ Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":tr
 2. Env vars: `NEXT_PUBLIC_API_URL=https://brand-monitor-api.gabrielochieng.com`. `NEXT_PUBLIC_*`
    values are baked into the browser bundle at build time: add them as type **Config**, not Secret
    (Vercel refuses public-prefixed secrets and can't convert a saved secret), and **redeploy**
-   after changing them.
+   after changing them. Optional: `NEXT_PUBLIC_CONTACT_EMAIL` = the address the landing page's
+   "Request access" button emails (unset = no button; the page still offers Sign in).
 3. Custom domain `brand-monitor.gabrielochieng.com` (Vercel → Project → Settings → Domains, plus
    the CNAME Vercel shows, at the DNS host). Required, not cosmetic: the session cookie is set by
    the API for `.gabrielochieng.com`, and the web app's middleware only sees it on a sibling

@@ -2,42 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #f4f5f7;
-  color: #12141a;
+/* Design system (tailwind.config.js holds the tokens). Every page uses these classes instead of
+   ad hoc borders, buttons and badges, so the product looks and behaves the same everywhere. */
+
+@layer base {
+  body {
+    background-color: #f4f6f9;
+    color: #0f1623;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* One visible focus style for keyboard users, everywhere; none for mouse clicks. */
+  :focus-visible {
+    outline: 2px solid #0d6c76;
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: #0d6c7633;
+  }
 }
 
 @layer components {
-  /* One card style used everywhere instead of ad hoc "rounded border border-gray-800"
-     repeated per page -- consistent radius/border/background/shadow across the app. */
   .card {
     @apply rounded-lg border border-line bg-panel shadow-card;
   }
 
+  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
+     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand px-3.5 py-2 text-white hover:bg-brand-hover;
+    @apply btn bg-brand px-3.5 py-2 text-white shadow-sm hover:bg-brand-hover active:bg-brand-strong;
   }
   .btn-secondary {
-    @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted hover:bg-elevated;
+    @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted shadow-sm hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
   }
   .btn-ghost {
-    @apply btn px-2 py-1 text-ink-subtle hover:text-ink;
+    @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
   }
   .btn-danger {
-    @apply btn px-2 py-1 text-red-600 hover:text-red-700;
+    @apply btn px-2 py-1 text-red-700 hover:bg-red-50 hover:text-red-800;
   }
 
   .field {
-    @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand;
+    @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
   }
   .field-sm {
     @apply field px-2.5 py-1.5 text-xs;
   }
 
   .label {
-    @apply block text-[11px] font-semibold uppercase tracking-wide text-ink-subtle;
+    @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
+  }
+
+  /* Status pills: a tone class plus .pill. */
+  .pill {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* Data tables: dense, scannable, aligned. */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead th {
+    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
+  }
+  .data-table tbody td {
+    @apply border-b border-line/70 px-4 py-3 align-middle;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Domains, URLs, IPs, references: the data analysts read character by character. */
+  .ident {
+    @apply font-mono text-[0.92em] tracking-tight;
   }
 }

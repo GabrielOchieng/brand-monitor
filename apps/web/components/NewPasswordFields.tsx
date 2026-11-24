@@ -1,4 +1,5 @@
 "use client";
+import { PasswordInput } from "./ui/PasswordInput";
 
 // Password + confirmation, used by reset-password and accept-invite. The 10-character minimum
 // matches the API's (apps/api/src/auth/crypto.ts).
@@ -27,9 +28,8 @@ export function NewPasswordFields({
         <label htmlFor="new-password" className="label mb-1">
           New password
         </label>
-        <input
+        <PasswordInput
           id="new-password"
-          type="password"
           autoComplete="new-password"
           required
           minLength={PASSWORD_MIN_LENGTH}
@@ -43,9 +43,8 @@ export function NewPasswordFields({
         <label htmlFor="confirm-password" className="label mb-1">
           Confirm password
         </label>
-        <input
+        <PasswordInput
           id="confirm-password"
-          type="password"
           autoComplete="new-password"
           required
           value={confirm}

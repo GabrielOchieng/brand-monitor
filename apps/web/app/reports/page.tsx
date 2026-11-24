@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { SeverityBadge } from "../../components/SeverityBadge";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 interface Brand {
   id: string;
@@ -72,11 +73,10 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Public reports</h1>
-      <p className="mt-1 text-sm text-ink-muted">
-        Scams reported by customers and staff through the public form. Links are scanned automatically (up to 30 a day per
-        brand); phone numbers are matched against contact details found on existing findings.
-      </p>
+      <PageHeader
+        title="Public reports"
+        description="Scams reported by customers and staff through the public form. Links are scanned automatically (up to 30 a day per brand); phone numbers are matched against contact details found on existing findings."
+      />
 
       <section className="card mt-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">

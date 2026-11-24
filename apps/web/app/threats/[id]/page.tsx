@@ -112,15 +112,17 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
         <div className="flex min-w-0 items-start gap-3">
           <TargetIcon type={finding.type} platform={target.platform} />
           <div className="min-w-0">
-            <h1 className="break-all text-xl font-semibold tracking-tight text-ink">{target.primary}</h1>
+            <h1 className={`break-all text-xl font-semibold tracking-tight text-ink sm:text-2xl ${isSocial ? "" : "ident"}`}>{target.primary}</h1>
             <a
               href={openUrl}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="mt-0.5 inline-flex max-w-full items-center gap-1 text-sm text-ink-subtle hover:text-brand"
               title="Opens the suspicious site itself"
+              aria-label={`Open the suspicious site ${finding.identifier} in a new tab`}
             >
               <span className="truncate">{target.secondary ?? finding.identifier}</span>
+              <span className="shrink-0 text-xs text-amber-700">· suspicious site, opens in a new tab</span>
               <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
             </a>
           </div>

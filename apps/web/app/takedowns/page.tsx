@@ -9,6 +9,7 @@ import { ACTION_STATUS_LABELS, ACTION_STATUS_TONE, CHANNEL_LABELS, KIND_LABELS }
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { SeverityBadge } from "../../components/SeverityBadge";
 import { TakedownResults } from "../../components/TakedownResults";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 interface QueueAction {
   id: string;
@@ -103,16 +104,20 @@ export default function TakedownQueuePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Takedowns</h1>
-      <p className="mt-1 max-w-3xl text-sm text-ink-subtle">
+      <PageHeader
+        title="Takedowns"
+        description={
+          <>
         Every takedown report your organization has, automatic or prepared by hand. Settings for when reports are made and sent are under{" "}
         <Link href="/settings?section=auto-takedown" className="text-brand hover:underline">
           Settings → Automatic reporting
         </Link>
         .
-      </p>
+          </>
+        }
+      />
 
-      <div className="mt-5 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+      <div className="-mt-2 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}

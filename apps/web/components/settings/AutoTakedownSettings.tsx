@@ -10,6 +10,7 @@ import { LoadingRegion, Skeleton } from "../Skeleton";
 import { Field, Toggle } from "./Section";
 import { AutoTakedownSending, type SendingData } from "./AutoTakedownSending";
 import { CloudflareCard, type IntegrationView } from "./CloudflareCard";
+import { PasswordInput } from "../ui/PasswordInput";
 
 type Provider = "graph" | "gmail" | "smtp";
 
@@ -551,7 +552,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                 <input required className="field w-full font-mono" value={form.clientId} onChange={set("clientId")} />
               </Field>
               <Field label="Client secret" hint={keepsSecret ? "Stored. Leave blank to keep it." : undefined}>
-                <input type="password" required={!keepsSecret} className="field w-full" value={form.clientSecret} onChange={set("clientSecret")} autoComplete="new-password" />
+                <PasswordInput required={!keepsSecret} className="field w-full" value={form.clientSecret} onChange={set("clientSecret")} autoComplete="new-password" />
               </Field>
             </div>
           )}
@@ -576,7 +577,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                 <input required className="field w-full" value={form.username} onChange={set("username")} autoComplete="off" />
               </Field>
               <Field label="Password" hint={keepsSecret ? "Stored. Leave blank to keep it." : undefined}>
-                <input type="password" required={!keepsSecret} className="field w-full" value={form.password} onChange={set("password")} autoComplete="new-password" />
+                <PasswordInput required={!keepsSecret} className="field w-full" value={form.password} onChange={set("password")} autoComplete="new-password" />
               </Field>
             </div>
           )}

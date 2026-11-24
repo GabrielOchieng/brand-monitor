@@ -8,6 +8,7 @@ Status: **originally design-only; the MVP (Stages A–F) and a series of follow-
 ## As built (updated 2026-10-08)
 
 ### Shipped
+- **UI redesign (2026-11-30):** design system (tokens, shared classes, `components/ui/`), sidebar app shell with grouped navigation and a focus-managed mobile drawer, public landing page at `/`, split-layout sign-in pages, show/hide toggle on every password field, monospace identifiers. No backend or route changes beyond making `/` public.
 - **Automatic takedown reporting, step 7 (2026-11-30):** results per channel / registrar / host (answered, taken down, rejected, median time to reply and to takedown) on Takedowns → Results. The plan's seven steps are done.
 - **Automatic takedown reporting, step 6 (2026-11-30):** Cloudflare abuse-reports API per org (`takedown_integrations`, encrypted; routing method `api` for the host channel when the host is Cloudflare and the connection check passed). NetBeacon/Netcraft deliberately not built.
 - **Automatic takedown reporting, step 5 (2026-11-29):** replies and bounces read from the sender mailbox (Graph `Mail.Read` / Gmail `gmail.readonly`; `takedown_replies`), ticket numbers, bounce blocking (30 days), one follow-up and an escalation to the next channel (registrar → host → CERT), and takedowns closed automatically when the site is confirmed down (open takedowns now put a finding under the post-takedown watch).

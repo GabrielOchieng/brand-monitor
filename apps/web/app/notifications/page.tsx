@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 interface Notification {
   id: string;
@@ -47,14 +48,17 @@ export default function NotificationsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Notifications</h1>
-        {!readOnly && (
-          <button onClick={markAllRead} className="btn-ghost text-xs">
-            Mark all read
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Notifications"
+        description="Alerts from your alert rules: new and rising threats, sites going live or coming back, registration changes, public reports and takedown activity."
+        actions={
+          !readOnly && (
+            <button onClick={markAllRead} className="btn-secondary">
+              Mark all read
+            </button>
+          )
+        }
+      />
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
       {loading && (

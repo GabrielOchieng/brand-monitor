@@ -1,41 +1,54 @@
 /** @type {import('tailwindcss').Config} */
+// Design tokens (UI redesign, 2026-11). One place for the product's look:
+//   - a cool light workspace (base < surface/panel < elevated) with a navy app shell around it,
+//   - one restrained accent ("brand", a deep petrol teal: reads as security/intelligence without
+//     the default-blue or AI-violet look), used for primary actions, focus and the active page,
+//   - semantic severity colours that mean the same thing on every screen,
+//   - Inter for text and JetBrains Mono for the data people scan: domains, IPs, references.
 module.exports = {
   content: ["./app/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        critical: "#dc2626",
-        high: "#ea580c",
-        medium: "#ca8a04",
-        low: "#4b5563",
-        // A layered light surface system (page < panel < card < hover) instead of one
-        // flat white-on-white -- gives the UI real depth without reaching for a dark
-        // theme (a near-black bg + gray-800 borders + blue-600 accent is the exact look
-        // that reads as generic/AI-scaffolded).
-        base: "#f4f5f7",
+        critical: "#c81e1e",
+        high: "#d9480f",
+        medium: "#b7791f",
+        low: "#5b6473",
+        base: "#f4f6f9",
         surface: "#ffffff",
         panel: "#ffffff",
-        elevated: "#eef0f3",
-        line: "#e3e5ea",
-        // Semantic text scale (was raw text-gray-100..600 tuned for a dark backdrop,
-        // scattered across every page) -- one place to invert for a light background.
+        elevated: "#edf0f4",
+        line: "#dfe3ea",
         ink: {
-          DEFAULT: "#12141a",
-          muted: "#454a54",
-          subtle: "#6b7280",
-          faint: "#9aa0ab",
+          DEFAULT: "#0f1623",
+          muted: "#3f4859",
+          subtle: "#637083",
+          faint: "#97a1b1",
         },
         brand: {
-          DEFAULT: "#5b4fe0",
-          hover: "#4c41cc",
-          muted: "#5b4fe014",
+          DEFAULT: "#0d6c76",
+          hover: "#0a5860",
+          strong: "#084a51",
+          soft: "#e5f2f3",
+          muted: "#0d6c7614",
+        },
+        // The navigation shell (sidebar, public header/footer, auth side panel).
+        shell: {
+          DEFAULT: "#0b1322",
+          raised: "#121c2f",
+          line: "#1e2a40",
+          ink: "#e6ebf2",
+          muted: "#97a3b8",
+          faint: "#64718a",
         },
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       boxShadow: {
-        card: "0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06)",
+        card: "0 1px 2px 0 rgb(15 22 35 / 0.04), 0 1px 3px 0 rgb(15 22 35 / 0.06)",
+        pop: "0 8px 24px -6px rgb(15 22 35 / 0.18), 0 2px 6px -2px rgb(15 22 35 / 0.08)",
       },
     },
   },

@@ -26,6 +26,7 @@ import { SettingsSkeleton } from "../../components/PageSkeletons";
 import { ChevronDownIcon, PlusIcon } from "../../components/icons";
 import { canManage, useMyRole } from "../../lib/useMyRole";
 import { pickBrand, writeSelectedBrand } from "../../lib/selectedBrand";
+import { PageHeader } from "../../components/ui/PageHeader";
 
 type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "report-templates" | "report-recipients" | "team" | "add-brand";
 
@@ -136,9 +137,9 @@ function Settings() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Settings</h1>
+      <PageHeader title="Settings" description="Brands and what's monitored, alerts, takedown reporting, and your team." />
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
+      <div className="grid gap-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12">
         {/* Sidebar (dropdown on narrow screens) */}
         <aside className="lg:sticky lg:top-20 lg:self-start">
           {brands.length > 0 && (
