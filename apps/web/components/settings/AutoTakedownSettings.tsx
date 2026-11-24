@@ -9,6 +9,7 @@ import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
 import { Field, Toggle } from "./Section";
 import { AutoTakedownSending, type SendingData } from "./AutoTakedownSending";
+import { CloudflareCard, type IntegrationView } from "./CloudflareCard";
 
 type Provider = "graph" | "gmail" | "smtp";
 
@@ -58,6 +59,7 @@ interface Authorization {
 }
 
 interface Overview extends Omit<SendingData, "automation"> {
+  integrations: IntegrationView[];
   platformEnabled: boolean;
   encryptionConfigured: boolean;
   allowedAt: string | null;
@@ -207,6 +209,7 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
 
       <SenderCard data={data} isOwner={isOwner} canTest={canManage} onChange={load} />
       <AuthorizationCard data={data} isOwner={isOwner} onChange={load} />
+      <CloudflareCard integration={data.integrations.find((i) => i.provider === "cloudflare") ?? null} isOwner={isOwner} canTest={canManage} onChange={load} />
 
       {data.brands.length > 0 && (
         <Card title="Brands" description="Turn automatic reporting off for a brand to keep its reports manual.">

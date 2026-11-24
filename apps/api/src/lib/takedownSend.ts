@@ -8,6 +8,9 @@ import { loadAttachments } from "./reportAttachments";
 import { evaluatePolicy } from "./takedownPolicy";
 import { hostnameOf } from "./reportContext";
 import { notifyTakedown } from "./takedownNotify";
+import { CloudflareConfigSchema, CloudflareError, submitPhishingReport } from "./cloudflareAbuse";
+
+const findingUrl = (identifier: string) => (/^https?:\/\//i.test(identifier) ? identifier : `https://${identifier}`);
 
 // Sends one takedown report (TAKEDOWN_AUTOMATION_PLAN.md §9-§10). Called by the dispatcher for
 // due reports, and right away when an analyst approves one. Everything is checked again at send
@@ -94,7 +97,8 @@ export async function sendAction(orgId: string, actionId: string, now = new Date
     }
 
     // 3. Recipients.
-    if (action.to.length === 0) return await skip(orgId, actionId, "No recipient.");
+    const viaApi = (action.routing as { method?: string; apiProvider?: string } | null)?.method === "api";
+    if (action.to.length === 0 && !viaApi) return await skip(orgId, actionId, "No recipient.");
     const problems = recipientProblems(action, prep.routing.ownDomains, prep.routing.blocked, now);
     if (problems.length) return await skip(orgId, actionId, `Recipient not allowed: ${problems.map((p) => p.address).join(", ")}`);
 
@@ -108,6 +112,40 @@ export async function sendAction(orgId: string, actionId: string, now = new Date
       }
     }
 
+    // 5a. Through Cloudflare's report API (live only; redirect mode emails the text instead, below).
+    if (viaApi && !redirectTo) {
+      const integration = await withTenant(orgId, (tx) => tx.takedownIntegration.findUnique({ where: { organizationId_provider: { organizationId: orgId, provider: "cloudflare" } } }));
+      if (!integration?.enabled) return await hold(orgId, actionId, "Cloudflare's report API isn't connected any more.", back);
+      let reference: string | null = null;
+      try {
+        const cfg = CloudflareConfigSchema.parse(JSON.parse(decryptSecret(integration.config)));
+        reference = (await submitPhishingReport(cfg, { urls: [findingUrl(finding.identifier)], justification: action.body, comments: `Brand Monitor report ${action.reportRef}` })).reference;
+      } catch (err: any) {
+        const error = (err instanceof CloudflareError ? err.message : `Cloudflare report failed: ${String(err?.message ?? err)}`).slice(0, 300);
+        await withTenant(orgId, (tx) => tx.takedownAction.update({ where: { id: actionId }, data: { status: "failed", error, attempts: { increment: 1 }, holdReason: null } }));
+        await notifyTakedown(orgId, action.findingId, `Takedown report ${action.reportRef} to Cloudflare failed: ${error}`, { important: true });
+        return { status: "failed", detail: error };
+      }
+      await withTenant(orgId, async (tx) => {
+        const takedown = await tx.takedown.create({
+          data: {
+            findingId: action.findingId,
+            provider: "Cloudflare (abuse API)",
+            reference: reference ?? action.reportRef,
+            notes: action.approvedBy ? `Submitted by Brand Monitor, approved by ${action.approvedBy}` : "Submitted automatically by Brand Monitor",
+            requestedById: "system",
+          },
+        });
+        await tx.takedownAction.update({
+          where: { id: actionId },
+          data: { status: "sent", sentAt: new Date(), deliveredTo: ["Cloudflare abuse API"], messageId: reference, ticketRef: reference, takedownId: takedown.id, error: null, holdReason: null, attempts: { increment: 1 } },
+        });
+        await recordAutomationEvent(tx, orgId, { userId: null, email: action.approvedBy ?? "automatic" }, "report.sent", { actionId, findingId: action.findingId, channel: action.channel, api: "cloudflare", reference });
+      });
+      await notifyTakedown(orgId, action.findingId, `Takedown report ${action.reportRef} submitted to Cloudflare${reference ? ` (their reference ${reference})` : ""}`);
+      return { status: "sent" };
+    }
+
     // 5. Send.
     if (!sender) return await hold(orgId, actionId, "No sender mailbox.", back);
     let secrets;
@@ -118,7 +156,7 @@ export async function sendAction(orgId: string, actionId: string, now = new Date
     }
     const delivery = deliveryRecipients(action, redirectTo);
     const text = delivery.redirected
-      ? `REDIRECT MODE: this report was not sent to its recipients. It would have gone to:\nTo: ${action.to.join(", ")}${action.cc.length ? `\nCc: ${action.cc.join(", ")}` : ""}${action.bcc.length ? `\nBcc: ${action.bcc.join(", ")}` : ""}\n\n----------\n\n${action.body}`
+      ? `REDIRECT MODE: this report was not sent to its recipients. It would have gone to:\n${viaApi ? "Cloudflare's abuse-reports API (submitted by API, not email)\n" : ""}To: ${action.to.join(", ")}${action.cc.length ? `\nCc: ${action.cc.join(", ")}` : ""}${action.bcc.length ? `\nBcc: ${action.bcc.join(", ")}` : ""}\n\n----------\n\n${action.body}`
       : action.body;
     let messageId: string | null = null;
     try {

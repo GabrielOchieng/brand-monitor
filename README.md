@@ -393,6 +393,15 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   requests are now under the post-takedown watch too; once confirmed down (2 down scans), their open
   takedowns are marked completed and unsent reports skipped. A comeback fires `site_reactivated` and a
   new reporting cycle starts.
+- **Cloudflare abuse API** (step 6; `lib/cloudflareAbuse.ts`). An owner can connect the org's Cloudflare
+  account (account ID, API token with *Trust and Safety Write*, reporter name/email, whether the host and
+  the site owner see the reporter; default: host yes, owner anonymous). It works only for accounts with
+  Cloudflare's *abuse-reports* entitlement (Enterprise by default, others ask Cloudflare); "Check
+  connection" reads the account's reports and submits nothing. Once the check passes, host reports for
+  sites behind Cloudflare are submitted by API (`abuse_phishing`, the finding's URL, the report text as
+  justification) instead of being a web-form task; Cloudflare's reference becomes the tracker reference.
+  In redirect mode the text is emailed to the redirect address instead. NetBeacon and Netcraft are not
+  integrated (their terms for a multi-org service aren't confirmed): they stay web forms in the contact book.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is

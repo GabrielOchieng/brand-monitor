@@ -23,6 +23,7 @@ import {
 } from "../lib/orgMailer";
 import { env } from "../env";
 import { CHANNEL_MODES, SIGNALS, STAGES } from "../lib/takedownPolicy";
+import { cloudflarePublicConfig, CloudflareConfigSchema, verifyCloudflare } from "../lib/cloudflareAbuse";
 import { CHANNELS } from "../lib/reportTemplates";
 import { testsToday, TESTS_PER_DAY } from "../lib/selfTestSend";
 
@@ -137,6 +138,7 @@ async function overview(orgId: string) {
       tx.takedownChannelSetting.findMany({ where: { organizationId: orgId }, select: { channel: true, mode: true } }),
       tx.takedownAction.groupBy({ by: ["shadowVerdict"], where: { organizationId: orgId, status: "shadow" }, _count: { _all: true } }),
     ]);
+    const integrations = await tx.takedownIntegration.findMany({ where: { organizationId: orgId }, select: { provider: true, enabled: true, publicConfig: true, lastTestAt: true, lastTestOk: true, lastTestError: true, updatedAt: true, updatedBy: true } });
     const verdict = (v: string | null) => shadow.find((x) => x.shadowVerdict === v)?._count._all ?? 0;
     return {
       platformEnabled: env.autoTakedownEnabled,
@@ -151,6 +153,7 @@ async function overview(orgId: string) {
       events,
       channelModes: Object.fromEntries(CHANNELS.map((c) => [c, settings.find((x) => x.channel === c)?.mode ?? "off"])),
       shadowStats: { right: verdict("right"), wrong: verdict("wrong"), unreviewed: verdict(null) },
+      integrations,
     };
   });
 }
@@ -543,5 +546,76 @@ export async function takedownAutomationRoutes(app: FastifyInstance) {
       await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "stage.change", { from: a.stage, to: stage });
       return reply.send({ stage });
     });
+  });
+
+  // --- Report APIs (step 6): Cloudflare's abuse-reports API ----------------------------------
+
+  // Secret fields may be left out to keep the stored token.
+  app.put("/api/takedown-automation/integrations/cloudflare", { preHandler: [authenticate, requireRole("owner")] }, async (request, reply) => {
+    if (!encryptionConfigured()) return reply.status(400).send({ error: "encryption_not_configured" });
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      const existing = await tx.takedownIntegration.findUnique({ where: { organizationId_provider: { organizationId: orgId, provider: "cloudflare" } } });
+      let previous: Record<string, unknown> = {};
+      if (existing) {
+        try {
+          previous = JSON.parse(decryptSecret(existing.config));
+        } catch {
+          previous = {};
+        }
+      }
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const merged = { ...previous, ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined && v !== "")) };
+      const parsed = CloudflareConfigSchema.safeParse(merged);
+      if (!parsed.success) return reply.status(400).send({ error: "invalid_integration", details: parsed.error.flatten() });
+      const actor = await actorOf(tx, request.auth!.userId);
+      const data = {
+        config: encryptSecret(JSON.stringify(parsed.data)),
+        publicConfig: cloudflarePublicConfig(parsed.data),
+        enabled: true,
+        lastTestAt: null,
+        lastTestOk: null,
+        lastTestError: null,
+        updatedBy: actor.email,
+      };
+      await tx.takedownIntegration.upsert({
+        where: { organizationId_provider: { organizationId: orgId, provider: "cloudflare" } },
+        create: { organizationId: orgId, provider: "cloudflare", ...data },
+        update: data,
+      });
+      await recordAutomationEvent(tx, orgId, actor, "integration.save", { provider: "cloudflare", accountId: parsed.data.accountId });
+      return reply.send({ ok: true });
+    });
+  });
+
+  app.delete("/api/takedown-automation/integrations/cloudflare", { preHandler: [authenticate, requireRole("owner")] }, async (request, reply) => {
+    const orgId = request.auth!.orgId;
+    return withTenant(orgId, async (tx) => {
+      const { count } = await tx.takedownIntegration.deleteMany({ where: { organizationId: orgId, provider: "cloudflare" } });
+      if (count === 0) return reply.status(404).send({ error: "not_found" });
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "integration.delete", { provider: "cloudflare" });
+      return reply.status(204).send();
+    });
+  });
+
+  // Checks the token and the entitlement by reading the account's reports; submits nothing. Only a
+  // passed check makes reports go through the API instead of the web form.
+  app.post("/api/takedown-automation/integrations/cloudflare/test", { preHandler: [authenticate, requireRole("owner", "admin")] }, async (request, reply) => {
+    const orgId = request.auth!.orgId;
+    const integration = await withTenant(orgId, (tx) => tx.takedownIntegration.findUnique({ where: { organizationId_provider: { organizationId: orgId, provider: "cloudflare" } } }));
+    if (!integration) return reply.status(404).send({ error: "not_found" });
+    let ok = true;
+    let error: string | null = null;
+    try {
+      await verifyCloudflare(CloudflareConfigSchema.parse(JSON.parse(decryptSecret(integration.config))));
+    } catch (err: any) {
+      ok = false;
+      error = String(err?.message ?? err).slice(0, 300);
+    }
+    await withTenant(orgId, async (tx) => {
+      await tx.takedownIntegration.updateMany({ where: { organizationId: orgId, provider: "cloudflare", updatedAt: integration.updatedAt }, data: { lastTestAt: new Date(), lastTestOk: ok, lastTestError: error } });
+      await recordAutomationEvent(tx, orgId, await actorOf(tx, request.auth!.userId), "integration.test", { provider: "cloudflare", ok, ...(error ? { error } : {}) });
+    });
+    return reply.send({ ok, error });
   });
 }

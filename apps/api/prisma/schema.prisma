@@ -996,3 +996,23 @@ model TakedownReply {
   @@index([actionId])
   @@map("takedown_replies")
 }
+
+// Report APIs an org has connected (lib/cloudflareAbuse.ts, step 6). So far only "cloudflare": its
+// abuse-reports API, for orgs whose Cloudflare account has the abuse-reports entitlement (Enterprise
+// by default, others ask Cloudflare). config: credentials and reporter details, encrypted
+// (auth/secretBox.ts); publicConfig: the non-secret parts for display.
+model TakedownIntegration {
+  organizationId String    @map("organization_id")
+  provider       String
+  enabled        Boolean   @default(true)
+  config         String
+  publicConfig   Json      @map("public_config")
+  lastTestAt     DateTime? @map("last_test_at")
+  lastTestOk     Boolean?  @map("last_test_ok")
+  lastTestError  String?   @map("last_test_error")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  updatedBy      String?   @map("updated_by")
+
+  @@id([organizationId, provider])
+  @@map("takedown_integrations")
+}

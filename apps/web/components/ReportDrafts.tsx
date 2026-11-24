@@ -40,7 +40,7 @@ interface Draft {
 }
 
 interface Routing {
-  method: "email" | "form" | "skip" | "none";
+  method: "email" | "form" | "skip" | "none" | "api";
   to: string[];
   forms: Array<{ url: string; instructions: string | null }>;
   why: string;
@@ -53,6 +53,7 @@ function RoutingNote({ routing }: { routing: Routing }) {
     <div className={`rounded-md border px-3 py-2 text-xs ${routing.method === "email" ? "border-line bg-elevated/50 text-ink-muted" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
       <p>
         {routing.method === "email" && <>Goes to {routing.to.join(", ")}. </>}
+        {routing.method === "api" && <>Submitted through Cloudflare&apos;s abuse-reports API, not by email. </>}
         {routing.method === "form" && <>Web form{routing.forms.length > 1 ? "s" : ""} only, so a manual task: send it yourself through the form{routing.forms.length > 1 ? "s" : ""} below. </>}
         {routing.method === "skip" && <>Not reported through this channel. </>}
         {routing.method === "none" && <>No recipient: add one to the draft, or to the contact book under Settings → Report recipients. </>}
@@ -304,10 +305,10 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
         {canEdit && !isForm && SENDABLE.includes(draft.status) && (
           <button
             className="btn-primary text-xs"
-            disabled={!!busy || list(to).length === 0}
+            disabled={!!busy || (list(to).length === 0 && draft.routing?.method !== "api")}
             onClick={() =>
               run("send", async () => {
-                if (!window.confirm(`Send this report from your organization's mailbox to ${list(to).join(", ")} now?`)) return;
+                if (!window.confirm(draft.routing?.method === "api" ? "Submit this report to Cloudflare's abuse API now?" : `Send this report from your organization's mailbox to ${list(to).join(", ")} now?`)) return;
                 if (dirty) await save();
                 const r = await apiFetch<{ status: string; detail?: string }>(`/api/takedown-actions/${draft.id}/send`, { method: "POST" });
                 setMessage(r.status === "sent" ? { ok: true, text: "Sent." } : { ok: false, text: `${r.status === "held" ? "On hold" : r.status === "skipped" ? "Not sent" : "Failed"}${r.detail ? `: ${r.detail}` : ""}` });

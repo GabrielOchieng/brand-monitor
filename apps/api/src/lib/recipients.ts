@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Channel } from "./reportTemplates";
+import { isCloudflareHost } from "./cloudflareAbuse";
 
 // Who a takedown report goes to (TAKEDOWN_AUTOMATION_PLAN.md §3). Order:
 //   1. the contact book: the most specific enabled rule for this channel that matches the finding,
@@ -49,7 +50,9 @@ export interface BlockedEntry {
 }
 
 export interface Routing {
-  method: "email" | "form" | "skip" | "none";
+  // api: submitted through a provider's report API (Cloudflare; lib/cloudflareAbuse.ts), no email.
+  method: "email" | "form" | "skip" | "none" | "api";
+  apiProvider?: "cloudflare";
   to: string[];
   cc: string[];
   bcc: string[];
@@ -137,7 +140,9 @@ export function resolveRouting(
   fixed: FixedRecipients | null,
   ownDomains: string[],
   blocked: BlockedEntry[],
-  now = new Date()
+  now = new Date(),
+  // Report APIs the org has connected and tested (e.g. ["cloudflare"]).
+  apis: string[] = []
 ): Routing {
   const matching = rules.filter((r) => ruleMatches(r, channel, facts)).sort((a, b) => specificity(b) - specificity(a));
   const empty = { to: [], cc: [], bcc: [], forms: [], language: null, removed: [] };
@@ -153,6 +158,11 @@ export function resolveRouting(
 
   const best = matching[0];
   let routing: Routing;
+  // A site behind Cloudflare, and the org has Cloudflare's report API connected: use it rather
+  // than the web form (unless a rule says not to report to this host at all).
+  if (channel === "host" && apis.includes("cloudflare") && isCloudflareHost(facts.hostingOrg) && best?.method !== "skip") {
+    return { ...empty, method: "api", apiProvider: "cloudflare", source: { kind: "none" }, why: "Submitted through Cloudflare's abuse-reports API (your Cloudflare connection)." };
+  }
   if (best?.method === "skip") {
     routing = { ...empty, method: "skip", source: contactSource(best), why: describe(best, "says not to report through this channel") };
   } else if (best?.method === "form" && best.formUrl) {
@@ -223,11 +233,12 @@ export interface RoutingData {
   blocked: BlockedEntry[];
   ownDomains: string[];
   redirectTo: string | null;
+  apis: string[];
 }
 
 // Everything routing needs for one org, inside withTenant (the platform book is readable by the app role).
 export async function loadRoutingData(tx: Prisma.TransactionClient, orgId: string): Promise<RoutingData> {
-  const [orgRules, platformRules, settings, blocked, brands, automation, sender] = await Promise.all([
+  const [orgRules, platformRules, settings, blocked, brands, automation, sender, integrations] = await Promise.all([
     tx.takedownContact.findMany({ where: { organizationId: orgId } }),
     tx.takedownPlatformContact.findMany(),
     tx.takedownChannelSetting.findMany({ where: { organizationId: orgId } }),
@@ -235,6 +246,7 @@ export async function loadRoutingData(tx: Prisma.TransactionClient, orgId: strin
     tx.brand.findMany({ where: { organizationId: orgId }, select: { primaryDomain: true, domains: { select: { domain: true } } } }),
     tx.takedownAutomation.findUnique({ where: { organizationId: orgId }, select: { redirectTo: true } }),
     tx.takedownSender.findUnique({ where: { organizationId: orgId }, select: { fromAddress: true } }),
+    tx.takedownIntegration.findMany({ where: { organizationId: orgId, enabled: true, lastTestOk: true }, select: { provider: true } }),
   ]);
   const ownDomains = uniq([
     ...brands.flatMap((b) => [b.primaryDomain, ...b.domains.map((d) => d.domain)]),
@@ -246,5 +258,6 @@ export async function loadRoutingData(tx: Prisma.TransactionClient, orgId: strin
     blocked,
     ownDomains,
     redirectTo: automation?.redirectTo ?? null,
+    apis: integrations.map((i) => i.provider),
   };
 }

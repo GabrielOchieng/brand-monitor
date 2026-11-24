@@ -38,7 +38,7 @@ export async function createAutoReport(
     previous: followOn ? { sentAt: followOn.previous.sentAt, ticketRef: followOn.previous.ticketRef } : null,
   });
   if (!loaded) return 0;
-  const routing = resolveRouting(channel, loaded.finding.facts, routingData.rules, routingData.fixed.get(channel) ?? null, routingData.ownDomains, routingData.blocked, now);
+  const routing = resolveRouting(channel, loaded.finding.facts, routingData.rules, routingData.fixed.get(channel) ?? null, routingData.ownDomains, routingData.blocked, now, routingData.apis);
   // A follow-up goes to whoever got the first report (minus anything blocked since, e.g. a bounce).
   if (followOn?.previous.to?.length) {
     const kept = { to: followOn.previous.to, cc: followOn.previous.cc ?? [], bcc: followOn.previous.bcc ?? [] };

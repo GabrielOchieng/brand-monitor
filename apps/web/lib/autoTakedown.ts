@@ -57,6 +57,9 @@ export const EVENT_LABELS: Record<string, string> = {
   "stage.change": "Changed the stage",
   "replies.on": "Turned reply reading on",
   "replies.off": "Turned reply reading off",
+  "integration.save": "Saved the Cloudflare connection",
+  "integration.delete": "Disconnected Cloudflare",
+  "integration.test": "Checked the Cloudflare connection",
 };
 
 export const DOCUMENT_KIND_LABELS: Record<string, string> = {

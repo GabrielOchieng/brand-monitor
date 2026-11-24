@@ -68,7 +68,7 @@ export function sendAfterFor(mode: string, viaConfirmed: boolean, s: { vetoHours
 // Status a new automatic report starts in.
 export function initialStatus(stage: string, mode: string, routingMethod: string): "shadow" | "manual" | "awaiting_approval" | "pending_veto" | "queued" {
   if (stage === "shadow") return "shadow";
-  if (routingMethod !== "email") return "manual";
+  if (routingMethod !== "email" && routingMethod !== "api") return "manual";
   if (mode === "approval") return "awaiting_approval";
   if (mode === "delayed") return "pending_veto";
   return "queued";

@@ -65,6 +65,8 @@ export async function deleteOrganization(orgId: string, record: (tx: Prisma.Tran
         Prisma.sql`DELETE FROM brands               WHERE id IN (SELECT id FROM d_brands)`,
         Prisma.sql`DELETE FROM takedown_actions           WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM takedown_contacts          WHERE organization_id = ${orgId}`,
+        Prisma.sql`DELETE FROM takedown_replies           WHERE organization_id = ${orgId}`,
+        Prisma.sql`DELETE FROM takedown_integrations      WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM takedown_channel_settings  WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM takedown_blocked_recipients WHERE organization_id = ${orgId}`,
         Prisma.sql`DELETE FROM takedown_template_versions WHERE organization_id = ${orgId}`,

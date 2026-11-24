@@ -179,7 +179,7 @@ export default function TakedownQueuePage() {
                     {["awaiting_approval", "pending_veto", "queued", "failed"].includes(a.status) && (
                       <button
                         className="btn-primary text-xs"
-                        disabled={busy === a.id || a.to.length === 0}
+                        disabled={busy === a.id || (a.to.length === 0 && (a.routing as { method?: string } | null)?.method !== "api")}
                         onClick={() => act(a.id, "send", undefined, `Send this report to ${a.to.join(", ")} now?`)}
                       >
                         {a.status === "failed" ? "Retry" : a.status === "awaiting_approval" ? "Approve and send" : "Send now"}

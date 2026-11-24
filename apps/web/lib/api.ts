@@ -85,6 +85,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_cancellable: "This report can't be cancelled any more.",
   redirect_needs_address: "Set a redirect address first (Settings → Report recipients).",
   shadow_not_done: "The shadow period isn't over yet.",
+  invalid_integration: "Check the Cloudflare details: a 32-character account ID, an API token, a reporter name and email.",
   webhook_https_only: "The webhook address must start with https://.",
   not_yet_scanned: "This finding hasn't been scanned yet. Its first scan normally runs within about 5 minutes; try again after that.",
 };

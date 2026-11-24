@@ -62,7 +62,7 @@ async function uniqueReportRef(tx: Prisma.TransactionClient): Promise<string> {
 }
 
 function routeFor(channel: Channel, facts: ReturnType<typeof factsOf>, data: RoutingData) {
-  return resolveRouting(channel, facts, data.rules, data.fixed.get(channel) ?? null, data.ownDomains, data.blocked);
+  return resolveRouting(channel, facts, data.rules, data.fixed.get(channel) ?? null, data.ownDomains, data.blocked, new Date(), data.apis);
 }
 
 export async function reportDraftRoutes(app: FastifyInstance) {

@@ -265,6 +265,11 @@ reference; out-of-office replies are ignored; escalation goes registrar -> host 
 report; open takedown requests now put a finding under the post-takedown watch so "confirmed down" can
 close them.
 
+Step 6 shipped 2026-11-30: Cloudflare's abuse-reports API only (decision: NetBeacon and Netcraft wait
+until their terms for a multi-org service are confirmed). The report-type path segment `abuse_phishing`
+is inferred (the docs show a placeholder); a rejection shows as a failed report. Not tested against an
+entitled account (none available); the connection check was run against the real API (401 for a dummy token).
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety

@@ -83,7 +83,7 @@ export async function takedownQueueRoutes(app: FastifyInstance) {
       const action = await tx.takedownAction.findFirst({ where: { id, organizationId: orgId } });
       if (!action) return { error: "not_found" as const };
       if (!["draft", "awaiting_approval", "pending_veto", "failed", "queued"].includes(action.status)) return { error: "not_sendable" as const };
-      if (action.to.length === 0) return { error: "no_recipient" as const };
+      if (action.to.length === 0 && (action.routing as { method?: string } | null)?.method !== "api") return { error: "no_recipient" as const };
       const automation = await tx.takedownAutomation.findUnique({ where: { organizationId: orgId } });
       if (!automation || automation.stage === "shadow") return { error: "shadow_mode" as const };
       const brand = await tx.brand.findUnique({ where: { id: action.brandId }, select: { id: true, autoTakedownEnabled: true, monitoringPausedAt: true } });
