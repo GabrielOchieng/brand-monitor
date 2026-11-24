@@ -101,4 +101,11 @@ export const env = {
     process.env.CT_LOG_OPERATORS ?? "Let's Encrypt"
   ),
   tavilyMonthlyCap: Number(process.env.TAVILY_MONTHLY_CAP ?? 900),
+  // Global kill switch for automatic takedown reporting (lib/takedownAutomation.ts). Anything
+  // but "1" = no org's reports are sent automatically, whatever its own settings say. Test
+  // sends of an org's sender mailbox work either way.
+  autoTakedownEnabled: process.env.AUTO_TAKEDOWN_ENABLED === "1",
+  // Local testing only: let an org's SMTP sender point at a private address (e.g. a Mailpit
+  // container). Never set in production: the API would connect to internal hosts on the VPS.
+  takedownSmtpAllowPrivate: process.env.TAKEDOWN_SMTP_ALLOW_PRIVATE === "1",
 };

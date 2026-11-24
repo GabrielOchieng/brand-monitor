@@ -13,31 +13,35 @@ datasource db {
 
 model Organization {
   // org_<random>. Orgs created before 2026-11 carry their old Clerk id (same prefix).
-  id        String   @id
-  name      String
-  createdAt DateTime @default(now()) @map("created_at")
+  id                    String       @id
+  name                  String
+  createdAt             DateTime     @default(now()) @map("created_at")
   // Set by a platform admin: nothing in this org is monitored while set (lib/monitoredBrands.ts).
-  monitoringPausedAt DateTime? @map("monitoring_paused_at")
-  monitoringPausedBy String?   @map("monitoring_paused_by") // admin's email
-  brands       Brand[]
-  memberships  Membership[]
+  monitoringPausedAt    DateTime?    @map("monitoring_paused_at")
+  monitoringPausedBy    String?      @map("monitoring_paused_by") // admin's email
+  // Set by a platform admin once the org's authorization to report in its name is on file:
+  // automatic takedown reporting can only run while set (lib/takedownAutomation.ts).
+  autoTakedownAllowedAt DateTime?    @map("auto_takedown_allowed_at")
+  autoTakedownAllowedBy String?      @map("auto_takedown_allowed_by") // admin's email
+  brands                Brand[]
+  memberships           Membership[]
 
   @@map("organizations")
 }
 
 model User {
   // user_<random>. Users created before 2026-11 carry their old Clerk id (same prefix).
-  id        String   @id
-  email     String   @unique // stored lowercased
-  name      String?
+  id           String   @id
+  email        String   @unique // stored lowercased
+  name         String?
   // Platform-wide role, above every organization: null (normal user) or "admin" (the admin
   // panel). Set only from the container (scripts/makeAdmin.ts), never through the API.
   // "superadmin" (can make other admins) is reserved for later.
-  platformRole String? @map("platform_role")
-  createdAt DateTime @default(now()) @map("created_at")
+  platformRole String?  @map("platform_role")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   memberships      Membership[]
-  assignedFindings Finding[] @relation("FindingAssignee")
+  assignedFindings Finding[]    @relation("FindingAssignee")
   auth             UserAuth?
   sessions         Session[]
 
@@ -64,19 +68,19 @@ model UserAuth {
 }
 
 model Session {
-  id          String   @id @default(cuid())
-  tokenHash   String   @unique @map("token_hash") // sha256 of the cookie value
-  userId      String   @map("user_id")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activeOrgId String?  @map("active_org_id")
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique @map("token_hash") // sha256 of the cookie value
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrgId    String?  @map("active_org_id")
   // Platform admin's read-only view into an org (routes/admin.ts). While set, authenticate()
   // uses this org with role viewer and refuses every write.
-  adminViewOrgId String? @map("admin_view_org_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
-  expiresAt   DateTime @map("expires_at")
-  ip          String?
-  userAgent   String?  @map("user_agent")
+  adminViewOrgId String?  @map("admin_view_org_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at")
+  expiresAt      DateTime @map("expires_at")
+  ip             String?
+  userAgent      String?  @map("user_agent")
 
   @@index([userId])
   @@map("sessions")
@@ -105,34 +109,36 @@ model AuthToken {
 }
 
 model Membership {
-  id             String   @id @default(cuid())
-  userId         String   @map("user_id")
-  user           User     @relation(fields: [userId], references: [id])
-  organizationId String   @map("organization_id")
+  id             String       @id @default(cuid())
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id])
+  organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id])
-  role           String   @default("analyst") // owner | admin | analyst | viewer
-  createdAt      DateTime @default(now()) @map("created_at")
+  role           String       @default("analyst") // owner | admin | analyst | viewer
+  createdAt      DateTime     @default(now()) @map("created_at")
 
   @@unique([userId, organizationId])
   @@map("memberships")
 }
 
 model Brand {
-  id             String   @id @default(cuid())
-  organizationId String   @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  name           String
-  primaryDomain  String   @map("primary_domain")
+  id                  String       @id @default(cuid())
+  organizationId      String       @map("organization_id")
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  name                String
+  primaryDomain       String       @map("primary_domain")
   // Set by a platform admin: this brand isn't monitored while set (lib/monitoredBrands.ts).
-  monitoringPausedAt DateTime? @map("monitoring_paused_at")
-  monitoringPausedBy String?   @map("monitoring_paused_by") // admin's email
+  monitoringPausedAt  DateTime?    @map("monitoring_paused_at")
+  monitoringPausedBy  String?      @map("monitoring_paused_by") // admin's email
   // Unguessable token in the public "report a scam" link (/report/<token>). Null = the
   // brand has no public form. Rotating it kills every copy of the old link.
-  reportToken    String?  @unique @map("report_token")
+  reportToken         String?      @unique @map("report_token")
   // The brand's real social accounts, as canonical profile URLs (lib/socialUrls.ts) --
   // social search never reports these, and handle-impersonation scoring skips them.
-  officialSocialUrls String[] @default([]) @map("official_social_urls")
-  createdAt      DateTime @default(now()) @map("created_at")
+  officialSocialUrls  String[]     @default([]) @map("official_social_urls")
+  // Automatic takedown reporting for this brand (when the org has it on). Off = manual only.
+  autoTakedownEnabled Boolean      @default(true) @map("auto_takedown_enabled")
+  createdAt           DateTime     @default(now()) @map("created_at")
 
   domains      BrandDomain[]
   keywords     BrandKeyword[]
@@ -179,18 +185,18 @@ model BrandAsset {
 }
 
 model Finding {
-  id              String   @id @default(cuid())
-  brandId         String   @map("brand_id")
-  brand           Brand    @relation(fields: [brandId], references: [id])
+  id              String    @id @default(cuid())
+  brandId         String    @map("brand_id")
+  brand           Brand     @relation(fields: [brandId], references: [id])
   // domain | url | social (a social-media account; identifier is its canonical profile URL)
-  type            String   @default("domain")
-  source          String   @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | nrd_hagezi | isc_recent | phish_feed | public_report | social_search | web_search
+  type            String    @default("domain")
+  source          String    @default("pipeline") // pipeline | seed_demo | manual_submission | ct_log | app_store | nrd | nrd_hagezi | isc_recent | phish_feed | public_report | social_search | web_search
   identifier      String // the candidate domain
-  riskScore       Int      @default(0) @map("risk_score")
-  severity        String   @default("low")
-  status          String   @default("new")
-  firstDetectedAt DateTime @default(now()) @map("first_detected_at")
-  lastScannedAt   DateTime @default(now()) @map("last_scanned_at")
+  riskScore       Int       @default(0) @map("risk_score")
+  severity        String    @default("low")
+  status          String    @default("new")
+  firstDetectedAt DateTime  @default(now()) @map("first_detected_at")
+  lastScannedAt   DateTime  @default(now()) @map("last_scanned_at")
   // Drives the recheck dispatcher (apps/api/src/queue/dispatch.ts) -- null means never
   // enrolled for recheck (shouldn't happen once discovery sets it at creation).
   nextScanAt      DateTime? @map("next_scan_at")
@@ -202,8 +208,8 @@ model Finding {
   // in the route, not by this FK alone, since a raw User row isn't tenant-scoped) and
   // free-form labels. Neither drives any pipeline behavior; display/filtering only.
   assigneeId      String?   @map("assignee_id")
-  assignee        User?    @relation("FindingAssignee", fields: [assigneeId], references: [id])
-  tags            String[] @default([])
+  assignee        User?     @relation("FindingAssignee", fields: [assigneeId], references: [id])
+  tags            String[]  @default([])
   // Post-takedown watch (see recheckJob.ts): set when a scan of a resolved / taken-down
   // finding definitively shows the site down (no DNS, parked, or HTTP 404/410/451), cleared
   // when it comes back live -- which is what fires site_reactivated. Requiring a definite
@@ -211,12 +217,12 @@ model Finding {
   downSince       DateTime? @map("down_since")
   // Consecutive definitely-down scans while not yet confirmed down: downSince is only set at 2,
   // because the parked-page detector occasionally misreads one scan of a live site.
-  downStreak      Int      @default(0) @map("down_streak")
+  downStreak      Int       @default(0) @map("down_streak")
   // First scan that saw live, non-parked content. website_activated fires only when this was
   // still null, so a live site whose scans flap live/parked doesn't re-alert on every return.
   firstLiveAt     DateTime? @map("first_live_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   domainIntel    DomainIntel?
   websiteIntel   WebsiteIntel?
@@ -329,16 +335,16 @@ model AiExplanation {
 }
 
 model DomainIntel {
-  id           String    @id @default(cuid())
-  findingId    String    @unique @map("finding_id")
-  finding      Finding   @relation(fields: [findingId], references: [id])
-  registrar    String?
-  registeredAt DateTime? @map("registered_at")
-  nameservers  String[]
-  ip           String?
-  dnsRecords   Json?     @map("dns_records")
-  whoisSource  String?   @map("whois_source") // rdap | whois | unavailable
-  rawData      Json?     @map("raw_data")
+  id                  String    @id @default(cuid())
+  findingId           String    @unique @map("finding_id")
+  finding             Finding   @relation(fields: [findingId], references: [id])
+  registrar           String?
+  registeredAt        DateTime? @map("registered_at")
+  nameservers         String[]
+  ip                  String?
+  dnsRecords          Json?     @map("dns_records")
+  whoisSource         String?   @map("whois_source") // rdap | whois | unavailable
+  rawData             Json?     @map("raw_data")
   // First-ever time DNS delegation was observed for this domain -- set once, never
   // overwritten (same "first fact, never overwritten" pattern as Finding.firstDetectedAt
   // and Takedown.resolvedAt). Null means we've never once confirmed this domain actually
@@ -346,8 +352,8 @@ model DomainIntel {
   // reflects only the LATEST scan, so `firstResolvedAt != null && !currentlyResolves` is
   // the "was registered, isn't anymore" (lapsed) case a typosquat can genuinely hit --
   // e.g. a brief test-registration, or a hold period expiring after discovery flagged it.
-  firstResolvedAt   DateTime? @map("first_resolved_at")
-  currentlyResolves Boolean   @default(false) @map("currently_resolves")
+  firstResolvedAt     DateTime? @map("first_resolved_at")
+  currentlyResolves   Boolean   @default(false) @map("currently_resolves")
   // Registry facts beyond creation date (see lib/rdap.ts). Kept from the previous scan when
   // a lookup fails, rather than blanked.
   lastChangedAt       DateTime? @map("last_changed_at")
@@ -441,29 +447,29 @@ model CtLogCursor {
 }
 
 model WebsiteIntel {
-  id              String   @id @default(cuid())
-  findingId       String   @unique @map("finding_id")
-  finding         Finding  @relation(fields: [findingId], references: [id])
-  screenshotPath  String?  @map("screenshot_path")
-  title           String?
-  metaDescription String?  @map("meta_description")
-  extractedText   String?  @map("extracted_text")
-  hasLoginForm    Boolean  @default(false) @map("has_login_form")
-  hasPaymentForm  Boolean  @default(false) @map("has_payment_form")
-  looksParked     Boolean  @default(false) @map("looks_parked")
+  id                    String   @id @default(cuid())
+  findingId             String   @unique @map("finding_id")
+  finding               Finding  @relation(fields: [findingId], references: [id])
+  screenshotPath        String?  @map("screenshot_path")
+  title                 String?
+  metaDescription       String?  @map("meta_description")
+  extractedText         String?  @map("extracted_text")
+  hasLoginForm          Boolean  @default(false) @map("has_login_form")
+  hasPaymentForm        Boolean  @default(false) @map("has_payment_form")
+  looksParked           Boolean  @default(false) @map("looks_parked")
   // HTTP status of the final document. 404/410/451 count as "site down" for the
   // post-takedown watch, not as live content.
-  httpStatus      Int?     @map("http_status")
-  faviconHash     String?  @map("favicon_hash")
-  redirectChain   String[] @map("redirect_chain")
-  scannedAt       DateTime @default(now()) @map("scanned_at")
+  httpStatus            Int?     @map("http_status")
+  faviconHash           String?  @map("favicon_hash")
+  redirectChain         String[] @map("redirect_chain")
+  scannedAt             DateTime @default(now()) @map("scanned_at")
   // Regional average-hashes (lib/visualSimilarity.ts) of this scan's screenshot,
   // "|"-joined -- a different length/meaning than faviconHash, so it's its own column
   // rather than repurposing that one. Null until a brand reference screenshot exists to
   // compare against (see BrandAsset type:"screenshot") -- see visualSimilarityMatch for
   // whether this scan matched it.
-  screenshotHash       String?  @map("screenshot_hash")
-  visualSimilarityMatch Boolean @default(false) @map("visual_similarity_match")
+  screenshotHash        String?  @map("screenshot_hash")
+  visualSimilarityMatch Boolean  @default(false) @map("visual_similarity_match")
 
   @@map("website_intel")
 }
@@ -528,15 +534,15 @@ model AlertRule {
 // deleted (a future lifecycle/cleanup action) while its delivery audit trail should
 // still explain what was sent and why, same reasoning as an audit_log never cascading.
 model AlertDelivery {
-  id          String   @id @default(cuid())
-  alertRuleId String   @map("alert_rule_id")
+  id          String    @id @default(cuid())
+  alertRuleId String    @map("alert_rule_id")
   alertRule   AlertRule @relation(fields: [alertRuleId], references: [id])
-  findingId   String   @map("finding_id")
-  scanId      String   @map("scan_id")
+  findingId   String    @map("finding_id")
+  scanId      String    @map("scan_id")
   channel     String // email | in_app | webhook
   status      String // pending | sent | failed
   error       String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   @@unique([alertRuleId, findingId, scanId, channel])
   @@map("alert_deliveries")
@@ -646,4 +652,104 @@ model BrandUsage {
 
   @@id([brandId, period, provider])
   @@map("brand_usage")
+}
+
+// Automatic takedown reporting (TAKEDOWN_AUTOMATION_PLAN.md), per organization. Websites only.
+// Every table is RLS-scoped on organization_id. Actors are stored as user id + email text, no FK,
+// so the record outlives a deleted user.
+
+// The org's own switches. enabledAt: the owner turned it on. stoppedAt: anyone from analyst up hit
+// "Stop all sending"; only an owner clears it.
+model TakedownAutomation {
+  organizationId String    @id @map("organization_id")
+  enabledAt      DateTime? @map("enabled_at")
+  enabledBy      String?   @map("enabled_by")
+  stoppedAt      DateTime? @map("stopped_at")
+  stoppedBy      String?   @map("stopped_by")
+  stopReason     String?   @map("stop_reason")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("takedown_automation")
+}
+
+// The mailbox reports are sent from (lib/orgMailer.ts): the org's own Microsoft 365 (Graph),
+// Google Workspace (Gmail API) or SMTP server. config = credentials, encrypted (auth/secretBox.ts);
+// publicConfig = the non-secret parts, for display. Any change clears the test result: a sender
+// counts as working only after a successful test send of its current settings.
+model TakedownSender {
+  organizationId String    @id @map("organization_id")
+  provider       String // graph | gmail | smtp
+  fromAddress    String    @map("from_address")
+  fromName       String?   @map("from_name")
+  replyTo        String?   @map("reply_to")
+  bccArchive     String?   @map("bcc_archive")
+  signature      String?
+  config         String
+  publicConfig   Json      @map("public_config")
+  lastTestAt     DateTime? @map("last_test_at")
+  lastTestOk     Boolean?  @map("last_test_ok")
+  lastTestError  String?   @map("last_test_error")
+  lastTestTo     String?   @map("last_test_to")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  updatedBy      String?   @map("updated_by")
+
+  @@map("takedown_senders")
+}
+
+// Who authorizes reports in the org's name. Never edited: revoke and add a new one, so what was
+// in force when a report went out stays on record. brandId null = every brand.
+model TakedownAuthorization {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  brandId        String?            @map("brand_id")
+  signatoryName  String             @map("signatory_name")
+  signatoryTitle String             @map("signatory_title")
+  signatoryEmail String             @map("signatory_email")
+  signatoryPhone String?            @map("signatory_phone")
+  scope          String?
+  validFrom      DateTime           @map("valid_from")
+  expiresAt      DateTime?          @map("expires_at")
+  revokedAt      DateTime?          @map("revoked_at")
+  revokedBy      String?            @map("revoked_by")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  createdBy      String             @map("created_by")
+  documents      TakedownDocument[]
+
+  @@index([organizationId])
+  @@map("takedown_authorizations")
+}
+
+// Signed letter of authorization, trademark certificates. Kept in the database (small files,
+// max 5 MB): they are evidence and go wherever the database backups go.
+model TakedownDocument {
+  id              String                @id @default(cuid())
+  organizationId  String                @map("organization_id")
+  authorizationId String                @map("authorization_id")
+  authorization   TakedownAuthorization @relation(fields: [authorizationId], references: [id])
+  kind            String // loa | trademark | other
+  filename        String
+  contentType     String                @map("content_type")
+  sizeBytes       Int                   @map("size_bytes")
+  sha256          String
+  data            Bytes
+  uploadedBy      String                @map("uploaded_by")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  @@index([authorizationId])
+  @@map("takedown_documents")
+}
+
+// The org's history of every automation setting change and test send (platform-admin
+// allow/disallow included, so the org can see it).
+model TakedownAutomationEvent {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  actorUserId    String?  @map("actor_user_id")
+  actorEmail     String?  @map("actor_email")
+  action         String
+  details        Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@map("takedown_automation_events")
 }

@@ -106,7 +106,7 @@ Nothing to configure outside this repo except these API env vars:
 - `WEB_APP_URL=https://brand-monitor.gabrielochieng.com` (CORS, the Origin check, email links)
 - `COOKIE_DOMAIN=.gabrielochieng.com` (so the web app's middleware sees the session cookie)
 - `AUTH_ENCRYPTION_KEY`: 32 random bytes, base64 (`node -e "console.log(crypto.randomBytes(32).toString('base64'))"`).
-  Encrypts 2FA secrets. Keep a copy somewhere safe (password manager): if it's lost or changed, every
+  Encrypts 2FA secrets and takedown sender credentials. Keep a copy somewhere safe (password manager): if it's lost or changed, every
   user with 2FA on is locked out until reset with `npm run auth:disable-2fa -- --email <email>`.
 - SMTP (already set for alerts): invites and reset links are emailed. If SMTP breaks, invites fail
   with an error in the UI and "forgot password" silently sends nothing.
@@ -127,6 +127,15 @@ doesn't appear (the $0 rule). Not verified with a real Google client yet; tested
 **Platform admin.** Turn on two-factor sign-in for the account first (the panel refuses admins
 without it), then in the API container (`cd /app/apps/api`): `npm run auth:make-admin -- --email
 <email>`. `--revoke` removes it. The panel is at `/admin` ("Admin panel" in the avatar menu).
+
+**Automatic takedown reporting** (README §6; setup only so far, nothing is sent automatically).
+Leave `AUTO_TAKEDOWN_ENABLED` unset (global off) until the sending step ships and an org has run shadow
+mode. To let an org set it up: its owner connects a sender mailbox, passes a test send and records
+an authorization (Settings → Automatic reporting); you read the authorization and its documents on
+its `/admin` org page and press **Allow** (audit-logged; refused without an authorization in force).
+Sender credentials are encrypted with `AUTH_ENCRYPTION_KEY`: changing the key means every org must
+re-enter them. Never set `TAKEDOWN_SMTP_ALLOW_PRIVATE` here: it would let an org point its SMTP sender
+at internal hosts on the VPS (e.g. `postgres-shared`).
 
 Lost authenticator *and* recovery codes: `npm run auth:disable-2fa -- --email <email>` (confirm it's
 really them first, out of band). It also signs them out everywhere.

@@ -15,7 +15,9 @@ export type AdminAction =
   | "user.reset_2fa"
   | "user.send_password_link"
   | "user.remove_from_org"
-  | "user.delete";
+  | "user.delete"
+  | "org.auto_takedown_allow"
+  | "org.auto_takedown_disallow";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

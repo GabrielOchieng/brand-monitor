@@ -1,0 +1,56 @@
+// Shared by the settings panel and the admin panel: what each automation blocker means.
+// Keys match AutomationBlocker in apps/api/src/lib/takedownAutomation.ts.
+export const BLOCKER_LABELS: Record<string, string> = {
+  platform_disabled: "Automatic reporting is switched off on this server (AUTO_TAKEDOWN_ENABLED).",
+  not_allowed: "A platform admin hasn't allowed it for this organization yet (they check the authorization first).",
+  no_sender: "No sender mailbox is connected.",
+  sender_untested: "The sender mailbox hasn't passed a test send with its current settings.",
+  no_authorization: "No authorization is in force (none recorded, or it's revoked, expired or not started yet).",
+  not_enabled: "An owner hasn't turned it on.",
+  stopped: "Stop all sending is on.",
+  monitoring_paused: "Monitoring is paused by the platform admin.",
+  brand_off: "Turned off for this brand.",
+};
+
+export const PROVIDER_LABELS: Record<string, string> = {
+  graph: "Microsoft 365",
+  gmail: "Google Workspace",
+  smtp: "SMTP server",
+};
+
+export const EVENT_LABELS: Record<string, string> = {
+  "sender.save": "Saved the sender mailbox",
+  "sender.delete": "Removed the sender mailbox",
+  "sender.test": "Sent a test email",
+  "authorization.create": "Recorded an authorization",
+  "authorization.revoke": "Revoked an authorization",
+  "document.upload": "Uploaded a document",
+  "document.delete": "Deleted a document",
+  enable: "Turned automatic reporting on",
+  disable: "Turned automatic reporting off",
+  stop: "Stopped all sending",
+  resume: "Resumed sending",
+  "brand.on": "Turned it on for a brand",
+  "brand.off": "Turned it off for a brand",
+  "platform.allow": "Allowed it for this organization",
+  "platform.disallow": "Withdrew the allowance",
+};
+
+export const DOCUMENT_KIND_LABELS: Record<string, string> = {
+  loa: "Letter of authorization",
+  trademark: "Trademark registration",
+  other: "Other",
+};
+
+export function authorizationStatus(a: { validFrom: string; expiresAt: string | null; revokedAt: string | null }, now = new Date()): "in_force" | "revoked" | "expired" | "not_started" {
+  if (a.revokedAt) return "revoked";
+  if (new Date(a.validFrom) > now) return "not_started";
+  if (a.expiresAt && new Date(a.expiresAt) <= now) return "expired";
+  return "in_force";
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}

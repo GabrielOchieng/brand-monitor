@@ -310,6 +310,23 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   or the host's abuse email), Google Safe Browsing, Safaricom 333 SMS for Kenyan numbers,
   WhatsApp in-app report per number, KE-CIRT/CC, and the platform's impersonation form for
   social findings. **Nothing is sent automatically**; the analyst sends each one.
+- **Automatic reporting, setup only** (Settings → Takedowns → Automatic reporting;
+  `routes/takedownAutomation.ts`, step 1 of `TAKEDOWN_AUTOMATION_PLAN.md`). Websites only, never
+  social. Nothing is sent automatically yet: this step stores what the sending step will need.
+  - *Sender mailbox*: the org's own Microsoft 365 (Graph, app-only, scoped to one mailbox with RBAC
+    for Applications), Google Workspace (Gmail API, service account with domain-wide delegation) or
+    SMTP server (public address, TLS required), with From name, Reply-To, an archive BCC and a
+    signature (`lib/orgMailer.ts`). Credentials are encrypted with `AUTH_ENCRYPTION_KEY` and never
+    shown back. A sender counts as working only after a test send of its current settings
+    (owner/admin, 20 a day). SPF/DMARC check of the sender domain.
+  - *Authorization*: signatory, title, contact, brands covered, validity dates, plus uploaded
+    letters of authorization / trademark certificates (PDF/PNG/JPEG, 5 MB, stored in the database
+    with a SHA-256). Records are never edited, only revoked and replaced.
+  - *Switches*, all needed (`lib/takedownAutomation.ts` lists what's missing): `AUTO_TAKEDOWN_ENABLED=1`
+    on the server, a platform admin's allowance (`/admin` org page, refused without an authorization
+    in force), a tested sender, an authorization in force, the owner's switch, no "Stop all sending"
+    (analyst and up can stop, only an owner resumes), monitoring not paused, the brand switch on.
+  - Every change and test send is in the org's history (`takedown_automation_events`).
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is
@@ -500,7 +517,7 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `DISABLE_SCHEDULERS` | `1` = no queue workers or cron dispatchers (local UI work) |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Sign in with Google (optional; both empty = no Google button) |
 | `API_PUBLIC_URL` | The API's public origin, for Google's redirect URI (`<this>/auth/google/callback`) |
-| `AUTH_ENCRYPTION_KEY` | 32 random bytes, base64; encrypts 2FA secrets. Empty = 2FA can't be turned on. Never change it once set |
+| `AUTH_ENCRYPTION_KEY` | 32 random bytes, base64; encrypts 2FA secrets and takedown sender credentials. Empty = 2FA can't be turned on. Never change it once set |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Email alerts, invites and password resets |
 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_EXPLANATION_DAILY_LIMIT` | AI explanations and mention labelling |
 | `TAVILY_API_KEY`, `TAVILY_MONTHLY_CAP` | Social and web search |
@@ -508,6 +525,8 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `CT_LOG_OPERATORS` | CT log operators to read, comma-separated as in Google's log list (default `Let's Encrypt`; `all` = every names-tile log) |
 | `TURNSTILE_SECRET_KEY` | Spam protection on the public report form |
 | `RECHECK_CONCURRENCY` | Parallel rechecks (default 3) |
+| `AUTO_TAKEDOWN_ENABLED` | `1` = automatic takedown reporting may run for orgs that have it fully set up; anything else = global off |
+| `TAKEDOWN_SMTP_ALLOW_PRIVATE` | Local testing only: lets an org's SMTP sender point at a private address (e.g. Mailpit). Never in production |
 
 Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL` and optionally
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.

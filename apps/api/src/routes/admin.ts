@@ -12,6 +12,7 @@ import { deleteOrganization } from "../admin/deleteOrg";
 import { startAdminView } from "../auth/adminView";
 import { recordAdminAction } from "../auth/audit";
 import { tavilyPeriod } from "../lib/tavily";
+import { automationBlockers, loadAutomationState, recordAutomationEvent } from "../lib/takedownAutomation";
 
 // The platform admin panel. Everything here reads across organizations through adminPrisma
 // (see adminDb.ts), behind requirePlatformAdmin (platform role + 2FA). Every change is
@@ -238,6 +239,76 @@ export async function adminRoutes(app: FastifyInstance) {
     await startAdminView(request.user!.sessionId, await adminOf(request), { id: org.id, name: org.name });
     return reply.status(204).send();
   });
+
+  // ---- Automatic takedown reporting (lib/takedownAutomation.ts). Allowing it says the admin has
+  // checked the org's authorization record; it can't be allowed without one in force. Both the
+  // admin audit log and the org's own automation history get a row.
+
+  app.get("/api/admin/orgs/:id/auto-takedown", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const org = await adminPrisma.organization.findUnique({ where: { id }, select: { autoTakedownAllowedAt: true, autoTakedownAllowedBy: true } });
+    if (!org) return reply.status(404).send({ error: "not_found" });
+    const [state, sender, automation, authorizations, brands] = await Promise.all([
+      loadAutomationState(adminPrisma, id),
+      adminPrisma.takedownSender.findUnique({
+        where: { organizationId: id },
+        select: { provider: true, fromAddress: true, fromName: true, lastTestAt: true, lastTestOk: true, lastTestError: true, updatedAt: true },
+      }),
+      adminPrisma.takedownAutomation.findUnique({ where: { organizationId: id } }),
+      adminPrisma.takedownAuthorization.findMany({
+        where: { organizationId: id },
+        orderBy: { createdAt: "desc" },
+        include: { documents: { select: { id: true, kind: true, filename: true, sizeBytes: true, sha256: true, uploadedBy: true, createdAt: true } } },
+      }),
+      adminPrisma.brand.findMany({ where: { organizationId: id }, select: { id: true, name: true } }),
+    ]);
+    return {
+      platformEnabled: env.autoTakedownEnabled,
+      allowedAt: org.autoTakedownAllowedAt,
+      allowedBy: org.autoTakedownAllowedBy,
+      blockers: automationBlockers(state),
+      sender,
+      automation,
+      authorizations: authorizations.map((a) => ({ ...a, brandName: a.brandId ? (brands.find((b) => b.id === a.brandId)?.name ?? null) : null })),
+    };
+  });
+
+  app.get("/api/admin/orgs/:id/takedown-documents/:docId", async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string };
+    const doc = await adminPrisma.takedownDocument.findFirst({ where: { id: docId, organizationId: id } });
+    if (!doc) return reply.status(404).send({ error: "not_found" });
+    return reply
+      .header("Content-Type", doc.contentType)
+      .header("Content-Disposition", `attachment; filename="${doc.filename.replace(/[^A-Za-z0-9._ -]/g, "_")}"`)
+      .header("X-Content-Type-Options", "nosniff")
+      .header("Cache-Control", "private, no-store")
+      .send(Buffer.from(doc.data));
+  });
+
+  for (const action of ["allow", "disallow"] as const) {
+    app.post(`/api/admin/orgs/:id/auto-takedown/${action}`, async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const admin = await adminOf(request);
+      const result = await adminPrisma.$transaction(async (tx) => {
+        const org = await tx.organization.findUnique({ where: { id } });
+        if (!org) return "not_found" as const;
+        if (action === "allow") {
+          const state = await loadAutomationState(tx, id);
+          if (automationBlockers(state).includes("no_authorization")) return "no_authorization" as const;
+        }
+        await tx.organization.update({
+          where: { id },
+          data: action === "allow" ? { autoTakedownAllowedAt: new Date(), autoTakedownAllowedBy: admin.email } : { autoTakedownAllowedAt: null, autoTakedownAllowedBy: null },
+        });
+        await recordAdminAction(admin, action === "allow" ? "org.auto_takedown_allow" : "org.auto_takedown_disallow", { type: "org", id }, { name: org.name }, tx);
+        await recordAutomationEvent(tx, id, { userId: null, email: `platform admin (${admin.email})` }, action === "allow" ? "platform.allow" : "platform.disallow");
+        return "ok" as const;
+      });
+      if (result === "not_found") return reply.status(404).send({ error: "not_found" });
+      if (result === "no_authorization") return reply.status(409).send({ error: "no_authorization" });
+      return reply.status(204).send();
+    });
+  }
 
   // ---- User actions. None of them can target the admin's own account (use the account page).
 

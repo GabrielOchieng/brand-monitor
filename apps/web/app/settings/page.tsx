@@ -17,6 +17,7 @@ import {
 } from "../../components/settings/BrandSettings";
 import { AlertSettings } from "../../components/settings/AlertSettings";
 import { IntegrationSettings } from "../../components/settings/IntegrationSettings";
+import { AutoTakedownSettings } from "../../components/settings/AutoTakedownSettings";
 import { ReadOnlyNote, Section } from "../../components/settings/Section";
 import { TeamMembers } from "../../components/TeamMembers";
 import { SettingsSkeleton } from "../../components/PageSkeletons";
@@ -24,7 +25,7 @@ import { ChevronDownIcon, PlusIcon } from "../../components/icons";
 import { canManage, useMyRole } from "../../lib/useMyRole";
 import { pickBrand, writeSelectedBrand } from "../../lib/selectedBrand";
 
-type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "team" | "add-brand";
+type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "team" | "add-brand";
 
 interface NavItem {
   id: SectionId;
@@ -53,6 +54,11 @@ const GROUPS: Array<{ label: string; brandScoped: boolean; items: NavItem[] }> =
       { id: "alerts", label: "Alert rules" },
       { id: "webhook", label: "Webhook" },
     ],
+  },
+  {
+    label: "Takedowns",
+    brandScoped: false,
+    items: [{ id: "auto-takedown", label: "Automatic reporting" }],
   },
   {
     label: "Organization",
@@ -262,6 +268,7 @@ function Settings() {
               )}
               {section === "alerts" && <AlertSettings editable={editable} />}
               {section === "webhook" && <IntegrationSettings editable={editable} />}
+              {section === "auto-takedown" && <AutoTakedownSettings role={role} />}
               {section === "team" && (
                 <Section
                   title="Team"

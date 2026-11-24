@@ -6,6 +6,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { AdminShell, AdminTable, MonitoringStatus, ago, day, td, useAdminData } from "../../../../components/admin/AdminShell";
+import { AutoTakedownAdmin } from "../../../../components/admin/AutoTakedownAdmin";
 
 const ROLES = ["owner", "admin", "analyst", "viewer"] as const;
 
@@ -312,6 +313,7 @@ function OrgPage() {
               </AdminTable>
             )}
           </section>
+          <AutoTakedownAdmin orgId={data.org.id} orgName={data.org.name} />
           <p className="text-xs text-ink-subtle">Created {day(data.org.createdAt)} · {data.org.id}</p>
           <DeleteOrg org={data.org} brands={data.brands.length} findings={data.brands.reduce((a, b) => a + b.findings, 0)} />
         </>
