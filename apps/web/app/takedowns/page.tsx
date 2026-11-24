@@ -8,6 +8,7 @@ import { useMyRole } from "../../lib/useMyRole";
 import { ACTION_STATUS_LABELS, ACTION_STATUS_TONE, CHANNEL_LABELS, KIND_LABELS } from "../../lib/autoTakedown";
 import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { SeverityBadge } from "../../components/SeverityBadge";
+import { TakedownResults } from "../../components/TakedownResults";
 
 interface QueueAction {
   id: string;
@@ -48,6 +49,7 @@ const TABS: Array<{ key: string; label: string; statuses: string[] }> = [
   { key: "shadow", label: "Shadow review", statuses: ["shadow"] },
   { key: "sent", label: "Sent", statuses: ["sent"] },
   { key: "closed", label: "Cancelled / skipped", statuses: ["cancelled", "skipped"] },
+  { key: "results", label: "Results", statuses: [] },
 ];
 
 // The takedown queue: every report the organization has, across findings (TAKEDOWN_AUTOMATION_PLAN.md §9).
@@ -63,6 +65,7 @@ export default function TakedownQueuePage() {
   const current = TABS.find((t) => t.key === tab)!;
 
   const load = useCallback(async () => {
+    if (current.statuses.length === 0) return;
     try {
       const lists = await Promise.all(current.statuses.map((s) => apiFetch<Queue>(`/api/takedown-queue?status=${s}`)));
       setData({ counts: lists[0].counts, actions: lists.flatMap((l) => l.actions).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) });
@@ -127,7 +130,9 @@ export default function TakedownQueuePage() {
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       {notice && <p className="mt-3 text-sm text-ink-muted">{notice}</p>}
 
-      {!data ? (
+      {tab === "results" ? (
+        <TakedownResults />
+      ) : !data ? (
         <LoadingRegion label="Loading the takedown queue" className="mt-4">
           <SkeletonList rows={5} />
         </LoadingRegion>

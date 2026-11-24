@@ -6,6 +6,7 @@ import { withTenant } from "../lib/tenant";
 import { automationBlockers, loadAutomationState, recordAutomationEvent } from "../lib/takedownAutomation";
 import { ACTION_STATUSES } from "../lib/takedownPolicy";
 import { sendAction } from "../lib/takedownSend";
+import { computeMetrics } from "../lib/takedownMetrics";
 
 // The takedown queue (TAKEDOWN_AUTOMATION_PLAN.md §9-§10): every report the org has, across
 // findings, and what analysts do with them -- approve and send, cancel during the veto window,
@@ -157,6 +158,44 @@ export async function takedownQueueRoutes(app: FastifyInstance) {
       await tx.takedownAction.update({ where: { id }, data: { status: "sent", sentAt: new Date(), approvedBy: email, takedownId: takedown.id, deliveredTo: [], holdReason: null } });
       await recordAutomationEvent(tx, orgId, { userId: request.auth!.userId, email }, "report.manual_done", { actionId: id, provider: parsed.data.provider });
       return reply.send({ ok: true });
+    });
+  });
+
+  // Results: how sent reports fared (lib/takedownMetrics.ts). Real recipients only, no test deliveries.
+  app.get("/api/takedown-metrics", { preHandler: authenticate }, async (request, reply) => {
+    const q = z.object({ days: z.coerce.number().int().min(7).max(730).default(90) }).safeParse(request.query);
+    if (!q.success) return reply.status(400).send({ error: "invalid_request" });
+    const orgId = request.auth!.orgId;
+    const since = new Date(Date.now() - q.data.days * 86400_000);
+    return withTenant(orgId, async (tx) => {
+      const actions = await tx.takedownAction.findMany({
+        where: { organizationId: orgId, status: "sent", redirected: false, sentAt: { gte: since } },
+        select: { id: true, findingId: true, channel: true, to: true, sentAt: true, takedownId: true, replyCount: true },
+      });
+      const [takedowns, replies, intel] = await Promise.all([
+        tx.takedown.findMany({ where: { id: { in: actions.map((a) => a.takedownId).filter((x): x is string => !!x) } }, select: { id: true, status: true, resolvedAt: true } }),
+        tx.takedownReply.findMany({ where: { organizationId: orgId, kind: "reply", actionId: { in: actions.map((a) => a.id) } }, select: { actionId: true, receivedAt: true } }),
+        tx.domainIntel.findMany({ where: { findingId: { in: [...new Set(actions.map((a) => a.findingId))] } }, select: { findingId: true, registrar: true, hostingOrg: true } }),
+      ]);
+      const td = new Map(takedowns.map((t) => [t.id, t]));
+      const di = new Map(intel.map((i) => [i.findingId, i]));
+      const firstReply = new Map<string, Date>();
+      for (const r of replies) if (!firstReply.has(r.actionId) || r.receivedAt < firstReply.get(r.actionId)!) firstReply.set(r.actionId, r.receivedAt);
+      const rows = actions.map((a) => {
+        const t = a.takedownId ? td.get(a.takedownId) : undefined;
+        const i = di.get(a.findingId);
+        const provider = a.channel === "registrar" ? (i?.registrar ?? "Unknown registrar") : a.channel === "host" ? (i?.hostingOrg ?? a.to[0] ?? "Unknown host") : (a.to[0] ?? "Web form");
+        return {
+          channel: a.channel,
+          provider,
+          sentAt: a.sentAt!,
+          firstReplyAt: firstReply.get(a.id) ?? null,
+          acknowledged: a.replyCount > 0 || t?.status === "acknowledged" || t?.status === "completed",
+          completedAt: t?.status === "completed" ? (t.resolvedAt ?? null) : null,
+          rejected: t?.status === "rejected",
+        };
+      });
+      return { days: q.data.days, ...computeMetrics(rows) };
     });
   });
 }

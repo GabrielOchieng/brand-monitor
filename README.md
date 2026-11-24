@@ -402,6 +402,11 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   justification) instead of being a web-form task; Cloudflare's reference becomes the tracker reference.
   In redirect mode the text is emailed to the redirect address instead. NetBeacon and Netcraft are not
   integrated (their terms for a multi-org service aren't confirmed): they stay web forms in the contact book.
+- **Results** (step 7; Takedowns → Results, `GET /api/takedown-metrics`, `lib/takedownMetrics.ts`): for the
+  last 30/90/365 days, reports sent to real recipients (redirect-mode tests excluded) with how many were
+  answered, taken down (tracker completed) or rejected, and the median time to first reply and to
+  takedown, in total and per channel, registrar and hosting provider. Computed from the org's own
+  reports, replies and tracker rows only.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is
@@ -431,7 +436,7 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
 | **Overview** (`/dashboard`) | Open threats by severity, new this week, a **Needs attention** list (open high/critical, untriaged first), takedowns in progress, source health, recent activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
 | **Threats** (`/threats`) | The threat feed. Open findings by default ("All" shows everything), filters, sorting, paging, bulk actions, CSV export. Targets shown by name (`@handle` + platform, app id, host + path). |
 | **Finding page** (`/threats/[id]`) | Left: evidence (screenshot or social post, score breakdown, AI explanation, contacts, reports, related findings). Right: triage, takedown kit and tracker, takedown reports (drafts and sent), domain details and history. |
-| **Takedowns** (`/takedowns`) | The org's takedown report queue: needs approval, veto window, manual tasks, failed, shadow review, sent, closed. |
+| **Takedowns** (`/takedowns`) | The org's takedown report queue: needs approval, veto window, manual tasks, failed, shadow review, sent, closed; and Results (who answers and how fast). |
 | **Mentions** (`/mentions`) | Non-threat brand mentions with 7-day counts and filters. |
 | **Reports** (`/reports`) | Public scam reports and the per-brand report link. |
 | **Notifications** (`/notifications`) | In-app alerts. |

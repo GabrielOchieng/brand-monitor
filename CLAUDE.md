@@ -26,9 +26,9 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   `listMonitoredBrands()` / `MONITORED_BRAND` (`lib/monitoredBrands.ts`)**, never `brand.findMany` directly.
 - Admins can view any org read-only (session `admin_view_org_id`): `authenticate()` refuses all non-GET
   requests then. **So a GET route must never write** (it would let a read-only view change data).
-- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; steps 1-6 shipped 2026-11-25..30 = setup,
+- Automatic takedown reporting (`TAKEDOWN_AUTOMATION_PLAN.md`; all 7 steps shipped 2026-11-25..30 = setup,
   templates, drafts, recipients (`lib/recipients.ts`) sending (`pipeline/takedownDispatch.ts`, `lib/takedownSend.ts`) and
-  replies/follow-ups (`pipeline/takedownReplies.ts`), Cloudflare's report API (`lib/cloudflareAbuse.ts`).
+  replies/follow-ups (`pipeline/takedownReplies.ts`), Cloudflare's report API (`lib/cloudflareAbuse.ts`), results (`lib/takedownMetrics.ts`).
   **`AUTO_TAKEDOWN_ENABLED` is unset in production: setting it lets the dispatcher email real registrars** for orgs that are fully set up and live). **Websites only, never social.** Each org sends from its OWN mailbox
   (`lib/orgMailer.ts`: Graph / Gmail API / SMTP, never our SMTP). Anything that sends must first check
   `automationBlockers()` (`lib/takedownAutomation.ts`) is empty for the brand: global `AUTO_TAKEDOWN_ENABLED`,

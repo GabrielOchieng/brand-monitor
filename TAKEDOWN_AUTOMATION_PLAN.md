@@ -270,6 +270,10 @@ until their terms for a multi-org service are confirmed). The report-type path s
 is inferred (the docs show a placeholder); a rejection shows as a failed report. Not tested against an
 entitled account (none available); the connection check was run against the real API (401 for a dummy token).
 
+Step 7 shipped 2026-11-30: results (Takedowns → Results). All seven steps are done. Not built from §10
+("later"): editable per-registrar learned routing, two-person approval, outbound webhook events, the
+per-registrar daily digest.
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety
