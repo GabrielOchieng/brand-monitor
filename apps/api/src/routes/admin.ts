@@ -13,6 +13,7 @@ import { startAdminView } from "../auth/adminView";
 import { recordAdminAction } from "../auth/audit";
 import { tavilyPeriod } from "../lib/tavily";
 import { automationBlockers, loadAutomationState, recordAutomationEvent } from "../lib/takedownAutomation";
+import { ContactSchema } from "./reportRecipients";
 
 // The platform admin panel. Everything here reads across organizations through adminPrisma
 // (see adminDb.ts), behind requirePlatformAdmin (platform role + 2FA). Every change is
@@ -309,6 +310,52 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     });
   }
+
+  // ---- Platform contact book (lib/recipients.ts): shared by every org, overridden by an org's own
+  // entry of the same or higher specificity. Audit-logged.
+
+  app.get("/api/admin/contacts", async () => adminPrisma.takedownPlatformContact.findMany({ orderBy: [{ channel: "asc" }, { createdAt: "asc" }] }));
+
+  app.post("/api/admin/contacts", async (request, reply) => {
+    const parsed = ContactSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_contact", details: parsed.error.flatten() });
+    const admin = await adminOf(request);
+    const created = await adminPrisma.$transaction(async (tx) => {
+      const row = await tx.takedownPlatformContact.create({ data: { ...parsed.data, updatedBy: admin.email } });
+      await recordAdminAction(admin, "platform_contact.create", { type: "contact", id: row.id }, { channel: row.channel, matchType: row.matchType, matchValue: row.matchValue, method: row.method }, tx);
+      return row;
+    });
+    return reply.status(201).send(created);
+  });
+
+  app.put("/api/admin/contacts/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = ContactSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_contact", details: parsed.error.flatten() });
+    const admin = await adminOf(request);
+    const updated = await adminPrisma.$transaction(async (tx) => {
+      const { count } = await tx.takedownPlatformContact.updateMany({ where: { id }, data: { ...parsed.data, updatedBy: admin.email } });
+      if (count === 0) return null;
+      await recordAdminAction(admin, "platform_contact.update", { type: "contact", id }, { channel: parsed.data.channel, matchValue: parsed.data.matchValue, method: parsed.data.method }, tx);
+      return tx.takedownPlatformContact.findUnique({ where: { id } });
+    });
+    if (!updated) return reply.status(404).send({ error: "not_found" });
+    return reply.send(updated);
+  });
+
+  app.delete("/api/admin/contacts/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const admin = await adminOf(request);
+    const done = await adminPrisma.$transaction(async (tx) => {
+      const row = await tx.takedownPlatformContact.findUnique({ where: { id } });
+      if (!row) return false;
+      await tx.takedownPlatformContact.delete({ where: { id } });
+      await recordAdminAction(admin, "platform_contact.delete", { type: "contact", id }, { channel: row.channel, matchValue: row.matchValue }, tx);
+      return true;
+    });
+    if (!done) return reply.status(404).send({ error: "not_found" });
+    return reply.status(204).send();
+  });
 
   // ---- User actions. None of them can target the admin's own account (use the account page).
 

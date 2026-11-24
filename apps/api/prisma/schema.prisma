@@ -671,6 +671,9 @@ model TakedownAutomation {
   // Fixed text every report can use (templates: {{org.details}}, {{disclaimer}}).
   companyDetails String?   @map("company_details")
   disclaimer     String?
+  // Redirect (test) mode: when set, every report is delivered to this address instead of its real
+  // recipients (lib/recipients.ts deliveryRecipients). Owner only.
+  redirectTo     String?   @map("redirect_to")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("takedown_automation")
@@ -828,8 +831,88 @@ model TakedownAction {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
   lastTestAt        DateTime? @map("last_test_at")
+  // How the recipients were chosen (lib/recipients.ts Routing): which contact-book rule or registry
+  // record, the method (email / web form / none) and why. Shown on the finding page.
+  routing           Json?
 
   @@index([findingId])
   @@index([organizationId, status])
   @@map("takedown_actions")
+}
+
+// Contact book (lib/recipients.ts, TAKEDOWN_AUTOMATION_PLAN.md §3.2): where reports to a given
+// registrar / host / TLD go, overriding the abuse contact in the registry record. Two layers with
+// the same shape: the platform's (curated by platform admins, shared by every org; no RLS, the app
+// role may only read it) and each org's own. The most specific match wins; on a tie, the org's.
+// matchType: iana_id (registrar channel) > name (registrar or host name contains matchValue) > tld
+// (the reported domain ends in it) > any. method: email (to emails), form (a web form, so a manual
+// task), skip (never report through this channel for this match).
+model TakedownContact {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  channel        String
+  matchType      String   @map("match_type")
+  matchValue     String   @map("match_value")
+  method         String
+  emails         String[] @default([])
+  formUrl        String?  @map("form_url")
+  instructions   String?
+  language       String?
+  note           String?
+  enabled        Boolean  @default(true)
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, channel])
+  @@map("takedown_contacts")
+}
+
+model TakedownPlatformContact {
+  id           String   @id @default(cuid())
+  channel      String
+  matchType    String   @map("match_type")
+  matchValue   String   @map("match_value")
+  method       String
+  emails       String[] @default([])
+  formUrl      String?  @map("form_url")
+  instructions String?
+  language     String?
+  note         String?
+  enabled      Boolean  @default(true)
+  updatedBy    String   @map("updated_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([channel])
+  @@map("takedown_platform_contacts")
+}
+
+// Addresses every report on a channel also goes to (e.g. CC legal on registrar reports).
+model TakedownChannelSetting {
+  organizationId String   @map("organization_id")
+  channel        String
+  to             String[] @default([])
+  cc             String[] @default([])
+  bcc            String[] @default([])
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@id([organizationId, channel])
+  @@map("takedown_channel_settings")
+}
+
+// Never send a report to these: an exact address, or "@domain" for a whole domain. reason manual
+// (an owner/admin added it) or bounce (added automatically when replies are read, with expiresAt).
+model TakedownBlockedRecipient {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  value          String
+  reason         String    @default("manual")
+  note           String?
+  expiresAt      DateTime? @map("expires_at")
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([organizationId, value])
+  @@map("takedown_blocked_recipients")
 }

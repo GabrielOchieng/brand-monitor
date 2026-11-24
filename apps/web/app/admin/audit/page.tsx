@@ -27,6 +27,11 @@ const ACTION_LABELS: Record<string, string> = {
   "user.send_password_link": "Sent set-password link",
   "user.remove_from_org": "Removed user from organization",
   "user.delete": "Deleted user",
+  "org.auto_takedown_allow": "Allowed automatic takedown reporting",
+  "org.auto_takedown_disallow": "Withdrew automatic takedown reporting",
+  "platform_contact.create": "Added a contact-book entry",
+  "platform_contact.update": "Changed a contact-book entry",
+  "platform_contact.delete": "Deleted a contact-book entry",
 };
 
 function describe(details: Record<string, unknown> | null): string {

@@ -247,6 +247,12 @@ and redirect mode); drafts and templates can only be tested on the member asking
 web-form text for Netcraft/NetBeacon/Safe Browsing). The registrar IANA ID wasn't stored anywhere;
 it now is (`domain_intel.registrar_iana_id`, filled on the next recheck of each finding).
 
+Step 3 shipped 2026-11-27: recipients. Differences: host rules match the hosting org's name (no ASN
+is stored); an entry can also say "don't report here"; blocklist entries list every matching web form;
+the national CERT is no longer built in (each org adds its own); the own-domain rule applies to To only,
+so Cc/Bcc to the org's own people (e.g. legal) is allowed; bounce entries arrive with step 5.
+Redirect mode is stored and shown; it takes effect when sending exists (step 4).
+
 1. Sender connections (Graph/Gmail/SMTP), test send, authorization + LOA, switches, stop-all (~2 days)
 2. Templates (placeholders, locked blocks, versions, preview) + per-finding drafts (~2 days)
 3. Recipients: resolution, platform + org contact book, fixed recipients, redirect mode, safety

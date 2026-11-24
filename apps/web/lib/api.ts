@@ -74,6 +74,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   too_many_drafts: "This finding has the maximum of 30 report drafts. Delete some first.",
   not_a_draft: "This report was already sent and can't be edited.",
   report_ref_removed: "Keep the [BM-…] reference tag in the subject: replies are matched by it.",
+  invalid_contact: "Check the entry: an email entry needs at least one address, a web form an https:// link, an IANA ID is a number and a name needs at least 3 letters.",
+  too_many_contacts: "Your contact book has the maximum of 200 entries.",
+  recipient_not_allowed: "One of the addresses can't get this report: it's on your never-send-to list, or it's your own domain in To (copies to your own people go in Cc).",
   webhook_https_only: "The webhook address must start with https://.",
   not_yet_scanned: "This finding hasn't been scanned yet. Its first scan normally runs within about 5 minutes; try again after that.",
 };

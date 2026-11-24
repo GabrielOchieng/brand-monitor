@@ -39,6 +39,14 @@ export const EVENT_LABELS: Record<string, string> = {
   "template.test": "Sent a template test",
   "draft.test": "Sent a report draft test",
   "profile.save": "Saved the fixed report text",
+  "contact.create": "Added a contact-book entry",
+  "contact.update": "Changed a contact-book entry",
+  "contact.delete": "Deleted a contact-book entry",
+  "fixed.save": "Changed the always-also-send-to addresses",
+  "blocked.add": "Added to never send to",
+  "blocked.remove": "Removed from never send to",
+  "redirect.on": "Turned redirect mode on",
+  "redirect.off": "Turned redirect mode off",
 };
 
 export const DOCUMENT_KIND_LABELS: Record<string, string> = {

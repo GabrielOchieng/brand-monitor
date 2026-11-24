@@ -1,10 +1,33 @@
 import type { Prisma } from "@prisma/client";
-import { KE_CIRT_EMAIL } from "./takedownKit";
 import { authorizationInForce } from "./takedownAutomation";
 import { defaultTemplate, type Channel, type Kind, type ReportContext, type TemplateText } from "./reportTemplates";
+import type { FindingFacts } from "./recipients";
 
-// Loads what a report about one finding says (lib/reportTemplates.ts renders it), which template
-// applies, and who it goes to by default. Runs inside withTenant.
+// Loads what a report about one finding says (lib/reportTemplates.ts renders it) and which
+// template applies. Who it goes to is lib/recipients.ts. Runs inside withTenant.
+
+export function hostnameOf(identifier: string): string {
+  const url = /^https?:\/\//i.test(identifier) ? identifier : `https://${identifier}`;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return identifier.toLowerCase();
+  }
+}
+
+export function factsOf(
+  domain: string,
+  di: { registrar: string | null; registrarIanaId: string | null; hostingOrg: string | null; registrarAbuseEmail: string | null; hostingAbuseEmail: string | null } | null
+): FindingFacts {
+  return {
+    domain,
+    registrarName: di?.registrar ?? null,
+    registrarIanaId: di?.registrarIanaId ?? null,
+    hostingOrg: di?.hostingOrg ?? null,
+    registrarAbuseEmail: di?.registrarAbuseEmail ?? null,
+    hostingAbuseEmail: di?.hostingAbuseEmail ?? null,
+  };
+}
 
 export function screenshotFileOf(screenshotPath: string | null | undefined): string | null {
   const m = screenshotPath?.match(/^\/screenshots\/([A-Za-z0-9_-]+\.png)$/);
@@ -17,7 +40,7 @@ export interface LoadedFinding {
   type: string;
   identifier: string;
   screenshotFile: string | null;
-  domainIntel: { registrarAbuseEmail: string | null; hostingAbuseEmail: string | null; hostingOrg: string | null } | null;
+  facts: FindingFacts;
 }
 
 export async function loadReportContext(
@@ -88,7 +111,7 @@ export async function loadReportContext(
       type: finding.type,
       identifier: finding.identifier,
       screenshotFile,
-      domainIntel: di ? { registrarAbuseEmail: di.registrarAbuseEmail, hostingAbuseEmail: di.hostingAbuseEmail, hostingOrg: di.hostingOrg } : null,
+      facts: factsOf(domain, di),
     },
   };
 }
@@ -123,20 +146,6 @@ export async function resolveTemplate(
     }
   }
   return { ...defaultTemplate(channel, kind), source: "default", version: null, scope: "default" };
-}
-
-// Who a new draft is addressed to, until the contact book (step 3) exists.
-export function defaultRecipients(channel: Channel, f: LoadedFinding): string[] {
-  switch (channel) {
-    case "registrar":
-      return f.domainIntel?.registrarAbuseEmail ? [f.domainIntel.registrarAbuseEmail.toLowerCase()] : [];
-    case "host":
-      return f.domainIntel?.hostingAbuseEmail ? [f.domainIntel.hostingAbuseEmail.toLowerCase()] : [];
-    case "cert":
-      return [KE_CIRT_EMAIL];
-    case "blocklist":
-      return [];
-  }
 }
 
 // Which channels a finding can get a report on. Registrar only for a domain finding: a URL

@@ -26,11 +26,49 @@ interface Draft {
   createdAt: string;
   updatedAt: string;
   lastTestAt: string | null;
+  routing: Routing | null;
+}
+
+interface Routing {
+  method: "email" | "form" | "skip" | "none";
+  to: string[];
+  forms: Array<{ url: string; instructions: string | null }>;
+  why: string;
+  removed: Array<{ address: string; reason: "own_domain" | "blocked" }>;
+}
+
+// Where a report goes and why (lib/recipients.ts in the API).
+function RoutingNote({ routing }: { routing: Routing }) {
+  return (
+    <div className={`rounded-md border px-3 py-2 text-xs ${routing.method === "email" ? "border-line bg-elevated/50 text-ink-muted" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+      <p>
+        {routing.method === "email" && <>Goes to {routing.to.join(", ")}. </>}
+        {routing.method === "form" && <>Web form{routing.forms.length > 1 ? "s" : ""} only, so a manual task: send it yourself through the form{routing.forms.length > 1 ? "s" : ""} below. </>}
+        {routing.method === "skip" && <>Not reported through this channel. </>}
+        {routing.method === "none" && <>No recipient: add one to the draft, or to the contact book under Settings → Report recipients. </>}
+        {routing.why}
+      </p>
+      {routing.forms.map((f) => (
+        <p key={f.url} className="mt-1">
+          <a className="font-medium text-brand hover:underline" href={f.url} target="_blank" rel="noreferrer">
+            {f.url}
+          </a>
+          {f.instructions ? ` · ${f.instructions}` : ""}
+        </p>
+      ))}
+      {routing.removed.length > 0 && (
+        <p className="mt-1">
+          Left out by the safety rules: {routing.removed.map((r) => `${r.address} (${r.reason === "own_domain" ? "your own domain" : "never send to"})`).join(", ")}.
+        </p>
+      )}
+    </div>
+  );
 }
 
 interface DraftsData {
   websitesOnly: boolean;
-  channels: Array<{ channel: string; kinds: string[]; defaultTo: string[] }>;
+  channels: Array<{ channel: string; kinds: string[]; routing: Routing }>;
+  redirectTo: string | null;
   hasScreenshot: boolean;
   documents: Array<{ id: string; kind: string; filename: string }>;
   senderAddress: string | null;
@@ -109,6 +147,15 @@ export function ReportDrafts({ findingId }: { findingId: string }) {
           </button>
         </div>
       )}
+      {canEdit && choice && (() => {
+        const c = data.channels.find((x) => x.channel === choice.split(".")[0]);
+        return c ? <div className="mt-2"><RoutingNote routing={c.routing} /></div> : null;
+      })()}
+      {data.redirectTo && (
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Redirect mode is on: when reports are sent, they are delivered to {data.redirectTo} instead of the recipients below.
+        </p>
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
       <ul className="mt-3 space-y-2">
@@ -177,6 +224,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
 
   return (
     <div className="space-y-3 border-t border-line px-3 py-3 text-sm">
+      {draft.routing && <RoutingNote routing={draft.routing} />}
       {!isForm && (
         <div className="grid gap-2">
           {(

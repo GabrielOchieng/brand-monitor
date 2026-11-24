@@ -134,7 +134,9 @@ mode. To let an org set it up: its owner connects a sender mailbox, passes a tes
 an authorization (Settings → Automatic reporting); you read the authorization and its documents on
 its `/admin` org page and press **Allow** (audit-logged; refused without an authorization in force).
 Sender credentials are encrypted with `AUTH_ENCRYPTION_KEY`: changing the key means every org must
-re-enter them. Never set `TAKEDOWN_SMTP_ALLOW_PRIVATE` here: it would let an org point its SMTP sender
+re-enter them. Report drafts no longer default the CERT channel to KE-CIRT: an org adds its national CERT to its own
+contact book (Settings → Report recipients; Channel: National CERT, Applies to: Every report). The
+platform contact book is at `/admin/contacts`. Never set `TAKEDOWN_SMTP_ALLOW_PRIVATE` here: it would let an org point its SMTP sender
 at internal hosts on the VPS (e.g. `postgres-shared`).
 
 Lost authenticator *and* recovery codes: `npm run auth:disable-2fa -- --email <email>` (confirm it's

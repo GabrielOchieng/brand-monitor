@@ -20,6 +20,7 @@ import { mentionRoutes } from "./routes/mentions";
 import { takedownAutomationRoutes } from "./routes/takedownAutomation";
 import { reportTemplateRoutes } from "./routes/reportTemplates";
 import { reportDraftRoutes } from "./routes/reportDrafts";
+import { reportRecipientRoutes } from "./routes/reportRecipients";
 import { boss, ensureQueues } from "./queue/boss";
 import { registerQueueWorkers, scheduleDispatchers } from "./queue/dispatch";
 import { registerAlertDispatchWorker } from "./queue/alertDispatch";
@@ -100,6 +101,7 @@ async function main() {
   await app.register(takedownAutomationRoutes);
   await app.register(reportTemplateRoutes);
   await app.register(reportDraftRoutes);
+  await app.register(reportRecipientRoutes);
 
   app.get("/health", async () => ({ ok: true }));
   // 503 when the scheduled jobs have stalled -- see queue/health.ts. Point the alerting

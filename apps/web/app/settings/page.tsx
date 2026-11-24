@@ -19,6 +19,7 @@ import { AlertSettings } from "../../components/settings/AlertSettings";
 import { IntegrationSettings } from "../../components/settings/IntegrationSettings";
 import { AutoTakedownSettings } from "../../components/settings/AutoTakedownSettings";
 import { ReportTemplateSettings } from "../../components/settings/ReportTemplateSettings";
+import { ReportRecipientSettings } from "../../components/settings/ReportRecipientSettings";
 import { ReadOnlyNote, Section } from "../../components/settings/Section";
 import { TeamMembers } from "../../components/TeamMembers";
 import { SettingsSkeleton } from "../../components/PageSkeletons";
@@ -26,7 +27,7 @@ import { ChevronDownIcon, PlusIcon } from "../../components/icons";
 import { canManage, useMyRole } from "../../lib/useMyRole";
 import { pickBrand, writeSelectedBrand } from "../../lib/selectedBrand";
 
-type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "report-templates" | "team" | "add-brand";
+type SectionId = "details" | "keywords" | "accounts" | "report-form" | "visual" | "delete" | "alerts" | "webhook" | "auto-takedown" | "report-templates" | "report-recipients" | "team" | "add-brand";
 
 interface NavItem {
   id: SectionId;
@@ -62,6 +63,7 @@ const GROUPS: Array<{ label: string; brandScoped: boolean; items: NavItem[] }> =
     items: [
       { id: "auto-takedown", label: "Automatic reporting" },
       { id: "report-templates", label: "Report templates" },
+      { id: "report-recipients", label: "Report recipients" },
     ],
   },
   {
@@ -274,6 +276,7 @@ function Settings() {
               {section === "webhook" && <IntegrationSettings editable={editable} />}
               {section === "auto-takedown" && <AutoTakedownSettings role={role} />}
               {section === "report-templates" && <ReportTemplateSettings role={role} brands={brands} />}
+              {section === "report-recipients" && <ReportRecipientSettings role={role} />}
               {section === "team" && (
                 <Section
                   title="Team"

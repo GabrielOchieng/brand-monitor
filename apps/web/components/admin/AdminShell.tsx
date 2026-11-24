@@ -10,6 +10,7 @@ import { LoadingRegion, SkeletonList } from "../Skeleton";
 const TABS = [
   { href: "/admin", label: "Organizations" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/contacts", label: "Contact book" },
   { href: "/admin/audit", label: "Audit log" },
 ];
 

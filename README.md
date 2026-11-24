@@ -341,11 +341,26 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   page can't inject another placeholder.
 - **Report drafts** (finding page, websites only; `routes/reportDrafts.ts`): "Prepare report"
   renders the published template with the finding's data into a draft (`takedown_actions`, status
-  `draft`) addressed to the registrar/host abuse contact (KE-CIRT for the CERT channel). Analysts edit
+  `draft`), addressed by the recipient rules below and showing which rule chose them. Analysts edit
   recipients, subject, body and attachments (latest screenshot, documents of the authorization in
   force), save, rewrite from the template, copy, or send a test to themselves only. The `[BM-...]`
   tag must stay in the subject. There is no real send yet: that comes with the dispatcher (step 4).
   Test sends (sender, template, draft) share a limit of 20 a day per org.
+- **Report recipients** (Settings → Takedowns → Report recipients; `lib/recipients.ts`,
+  `routes/reportRecipients.ts`, step 3). A report goes to the most specific enabled entry in the
+  **contact book** for its channel (registrar IANA ID > registrar/host name contains > domain ending
+  > every report; the org's own entry wins a tie with the platform's), else to the abuse contact in
+  the registry record (domain RDAP/WHOIS for registrars, IP RDAP for hosts), else nobody: a manual
+  task, never a guess. An entry says email (addresses), web form (a manual task, with the link and
+  instructions shown on the draft) or don't report here, and optionally the recipient's language.
+  The **platform contact book** (`/admin/contacts`, audit-logged; the app role can only read it) is
+  shared by every org and starts with GoDaddy (form only), Cloudflare and Vercel (forms) and the
+  Safe Browsing and Netcraft blocklist forms. Each org has its own book (e.g. its national CERT:
+  there is no built-in CERT any more), **always-also-send-to** addresses per channel (e.g. Cc legal),
+  a **never-send-to** list (addresses or `@domain`, any field; bounces will be added there in step 5)
+  and **redirect mode** (owner only: every report delivered to one address of theirs instead; used by
+  the sender in step 4). The org's own domains (brand domains and the sender's) are never a report's
+  To; copies to them are fine. Drafts refuse recipients that break these rules.
 - **Tracker**: log each request (provider, ticket reference, notes) with its own status
   (`requested → acknowledged → completed / rejected`). "Mark as reported" in the kit logs a row
   per channel, so you can see which channels actually work. A warning shows when a takedown is

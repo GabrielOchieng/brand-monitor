@@ -8,7 +8,8 @@ import { authenticate, requireRole } from "../lib/auth";
 import { withTenant } from "../lib/tenant";
 import { authorizationInForce } from "../lib/takedownAutomation";
 import { CHANNEL_KINDS, CHANNELS, KINDS, LANGUAGES, MAX_BODY, MAX_SUBJECT, newReportRef, renderTemplate, type Channel, type Kind } from "../lib/reportTemplates";
-import { channelsFor, defaultRecipients, loadReportContext, resolveTemplate } from "../lib/reportContext";
+import { channelsFor, factsOf, hostnameOf, loadReportContext, resolveTemplate } from "../lib/reportContext";
+import { loadRoutingData, recipientProblems, resolveRouting, type RoutingData } from "../lib/recipients";
 import { sendTestToSelf } from "../lib/selfTestSend";
 
 // Report drafts per finding (TAKEDOWN_AUTOMATION_PLAN.md §5.3): rendered from the published
@@ -20,7 +21,9 @@ const MAX_RECIPIENTS = 10;
 const MAX_DRAFTS_PER_FINDING = 30;
 
 const email = z.string().trim().toLowerCase().email().max(254);
-const CreateSchema = z.object({ channel: z.enum(CHANNELS), kind: z.enum(KINDS).default("first"), language: z.enum(LANGUAGES).default("en") });
+const CreateSchema = z
+  .object({ channel: z.enum(CHANNELS), kind: z.enum(KINDS).default("first"), language: z.enum(LANGUAGES).optional() })
+  .transform((v) => ({ ...v, language: v.language ?? "en", languageGiven: v.language !== undefined }));
 const UpdateSchema = z.object({
   to: z.array(email).max(MAX_RECIPIENTS),
   cc: z.array(email).max(MAX_RECIPIENTS),
@@ -57,6 +60,10 @@ async function uniqueReportRef(tx: Prisma.TransactionClient): Promise<string> {
   throw new Error("could not allocate a report reference");
 }
 
+function routeFor(channel: Channel, facts: ReturnType<typeof factsOf>, data: RoutingData) {
+  return resolveRouting(channel, facts, data.rules, data.fixed.get(channel) ?? null, data.ownDomains, data.blocked);
+}
+
 export async function reportDraftRoutes(app: FastifyInstance) {
   app.get("/api/findings/:id/report-drafts", { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -64,22 +71,18 @@ export async function reportDraftRoutes(app: FastifyInstance) {
     return withTenant(orgId, async (tx) => {
       const finding = await tx.finding.findUnique({ where: { id }, include: { domainIntel: true, websiteIntel: { select: { screenshotPath: true } } } });
       if (!finding) return reply.status(404).send({ error: "not_found" });
-      const [drafts, documents, sender] = await Promise.all([
+      const [drafts, documents, sender, routingData] = await Promise.all([
         tx.takedownAction.findMany({ where: { findingId: id, organizationId: orgId }, orderBy: { createdAt: "desc" } }),
         attachableDocuments(tx, orgId, finding.brandId),
         tx.takedownSender.findUnique({ where: { organizationId: orgId }, select: { fromAddress: true } }),
+        loadRoutingData(tx, orgId),
       ]);
-      const loaded = {
-        id: finding.id,
-        brandId: finding.brandId,
-        type: finding.type,
-        identifier: finding.identifier,
-        screenshotFile: null,
-        domainIntel: finding.domainIntel,
-      };
+      const facts = factsOf(hostnameOf(finding.identifier), finding.domainIntel);
       return reply.send({
         websitesOnly: finding.type === "social",
-        channels: channelsFor(finding.type).map((c) => ({ channel: c, kinds: CHANNEL_KINDS[c], defaultTo: defaultRecipients(c, loaded) })),
+        // Where a new report on each channel would go, and why (lib/recipients.ts).
+        channels: channelsFor(finding.type).map((c) => ({ channel: c, kinds: CHANNEL_KINDS[c], routing: routeFor(c, facts, routingData) })),
+        redirectTo: routingData.redirectTo,
         hasScreenshot: !!finding.websiteIntel?.screenshotPath,
         documents,
         senderAddress: sender?.fromAddress ?? null,
@@ -104,7 +107,10 @@ export async function reportDraftRoutes(app: FastifyInstance) {
       if (!channelsFor(loaded.finding.type).includes(channel)) return reply.status(400).send({ error: "channel_not_applicable" });
       if ((await tx.takedownAction.count({ where: { findingId: id } })) >= MAX_DRAFTS_PER_FINDING) return reply.status(400).send({ error: "too_many_drafts" });
 
-      const template = await resolveTemplate(tx, orgId, loaded.finding.brandId, channel, kind, language);
+      const routing = routeFor(channel, loaded.finding.facts, await loadRoutingData(tx, orgId));
+      // A contact-book entry can name the recipient's language; the template falls back to English.
+      const reportLanguage = parsed.data.languageGiven ? language : (routing.language ?? language);
+      const template = await resolveTemplate(tx, orgId, loaded.finding.brandId, channel, kind, reportLanguage);
       const rendered = renderTemplate(template, loaded.context);
       const by = await actorEmail(tx, request.auth!.userId);
       const draft = await tx.takedownAction.create({
@@ -114,9 +120,12 @@ export async function reportDraftRoutes(app: FastifyInstance) {
           findingId: id,
           channel,
           kind,
-          language,
+          language: reportLanguage,
           reportRef,
-          to: defaultRecipients(channel, loaded.finding),
+          to: routing.to,
+          cc: routing.cc,
+          bcc: routing.bcc,
+          routing: routing as object,
           subject: rendered.subject,
           body: rendered.body,
           includeScreenshot: !!loaded.finding.screenshotFile,
@@ -142,6 +151,9 @@ export async function reportDraftRoutes(app: FastifyInstance) {
       if (!draft) return reply.status(404).send({ error: "not_found" });
       if (draft.status !== "draft") return reply.status(409).send({ error: "not_a_draft" });
       if (draft.channel !== "blocklist" && !d.subject.includes(`[${draft.reportRef}]`)) return reply.status(400).send({ error: "report_ref_removed" });
+      const routingData = await loadRoutingData(tx, orgId);
+      const problems = recipientProblems(d, routingData.ownDomains, routingData.blocked);
+      if (problems.length) return reply.status(400).send({ error: "recipient_not_allowed", problems });
       const allowed = new Set((await attachableDocuments(tx, orgId, draft.brandId)).map((x) => x.id));
       if (d.documentIds.some((x) => !allowed.has(x))) return reply.status(400).send({ error: "invalid_request" });
       const edited = draft.edited || d.subject !== draft.subject || d.body !== draft.body;
@@ -214,6 +226,8 @@ export async function reportDraftRoutes(app: FastifyInstance) {
       ...(draft.cc.length ? [`Cc: ${draft.cc.join(", ")}`] : []),
       ...(draft.bcc.length ? [`Bcc: ${draft.bcc.join(", ")}`] : []),
     ];
+    const redirectTo = await withTenant(orgId, (tx) => tx.takedownAutomation.findUnique({ where: { organizationId: orgId }, select: { redirectTo: true } })).then((a) => a?.redirectTo ?? null);
+    if (redirectTo) recipients.push(`Redirect mode is on: it would be delivered to ${redirectTo} instead.`);
     const sent = await sendTestToSelf(
       orgId,
       request.auth!.userId,
