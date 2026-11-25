@@ -1,5 +1,9 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import './theme.css';
 
+/* Legacy tokens (first redesign). Pages still on the old look use them; deleted once every page is
+   migrated to the theme in theme.css (UI_REDESIGN_PLAN.md step 7). */
 @theme {
   --color-critical: #c81e1e;
   --color-high: #d9480f;
@@ -29,31 +33,11 @@
   --color-shell-muted: #97a3b8;
   --color-shell-faint: #64718a;
 
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --shadow-card:
     0 1px 2px 0 rgb(15 22 35 / 0.04), 0 1px 3px 0 rgb(15 22 35 / 0.06);
   --shadow-pop:
     0 8px 24px -6px rgb(15 22 35 / 0.18), 0 2px 6px -2px rgb(15 22 35 / 0.08);
-}
-
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
-  }
 }
 
 @utility card {
@@ -116,24 +100,4 @@
 @utility ident {
   /* Domains, URLs, IPs, references: the data analysts read character by character. */
   @apply font-mono text-[0.92em] tracking-tight;
-}
-
-/* Design system (tailwind.config.js holds the tokens). Every page uses these classes instead of
-   ad hoc borders, buttons and badges, so the product looks and behaves the same everywhere. */
-
-@layer base {
-  body {
-    background-color: #f4f6f9;
-    color: #0f1623;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-  /* One visible focus style for keyboard users, everywhere; none for mouse clicks. */
-  :focus-visible {
-    outline: 2px solid #0d6c76;
-    outline-offset: 2px;
-  }
-  ::selection {
-    background: #0d6c7633;
-  }
 }

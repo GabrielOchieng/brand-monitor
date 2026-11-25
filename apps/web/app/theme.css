@@ -1,0 +1,142 @@
+/* Console theme (UI redesign v2; approved mockup: UI_REDESIGN_PLAN.md).
+   Dark is the default; <html data-theme="light"> switches to light (components/theme/ThemeScript.tsx).
+   Names follow shadcn/ui's conventions (background, card, primary, muted, accent, border...) so its
+   components work unchanged; the extra tokens are the console's own: sunk/raised surfaces, a stronger
+   border, a third text tone, and the severity and status colours, which mean the same on every screen. */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+[data-theme="dark"] {
+  --background: #0a0e13;
+  --sunk: #070a0e;
+  --card: #0f151c;
+  --raised: #151d26;
+  --hover: #1a2430;
+  --border: #1f2933;
+  --border-strong: #2c3a48;
+  --foreground: #e2e8ee;
+  --muted-foreground: #a1adba;
+  --subtle: #6d7b8a;
+  --primary: #22d3ee;
+  --primary-foreground: #032029;
+  --primary-soft: rgb(34 211 238 / 0.12);
+  --sev-critical: #f25757;
+  --sev-high: #fb8b3c;
+  --sev-medium: #e6b43c;
+  --sev-low: #7f8c9b;
+  --ok: #3ccf91;
+  --info: #7aa7ff;
+  --overlay: rgb(3 6 10 / 0.6);
+  --shadow-color: rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --background: #f2f5f8;
+  --sunk: #e8edf2;
+  --card: #ffffff;
+  --raised: #f7f9fb;
+  --hover: #eef3f7;
+  --border: #dbe2e9;
+  --border-strong: #c3cdd7;
+  --foreground: #0c131a;
+  --muted-foreground: #3b4855;
+  --subtle: #667584;
+  --primary: #0b7285;
+  --primary-foreground: #ffffff;
+  --primary-soft: rgb(11 114 133 / 0.1);
+  --sev-critical: #c81e1e;
+  --sev-high: #c2410c;
+  --sev-medium: #a16207;
+  --sev-low: #5b6776;
+  --ok: #15803d;
+  --info: #2f5fd0;
+  --overlay: rgb(12 19 26 / 0.35);
+  --shadow-color: rgb(12 19 26 / 0.18);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sunk: var(--sunk);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-secondary: var(--raised);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--raised);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--hover);
+  --color-accent-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-destructive: var(--sev-critical);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border-strong);
+  --color-ring: var(--primary);
+  --color-sev-critical: var(--sev-critical);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+  --color-ok: var(--ok);
+  --color-info: var(--info);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-plex-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Console geometry: small radii, borders over shadows. */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --shadow-popover: 0 16px 40px -8px var(--shadow-color);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* One visible focus style for keyboard users, everywhere; none for mouse clicks. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--primary-soft);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Small uppercase labels above groups and table headers. */
+@utility eyebrow {
+  @apply text-[10.5px] font-semibold uppercase tracking-[0.08em] text-subtle;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

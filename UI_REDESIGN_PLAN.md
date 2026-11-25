@@ -144,3 +144,17 @@ Each step is its own commit (pushed only when the owner says so).
   and it wrote a self-referencing `--font-sans: var(--font-sans)` (next/font variables are now
   `--font-inter` / `--font-jetbrains`). `npm install -w apps/web` crashes here (npm arborist
   "reading 'location'"); edit `apps/web/package.json` and run `npm install` from the root instead.
+- 2026-11-25, step 2b: foundation. shadcn-style components written by hand on `radix-ui` (no shadcn
+  CLI: it shells out to the same broken `npm install`): `components/ui/` Button, Panel, Field +
+  FormSection, Switch, Tabs + LinkTabs, Dialog + Sheet, Menu/Popover/Tooltip, Toast, Banner;
+  `components/threat/atoms.tsx` (severity, score, status, type, live state, `Ident` with look-alike
+  characters marked, `lib/homoglyph.ts`). Theme tokens in `app/theme.css` (dark default,
+  `data-theme="light"`, saved in `localStorage` `bm.theme`, applied before paint). New shell in
+  `components/shell/` (sidebar, top bar with brand switcher / search / bell / account menu, phone
+  bottom bar + More sheet, Ctrl K palette); `lib/brand.tsx` shares the selected brand. Old
+  `AppFrame`, `HeaderMenus`, `NotificationBell` deleted. Legacy tokens stay in `globals.css` until
+  every page is migrated. Pages are still the old design inside the new shell.
+- Local visual checks: API with `DISABLE_SCHEDULERS=1`, `next start -p 3210`, a local-only test user
+  `ui-test@localhost.test` (created with `auth:create-user`). On this machine headless Chromium can't
+  reach 127.0.0.1 (ERR_NETWORK_ACCESS_DENIED) but can reach `::1`; the API binds IPv4 only, so a small
+  `[::1]:4000 -> 127.0.0.1:4000` relay is needed for screenshots.
