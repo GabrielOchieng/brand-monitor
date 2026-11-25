@@ -194,3 +194,10 @@ Each step is its own commit (pushed only when the owner says so).
   Overview feed). Stages shown as "Test: prepare only" / "Test: send to yourself" / "Live". The
   mockup's "Send to Threats" on a mention was left out: there is no API for it. Browser dialogs remain
   only in the admin panel (step 6).
+- 2026-11-25, step 6: AdminShell (header, tabs, stat cards, table, blocked states) rebuilt on the new
+  components, so every admin page follows; the last 6 window.confirm calls replaced (none remain).
+  AuthCard (all sign-in pages) and the logo redone; landing page rethemed (severity tags in the
+  illustration, "test mode" / "hold" wording). The public report form (`/report/:token`) is pinned to
+  the light theme: it's seen by a brand's customers, not analysts. Admin pages were checked with the
+  local test user made a platform admin with 2FA (throwaway local AUTH_ENCRYPTION_KEY), then reverted
+  with `auth:disable-2fa` and `auth:make-admin --revoke`.

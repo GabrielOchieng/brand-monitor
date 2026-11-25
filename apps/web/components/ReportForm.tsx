@@ -84,7 +84,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
 
   if (state === "sent") {
     return (
-      <div className="card mt-6 p-6">
+      <div className="mt-6 rounded-md border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-ink">Thank you — report received</h2>
         <p className="mt-2 text-sm text-ink-muted">
           Our team will look into it. If you paid money or shared a PIN or password, contact your bank or mobile money
@@ -95,21 +95,21 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
   }
 
   return (
-    <form onSubmit={submit} className="card mt-6 space-y-4 p-5">
+    <form onSubmit={submit} className="mt-6 space-y-4 rounded-md border border-border bg-card p-5">
       <div>
-        <label htmlFor="url" className="label">Link to the fake page</label>
+        <label htmlFor="url" className="block text-[13px] font-medium text-foreground">Link to the fake page</label>
         <input id="url" name="url" inputMode="url" placeholder="e.g. facebook.com/... or a website" className="field mt-1.5 w-full" />
       </div>
       <div>
-        <label htmlFor="phone" className="label">Phone or WhatsApp number used</label>
+        <label htmlFor="phone" className="block text-[13px] font-medium text-foreground">Phone or WhatsApp number used</label>
         <input id="phone" name="phone" inputMode="tel" placeholder="e.g. 0712 345 678" className="field mt-1.5 w-full" />
       </div>
       <div>
-        <label htmlFor="description" className="label">What happened? (optional)</label>
+        <label htmlFor="description" className="block text-[13px] font-medium text-foreground">What happened? (optional)</label>
         <textarea id="description" name="description" rows={4} maxLength={2000} className="field mt-1.5 w-full" placeholder="e.g. They offered a refund and asked me to pay to a till number" />
       </div>
       <div>
-        <label htmlFor="reporterEmail" className="label">Your email (optional, only if we may contact you)</label>
+        <label htmlFor="reporterEmail" className="block text-[13px] font-medium text-foreground">Your email (optional, only if we may contact you)</label>
         <input id="reporterEmail" name="reporterEmail" type="email" className="field mt-1.5 w-full" />
       </div>
       {/* Honeypot: invisible to people, filled in by bots. */}

@@ -3,17 +3,19 @@
 import { useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { AdminShell, useAdminData } from "../../../components/admin/AdminShell";
+import { useConfirmText } from "../../../components/ui/Confirm";
 import { ContactForm, ContactTable, type ContactRule } from "../../../components/ContactBook";
 
 // The platform contact book: where reports to a registrar / host / TLD go, for every org (an org's
 // own entry wins over one that matches the same way). Every change is in the audit log.
 export default function AdminContactsPage() {
+  const confirm = useConfirmText();
   const { data, blocked, error, reload } = useAdminData<ContactRule[]>("/api/admin/contacts");
   const [editing, setEditing] = useState<ContactRule | "new" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function remove(c: ContactRule) {
-    if (!window.confirm("Delete this entry for every organization?")) return;
+    if (!await confirm("Delete this entry for every organization?")) return;
     setActionError(null);
     try {
       await apiFetch(`/api/admin/contacts/${c.id}`, { method: "DELETE" });

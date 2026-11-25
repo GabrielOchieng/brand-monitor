@@ -6,6 +6,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../../../../lib/api";
 import { AdminShell, AdminTable, MonitoringStatus, ago, day, td, useAdminData } from "../../../../components/admin/AdminShell";
+import { useConfirmText } from "../../../../components/ui/Confirm";
 import { AutoTakedownAdmin } from "../../../../components/admin/AutoTakedownAdmin";
 
 const ROLES = ["owner", "admin", "analyst", "viewer"] as const;
@@ -132,6 +133,7 @@ function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string 
 }
 
 function OrgPage() {
+  const confirm = useConfirmText();
   const { id } = useParams<{ id: string }>();
   const created = useSearchParams().get("created") === "1";
   const { data, blocked, error, reload } = useAdminData<OrgDetail>(`/api/admin/orgs/${id}`);
@@ -165,7 +167,7 @@ function OrgPage() {
   }
 
   async function removeMember(userId: string, email: string) {
-    if (!window.confirm(`Remove ${email} from ${data?.org.name}? Their assignments here are cleared. Their account stays.`)) return;
+    if (!await confirm(`Remove ${email} from ${data?.org.name}? Their assignments here are cleared. Their account stays.`)) return;
     setActionError(null);
     setNotice(null);
     setBusy(userId);
@@ -182,7 +184,7 @@ function OrgPage() {
 
   async function setPaused(kind: "orgs" | "brands", targetId: string, name: string, pause: boolean) {
     const what = kind === "orgs" ? `all monitoring for ${name}` : `monitoring of ${name}`;
-    if (pause && !window.confirm(`Pause ${what}? Data is kept; nothing new is discovered, scanned or searched until you resume.`)) return;
+    if (pause && !await confirm(`Pause ${what}? Data is kept; nothing new is discovered, scanned or searched until you resume.`)) return;
     setActionError(null);
     setBusy(targetId);
     try {
