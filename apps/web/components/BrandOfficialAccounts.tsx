@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "../lib/api";
 import { TrashIcon } from "./icons";
-import { TargetIcon } from "./ThreatsTable";
+import { TargetIcon } from "./TargetIcon";
 import { LoadingRegion, Skeleton } from "./Skeleton";
 import { describeTarget } from "../lib/format";
 

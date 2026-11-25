@@ -118,10 +118,14 @@ export function NotificationsButton() {
               <li key={n.id} className="grid grid-cols-[8px_1fr] gap-2.5 border-b border-border px-3.5 py-2.5 text-[13px] last:border-b-0">
                 <span className={cn("mt-1.5 size-2 rounded-full", n.readAt ? "bg-transparent" : "bg-primary")} aria-hidden="true" />
                 <div className="min-w-0">
-                  {n.link || n.findingId ? (
-                    <Link href={n.link ?? `/threats/${n.findingId}`} className="hover:text-primary">
+                  {n.findingId ? (
+                    <Link href={`/threats/${n.findingId}`} className="hover:text-primary">
                       {n.message}
                     </Link>
+                  ) : n.link ? (
+                    <a href={n.link} target="_blank" rel="noreferrer" className="hover:text-primary">
+                      {n.message}
+                    </a>
                   ) : (
                     n.message
                   )}

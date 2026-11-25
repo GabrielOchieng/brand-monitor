@@ -11,7 +11,7 @@ export function PageHeader({ title, description, actions, eyebrow }: PageHeaderP
         <h1 className="text-[18px] font-semibold leading-tight tracking-[-0.015em] text-balance lg:text-[20px]">{title}</h1>
         {description && <div className="mt-1 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">{description}</div>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

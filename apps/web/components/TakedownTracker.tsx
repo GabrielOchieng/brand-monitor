@@ -180,25 +180,25 @@ export function TakedownTracker({
         </div>
       )}
 
-      <form onSubmit={handleCreate} className="mt-2 grid gap-2 sm:grid-cols-3">
+      <form onSubmit={handleCreate} className="mt-2 grid gap-2 sm:grid-cols-2">
         <input
           placeholder="Provider (e.g. registrar)"
           value={form.provider}
           onChange={(e) => setForm({ ...form, provider: e.target.value })}
-          className="field"
+          className="field min-w-0"
         />
         <input
           placeholder="Reference / ticket # (optional)"
           value={form.reference}
           onChange={(e) => setForm({ ...form, reference: e.target.value })}
-          className="field"
+          className="field min-w-0"
         />
-        <div className="flex gap-2">
+        <div className="flex gap-2 sm:col-span-2">
           <input
             placeholder="Notes (optional)"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="field flex-1"
+            className="field min-w-0 flex-1"
           />
           <button type="submit" disabled={submitting} className="btn-primary shrink-0">
             Log

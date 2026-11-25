@@ -158,3 +158,17 @@ Each step is its own commit (pushed only when the owner says so).
   `ui-test@localhost.test` (created with `auth:create-user`). On this machine headless Chromium can't
   reach 127.0.0.1 (ERR_NETWORK_ACCESS_DENIED) but can reach `::1`; the API binds IPv4 only, so a small
   `[::1]:4000 -> 127.0.0.1:4000` relay is needed for screenshots.
+- 2026-11-25, bridge: legacy tokens and `.card/.btn-*/.field` now point at the theme variables, and
+  hard-coded Tailwind palette colours were mapped to semantic tokens, so pages not yet rebuilt work
+  in both themes.
+- 2026-11-25, step 3: Overview, Threats and the threat page rebuilt. API additions (pure helpers in
+  `apps/api/src/lib/findingView.ts`, tested): `GET /api/findings` gains a `type` filter, per-row
+  `webState` (live/parked/offline) and `topReason`, and `statusCounts` for the view tabs;
+  `/api/dashboard/summary` gains `newPerDay` (14 days), `liveOpen`, `takedownsDone` (30 days +
+  median days) and `webState`/`topReason` on attention items. Web: `components/threat/`
+  (ThreatQueue with keyboard triage + bulk bar + side panel, ThreatPanel, ThreatView with tabs in
+  `?tab=`, Evidence blocks, shared status hook with Undo). `FindingLifecycle` is now controlled by the
+  page for status. Old ThreatsTable/ThreatFilters/PendingNavigation deleted. Not yet restyled
+  (bridged): AI explanation, indicators, related, takedown tracker, report drafts (step 4).
+  Gap: the web app has no component-test setup, so keyboard triage and the bulk bar are checked by
+  hand in the browser, not by tests.
