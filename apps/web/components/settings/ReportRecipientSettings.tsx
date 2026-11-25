@@ -6,7 +6,8 @@ import { CHANNEL_LABELS } from "../../lib/autoTakedown";
 import type { Role } from "../../lib/session";
 import { ContactForm, ContactTable, type ContactRule } from "../ContactBook";
 import { Skeleton } from "../Skeleton";
-import { Field } from "./Section";
+import { useConfirmText } from "../ui/Confirm";
+import { Field, Card } from "./Section";
 
 interface RecipientsData {
   contacts: ContactRule[];
@@ -17,20 +18,12 @@ interface RecipientsData {
   redirectTo: string | null;
 }
 
-function Card({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="card min-w-0 p-5 sm:p-6">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {description && <div className="mt-1 text-sm leading-relaxed text-ink-subtle">{description}</div>}
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
 
 const split = (s: string) => s.split(/[\s,;]+/).filter(Boolean);
 
 // Settings -> Takedowns -> Report recipients (TAKEDOWN_AUTOMATION_PLAN.md §3).
 export function ReportRecipientSettings({ role }: { role: Role | null }) {
+  const confirm = useConfirmText();
   const canManage = role === "owner" || role === "admin";
   const isOwner = role === "owner";
   const [data, setData] = useState<RecipientsData | null>(null);
@@ -60,7 +53,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
     }
   }
 
-  if (!data) return error ? <p className="text-sm text-red-600">{error}</p> : <Skeleton className="h-60 w-full" />;
+  if (!data) return error ? <p className="text-sm text-sev-critical">{error}</p> : <Skeleton className="h-60 w-full" />;
 
   return (
     <section className="space-y-5">
@@ -71,7 +64,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
           registry record, else it becomes a manual task. Nothing is ever guessed. Each report on the finding page shows which rule picked its recipients.
         </div>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
 
       <RedirectCard redirectTo={data.redirectTo} isOwner={isOwner} onSave={(v) => call("/api/report-recipients/redirect", "PUT", { redirectTo: v })} />
 
@@ -83,7 +76,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
           contacts={data.contacts}
           editable={canManage}
           onEdit={(c) => setEditing(c)}
-          onDelete={(c) => window.confirm("Delete this entry?") && call(`/api/report-recipients/contacts/${c.id}`, "DELETE")}
+          onDelete={async (c) => (await confirm("Delete this entry?", { danger: true, confirmLabel: "Delete" })) && call(`/api/report-recipients/contacts/${c.id}`, "DELETE")}
         />
         {canManage && editing === null && (
           <button className="btn-secondary mt-3" onClick={() => setEditing("new")}>
@@ -127,7 +120,7 @@ function RedirectCard({ redirectTo, isOwner, onSave }: { redirectTo: string | nu
       description="For testing: every report is delivered to this one address of yours instead of its real recipients, with the real recipients shown at the top. Use it while setting up and checking templates."
     >
       {redirectTo ? (
-        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mb-3 rounded-md border border-sev-medium/40 bg-sev-medium/10 px-3 py-2 text-sm text-sev-medium">
           On: reports would be delivered to <strong>{redirectTo}</strong>.
         </p>
       ) : (
@@ -204,7 +197,7 @@ function BlockedCard({ data, editable, onAdd, onRemove }: { data: RecipientsData
                 {b.note ? ` · ${b.note}` : ""}
               </span>
               {editable && (
-                <button className="text-xs text-red-600 hover:underline" onClick={() => onRemove(b.id)}>
+                <button className="text-xs text-sev-critical hover:underline" onClick={() => onRemove(b.id)}>
                   remove
                 </button>
               )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
+import { useConfirmText } from "../ui/Confirm";
 import { Field, ReadOnlyNote, Section, Toggle } from "./Section";
 
 interface WebhookConfig {
@@ -14,6 +15,7 @@ interface WebhookConfig {
 
 // The alert webhook: where it posts, whether it's on, the signing secret and a test send.
 export function IntegrationSettings({ editable }: { editable: boolean }) {
+  const confirm = useConfirmText();
   const [config, setConfig] = useState<WebhookConfig | null | undefined>(undefined);
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
   }
 
   async function rotate() {
-    if (!window.confirm("Make a new signing secret? The receiver must be updated with it, or it will reject the next alert.")) return;
+    if (!(await confirm("Make a new signing secret? The receiver must be updated with it, or it will reject the next alert.", { confirmLabel: "Make new secret" }))) return;
     setError(null);
     try {
       const data = await apiFetch<WebhookConfig>("/api/webhook-config/rotate-secret", { method: "POST" });
@@ -144,7 +146,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                   )}
                 </div>
               </Field>
-              {saved && !urlChanged && <p className="mt-1 text-xs text-emerald-700">Saved</p>}
+              {saved && !urlChanged && <p className="mt-1 text-xs text-ok">Saved</p>}
             </form>
 
             {config && (
@@ -172,7 +174,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                         {showSecret ? "Hide" : "Show"}
                       </button>
                       <button onClick={copySecret} className="btn-secondary shrink-0">
-                        {copied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : null}
+                        {copied ? <CheckIcon className="h-4 w-4 text-ok" /> : null}
                         {copied ? "Copied" : "Copy"}
                       </button>
                     </div>
@@ -189,15 +191,15 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                     <button onClick={test} disabled={testing} className="btn-secondary">
                       {testing ? "Sending…" : "Send a test"}
                     </button>
-                    {testResult?.ok && <span className="text-xs text-emerald-700">Delivered: the endpoint accepted it.</span>}
-                    {testResult && !testResult.ok && <span className="text-xs text-red-600">Not delivered: {testResult.error}</span>}
+                    {testResult?.ok && <span className="text-xs text-ok">Delivered: the endpoint accepted it.</span>}
+                    {testResult && !testResult.ok && <span className="text-xs text-sev-critical">Not delivered: {testResult.error}</span>}
                   </div>
                 )}
               </>
             )}
           </div>
         )}
-        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs text-sev-critical">{error}</p>}
       </Section>
     </div>
   );

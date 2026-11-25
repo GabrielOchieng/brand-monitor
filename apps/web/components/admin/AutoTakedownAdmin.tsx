@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { API_URL, apiFetch } from "../../lib/api";
 import { authorizationStatus, BLOCKER_LABELS, DOCUMENT_KIND_LABELS, formatBytes, PROVIDER_LABELS } from "../../lib/autoTakedown";
+import { useConfirmText } from "../ui/Confirm";
 import { ago, day } from "./AdminShell";
 
 interface AdminAutoTakedown {
@@ -33,6 +34,7 @@ interface AdminAutoTakedown {
 // Admin org page: the org's automatic takedown reporting setup, and the allow switch. Allowing
 // it means the admin has read the authorization and its documents.
 export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: string }) {
+  const confirm = useConfirmText();
   const [data, setData] = useState<AdminAutoTakedown | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +55,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
     const text = allow
       ? `Allow automatic takedown reporting for ${orgName}? Do this only after reading the authorization and its documents below. The org's owner still has to turn it on.`
       : `Withdraw the allowance for ${orgName}? Automatic reporting stops for the whole organization.`;
-    if (!window.confirm(text)) return;
+    if (!await confirm(text)) return;
     setBusy(true);
     setError(null);
     try {
@@ -66,7 +68,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
     }
   }
 
-  if (!data) return error ? <p className="text-sm text-red-600">{error}</p> : null;
+  if (!data) return error ? <p className="text-sm text-sev-critical">{error}</p> : null;
   const inForce = data.authorizations.filter((a) => authorizationStatus(a) === "in_force");
 
   return (
@@ -152,7 +154,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
             ))}
           </ul>
         )}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-sev-critical">{error}</p>}
       </div>
     </section>
   );

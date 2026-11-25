@@ -73,7 +73,7 @@ export function ContactTable({ contacts, editable, onEdit, onDelete }: { contact
               <button className="btn-ghost text-xs" onClick={() => onEdit?.(c)}>
                 Edit
               </button>
-              <button className="btn-ghost text-xs text-red-600" onClick={() => onDelete?.(c)}>
+              <button className="btn-ghost text-xs text-sev-critical" onClick={() => onDelete?.(c)}>
                 Delete
               </button>
             </div>
@@ -215,7 +215,7 @@ export function ContactForm({ endpoint, existing, onDone, onCancel }: { endpoint
         <input type="checkbox" checked={f.enabled} onChange={(e) => setF((x) => ({ ...x, enabled: e.target.checked }))} /> In use
       </label>
       {errors.map((e) => (
-        <p key={e} className="text-sm text-red-600">
+        <p key={e} className="text-sm text-sev-critical">
           {e}
         </p>
       ))}

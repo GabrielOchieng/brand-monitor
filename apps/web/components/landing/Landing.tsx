@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "../ui/Logo";
+import { SeverityTag } from "../threat/atoms";
 
 // The public website (one page). Everything it claims is something the product does today
 // (README "Features"); there are no customer logos, testimonials or made-up numbers. The product
@@ -18,7 +19,7 @@ function RequestAccess({ email, className = "" }: { email: string | null; classN
 
 function Section({ id, eyebrow, title, intro, children, tone = "light" }: { id?: string; eyebrow: string; title: string; intro?: ReactNode; children: ReactNode; tone?: "light" | "muted" }) {
   return (
-    <section id={id} className={`scroll-mt-16 border-t border-line ${tone === "muted" ? "bg-base" : "bg-white"}`}>
+    <section id={id} className={`scroll-mt-16 border-t border-line ${tone === "muted" ? "bg-base" : "bg-card"}`}>
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="max-w-2xl">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{eyebrow}</div>
@@ -34,15 +35,14 @@ function Section({ id, eyebrow, title, intro, children, tone = "light" }: { id?:
 // A static rendering of the product's threat feed, with example data.
 function ProductIllustration() {
   const rows = [
-    { d: "yourbrand-support.example", sev: "Critical", tone: "bg-red-500/15 text-red-300 ring-red-400/30", why: "Login form · registered 2 days ago", status: "Report queued" },
-    { d: "yourbrnad.example", sev: "High", tone: "bg-orange-500/15 text-orange-300 ring-orange-400/30", why: "Typo of your domain · payment page", status: "Investigating" },
-    { d: "pay-yourbrand.example", sev: "High", tone: "bg-orange-500/15 text-orange-300 ring-orange-400/30", why: "Shares a phone number with a known scam", status: "New" },
-    { d: "yourbrand.example.net", sev: "Medium", tone: "bg-amber-500/15 text-amber-200 ring-amber-400/30", why: "Parked lookalike · watching", status: "Watching" },
+    { d: "yourbrand-support.example", sev: "critical", why: "Login form · registered 2 days ago", status: "Report queued" },
+    { d: "yourbrnad.example", sev: "high", why: "Typo of your domain · payment page", status: "Investigating" },
+    { d: "pay-yourbrand.example", sev: "high", why: "Shares a phone number with a known scam", status: "New" },
+    { d: "yourbrand.example.net", sev: "medium", why: "Parked lookalike · watching", status: "Watching" },
   ];
   return (
     <figure className="relative" aria-label="Illustration of the threat feed with example data">
-      <div className="absolute -inset-6 -z-10 rounded-[28px] bg-[radial-gradient(ellipse_at_top,rgba(95,211,218,0.18),transparent_65%)]" aria-hidden="true" />
-      <div className="overflow-hidden rounded-xl border border-shell-line bg-shell-raised shadow-2xl shadow-black/40">
+            <div className="overflow-hidden rounded-md border border-border-strong bg-card shadow-popover">
         <div className="flex items-center justify-between border-b border-shell-line px-4 py-3">
           <div className="text-xs font-medium text-shell-ink">Threats · open</div>
           <div className="flex gap-1.5" aria-hidden="true">
@@ -54,7 +54,7 @@ function ProductIllustration() {
         <ul className="divide-y divide-shell-line">
           {rows.map((r) => (
             <li key={r.d} className="flex items-center gap-3 px-4 py-3">
-              <span className={`w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide ring-1 ${r.tone}`}>{r.sev}</span>
+              <SeverityTag severity={r.sev} className="w-[74px] shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-mono text-[13px] text-shell-ink">{r.d}</div>
                 <div className="truncate text-[11px] text-shell-muted">{r.why}</div>
@@ -64,7 +64,7 @@ function ProductIllustration() {
           ))}
         </ul>
         <div className="border-t border-shell-line bg-shell px-4 py-3 text-[11px] text-shell-muted">
-          <span className="font-mono text-[#7fe3e9]">[BM-7KQ2X9TD]</span> takedown report to the registrar · sent from your mailbox after the veto window
+          <span className="font-mono text-primary">[BM-7KQ2X9TD]</span> takedown report to the registrar · sent from your mailbox after the hold
         </div>
       </div>
       <figcaption className="mt-3 text-center text-[11px] text-shell-faint">Illustration with example domains</figcaption>
@@ -96,14 +96,14 @@ const CAPABILITIES = [
   { t: "Lookalike domains", d: "Typos, character swaps, homoglyphs and your brand words paired with others, across hundreds of top-level domains." },
   { t: "Evidence-based scoring", d: "Every score shows its reasons: login or payment forms, visual and favicon matches, shared phone numbers and payment accounts." },
   { t: "Registration intelligence", d: "Registrar, abuse contacts, hosting provider, and alerts when a dormant domain changes or a taken-down site comes back." },
-  { t: "Takedown workflow", d: "Report templates, a contact book of registrars and hosts, approval or veto windows, follow-ups, escalation and results per registrar." },
+  { t: "Takedown workflow", d: "Report templates, a contact book of registrars and hosts, approval or hold-before-sending, follow-ups, escalation and results per registrar." },
   { t: "Impersonation beyond the web", d: "Fake app listings and social accounts are tracked too, with the platform's own reporting route for each." },
   { t: "Alerts where you work", d: "Email, in-app and signed webhooks, by severity, for new sites going live, registration changes and reactivations." },
 ];
 
 const TRUST = [
   { t: "Your data stays yours", d: "Every organization is isolated at the database level (row-level security), not just in the app." },
-  { t: "Nothing sent without your rules", d: "Automatic reports start in shadow mode, go through an approval or veto window, and can be stopped at once." },
+  { t: "Nothing sent without your rules", d: "Automatic reports start in test mode, wait for approval or a hold you can cancel, and can be stopped at once." },
   { t: "Reports from your own mailbox", d: "Registrars see your domain and replies come back to your team, through Microsoft 365, Google Workspace or your mail server." },
   { t: "Accountable by design", d: "Roles per member, two-factor sign-in, and a history of every setting change and every report sent." },
 ];
@@ -112,8 +112,8 @@ type LandingProps = { contactEmail: string | null };
 
 export function Landing({ contactEmail }: LandingProps) {
   return (
-    <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur">
+    <div className="min-h-screen bg-card">
+      <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" aria-label="Brand Monitor home">
             <Logo tone="light" />
@@ -139,15 +139,15 @@ export function Landing({ contactEmail }: LandingProps) {
       </header>
 
       <section className="relative overflow-hidden bg-shell">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:48px_48px]" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[48px_48px]" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-shell-line bg-shell-raised px-3 py-1 text-xs text-shell-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#5fd3da]" aria-hidden="true" />
+            <div className="inline-flex items-center gap-2 rounded-sm border border-shell-line bg-shell-raised px-2.5 py-1 text-xs text-shell-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
               Brand protection and takedown platform
             </div>
-            <h1 className="mt-5 text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
-              Find the sites impersonating your brand. <span className="text-[#7fe3e9]">Take them down.</span>
+            <h1 className="mt-5 text-4xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
+              Find the sites impersonating your brand. <span className="text-primary">Take them down.</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-shell-muted sm:text-lg">
               Brand Monitor watches for lookalike domains, phishing sites and fake accounts that use your name, shows the evidence behind each one, and prepares the takedown
@@ -179,7 +179,7 @@ export function Landing({ contactEmail }: LandingProps) {
       <Section id="how" eyebrow="How it works" title="From first sighting to takedown, in one place" intro="Impersonation sites go up fast and come back after takedowns. Brand Monitor keeps watching each one until it's gone, and tells you when it returns.">
         <ol className="grid gap-6 md:grid-cols-3">
           {STEPS.map((s) => (
-            <li key={s.n} className="relative rounded-lg border border-line bg-white p-6">
+            <li key={s.n} className="relative rounded-md border border-line bg-card p-6">
               <div className="font-mono text-xs font-medium text-brand">{s.n}</div>
               <h3 className="mt-2 text-lg font-semibold text-ink">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{s.text}</p>
@@ -189,9 +189,9 @@ export function Landing({ contactEmail }: LandingProps) {
       </Section>
 
       <Section id="capabilities" tone="muted" eyebrow="Capabilities" title="Built for the way impersonation actually happens">
-        <div className="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           {CAPABILITIES.map((c) => (
-            <div key={c.t} className="bg-white p-6">
+            <div key={c.t} className="bg-card p-6">
               <h3 className="text-sm font-semibold text-ink">{c.t}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{c.d}</p>
             </div>
@@ -220,7 +220,7 @@ export function Landing({ contactEmail }: LandingProps) {
       <section className="bg-shell">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-white">See who is using your brand.</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">See who is using your brand.</h2>
             <p className="mt-2 text-sm text-shell-muted">Set up your brand, keywords and official accounts, and the first findings arrive within hours.</p>
           </div>
           <div className="flex flex-wrap gap-3">

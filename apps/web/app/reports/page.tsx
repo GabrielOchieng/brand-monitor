@@ -2,16 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Check, Clock, Copy, Link2, Phone, X } from "lucide-react";
 import { apiFetch } from "../../lib/api";
-import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
-import { SeverityBadge } from "../../components/SeverityBadge";
+import { useBrands } from "../../lib/brand";
+import { useSession } from "../../lib/session";
+import { fullDate, timeAgo } from "../../lib/format";
+import { cn } from "../../lib/cn";
 import { PageHeader } from "../../components/ui/PageHeader";
-
-interface Brand {
-  id: string;
-  name: string;
-  reportToken: string | null;
-}
+import { Button } from "../../components/ui/Button";
+import { Banner } from "../../components/ui/Banner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/Tabs";
+import { useToast } from "../../components/ui/Toast";
+import { Ident, Pill, SeverityTag } from "../../components/threat/atoms";
+import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 
 interface FindingRef {
   id: string;
@@ -33,135 +37,183 @@ interface Report {
   matchedFindings: FindingRef[];
 }
 
-const STATUS_FILTERS = ["new", "reviewed", "dismissed", ""] as const;
+const STATUSES = [
+  ["new", "New"],
+  ["reviewed", "Reviewed"],
+  ["dismissed", "Dismissed"],
+  ["all", "All"],
+] as const;
 
-// Scam reports from the public form (/report/<token>), plus the controls for that link.
+// Scams reported by customers and staff through the public form (/report/<token>).
 export default function ReportsPage() {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("new");
-  const [loading, setLoading] = useState(true);
+  const { brands } = useBrands();
+  const { me, role } = useSession();
+  const toast = useToast();
+  const canAct = !me?.adminView && (role === "owner" || role === "admin" || role === "analyst");
+  const [reports, setReports] = useState<Report[] | null>(null);
+  const [status, setStatus] = useState<string>("new");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const [b, r] = await Promise.all([
-      apiFetch<Brand[]>("/api/brands"),
-      apiFetch<Report[]>(`/api/reports${status ? `?status=${status}` : ""}`),
-    ]);
-    setBrands(b);
-    setReports(r);
-    setLoading(false);
+    setReports(await apiFetch<Report[]>(`/api/reports${status !== "all" ? `?status=${status}` : ""}`));
   }, [status]);
 
-  // A new status tab shows the skeleton; a refresh after an action keeps the list on screen.
   useEffect(() => {
-    setLoading(true);
-    load();
+    setReports(null);
+    load().catch((e) => setError(String(e?.message ?? e)));
   }, [load]);
 
-  async function act(fn: () => Promise<unknown>) {
+  async function setReportStatus(r: Report, next: string) {
     setError("");
     try {
-      await fn();
+      await apiFetch(`/api/reports/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) });
+      toast(next === "reviewed" ? "Marked reviewed" : next === "dismissed" ? "Dismissed" : "Moved back to New");
       await load();
-    } catch (e: any) {
-      setError(e?.status === 403 ? "Your role can't change reports. Ask an analyst, admin or owner." : String(e?.message ?? e));
+    } catch (e) {
+      const err = e as { status?: number; message?: string };
+      setError(err?.status === 403 ? "Your role can't change reports. Ask an analyst, admin or owner." : String(err?.message ?? e));
     }
   }
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const withLink = (brands ?? []).filter((b) => b.reportToken);
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Link copied");
+    } catch {
+      toast({ message: "Couldn't copy. Select the link and copy it yourself.", tone: "error" });
+    }
+  }
 
   return (
     <div>
       <PageHeader
         title="Public reports"
-        description="Scams reported by customers and staff through the public form. Links are scanned automatically (up to 30 a day per brand); phone numbers are matched against contact details found on existing findings."
+        description="Scams reported by customers and staff through your public form. Links are scanned automatically (up to 30 a day per brand); phone numbers are matched against contact details on existing threats."
       />
 
-      <section className="card mt-6 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="label">Public report form</h2>
-          <Link href="/settings?section=report-form" className="btn-ghost text-xs">
-            Manage in Settings
-          </Link>
-        </div>
-        {brands.map((b) => (
-          <div key={b.id} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium text-ink">{b.name}</span>
-            {b.reportToken ? (
-              <>
-                <input readOnly value={`${origin}/report/${b.reportToken}`} className="field-sm min-w-0 flex-1 font-mono" onFocus={(e) => e.currentTarget.select()} aria-label={`Public report link for ${b.name}`} />
-                <button className="btn-ghost text-xs" onClick={() => navigator.clipboard.writeText(`${origin}/report/${b.reportToken}`)}>
-                  Copy
-                </button>
-              </>
-            ) : (
-              <span className="text-ink-subtle">Off</span>
-            )}
-          </div>
-        ))}
-      </section>
-
-      <div className="mt-6 flex gap-2">
-        {STATUS_FILTERS.map((s) => (
-          <button key={s || "all"} onClick={() => setStatus(s)} className={status === s ? "btn-secondary text-xs" : "btn-ghost text-xs"}>
-            {s ? s[0].toUpperCase() + s.slice(1) : "All"}
-          </button>
-        ))}
-      </div>
-
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-      {loading && (
-        <LoadingRegion label="Loading reports" className="mt-3">
-          <SkeletonList rows={4} lines={2} />
-        </LoadingRegion>
+      {brands && (
+        <Banner
+          className="mb-4"
+          icon={<Link2 />}
+          action={
+            <Link href="/brands?tab=report-form" className="whitespace-nowrap text-[12.5px] text-primary hover:underline">
+              Form settings →
+            </Link>
+          }
+        >
+          {withLink.length === 0 ? (
+            "The public report form is off for every brand. Turn it on to give customers a way to report scams."
+          ) : (
+            <span className="flex flex-col gap-1.5">
+              {withLink.map((b) => (
+                <span key={b.id} className="flex min-w-0 flex-wrap items-center gap-2">
+                  {withLink.length > 1 && <b className="font-medium text-foreground">{b.name}:</b>}
+                  <span className="min-w-0 truncate font-mono text-xs text-foreground select-all">{`${origin}/report/${b.reportToken}`}</span>
+                  <Button size="sm" variant="ghost" className="h-6 px-1.5" onClick={() => copy(`${origin}/report/${b.reportToken}`)}>
+                    <Copy />
+                    Copy
+                  </Button>
+                </span>
+              ))}
+            </span>
+          )}
+        </Banner>
       )}
 
-      <div className={`card mt-3 divide-y divide-line ${loading ? "hidden" : ""}`}>
-        {reports.map((r) => (
-          <div key={r.id} className="px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 space-y-0.5">
-                {r.url && <div className="break-all font-mono text-ink">{r.url}</div>}
-                {r.phone && <div className="font-mono text-ink">{r.phone}</div>}
-                {r.description && <p className="whitespace-pre-wrap text-ink-muted">{r.description}</p>}
-                <div className="text-xs text-ink-subtle">
-                  {new Date(r.createdAt).toLocaleString()}
-                  {r.reporterEmail && <> · reporter: {r.reporterEmail}</>}
-                  {r.url && !r.finding && <> · not scanned (daily cap reached, or the brand&apos;s own site / a contact link)</>}
+      <Tabs value={status} onValueChange={setStatus}>
+        <TabsList className="mb-3">
+          {STATUSES.map(([k, l]) => (
+            <TabsTrigger key={k} value={k}>
+              {l}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {error && (
+        <Banner tone="error" className="mb-3">
+          {error}
+        </Banner>
+      )}
+
+      {!reports ? (
+        <LoadingRegion label="Loading reports">
+          <SkeletonList rows={4} lines={2} />
+        </LoadingRegion>
+      ) : reports.length === 0 ? (
+        <EmptyState title="No reports here">{status === "new" ? "Nothing new from the public form." : "No reports in this state."}</EmptyState>
+      ) : (
+        <ul className="rounded-md border border-border bg-card">
+          {reports.map((r) => {
+            const links = [...(r.finding ? [{ ...r.finding, why: "Reported link" }] : []), ...r.matchedFindings.map((f) => ({ ...f, why: "Same contact details" }))];
+            return (
+              <li key={r.id} className={cn("flex flex-wrap items-start justify-between gap-3 border-b border-border p-3.5 text-[13px] last:border-b-0", r.status === "dismissed" && status === "all" && "opacity-60")}>
+                <div className="flex min-w-0 flex-1 basis-80 flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+                    {r.url && <Ident value={r.url} highlight={false} />}
+                    {r.phone && (
+                      <span className="inline-flex items-center gap-1.5 font-mono">
+                        <Phone className="size-3.5 text-subtle" />
+                        {r.phone}
+                      </span>
+                    )}
+                    {status === "all" && <Pill tone={r.status === "new" ? "info" : "neutral"}>{r.status[0].toUpperCase() + r.status.slice(1)}</Pill>}
+                  </div>
+                  {r.description && <p className="whitespace-pre-wrap text-muted-foreground">&ldquo;{r.description}&rdquo;</p>}
+                  <div className="text-xs text-subtle">
+                    <span title={fullDate(r.createdAt)}>{timeAgo(r.createdAt)}</span>
+                    {r.reporterEmail ? (
+                      <>
+                        {" "}
+                        · from <span className="font-mono">{r.reporterEmail}</span>
+                      </>
+                    ) : (
+                      " · anonymous"
+                    )}
+                  </div>
+                  {links.length > 0 ? (
+                    <ul className="flex flex-col gap-1 text-xs">
+                      {links.map((f) => (
+                        <li key={f.id + f.why} className="flex flex-wrap items-center gap-2">
+                          <span className="text-subtle">{f.why}:</span>
+                          <Link href={`/threats/${f.id}`} className="hover:text-primary">
+                            <Ident value={f.identifier} />
+                          </Link>
+                          <SeverityTag severity={f.severity} />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : r.url ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-sev-medium">
+                      <Clock className="size-3.5" />
+                      {r.scanQueued ? "No known threat matches. The link is queued for a scan." : "Not scanned: the daily cap was reached, or it's the brand's own site or a contact link."}
+                    </span>
+                  ) : null}
                 </div>
-              </div>
-              <div className="flex shrink-0 gap-1">
-                {r.status !== "reviewed" && (
-                  <button className="btn-ghost text-xs" onClick={() => act(() => apiFetch(`/api/reports/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "reviewed" }) }))}>
-                    Mark reviewed
-                  </button>
+                {canAct && (
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    {r.status !== "reviewed" && (
+                      <Button size="sm" onClick={() => setReportStatus(r, "reviewed")}>
+                        <Check />
+                        Reviewed
+                      </Button>
+                    )}
+                    {r.status !== "dismissed" && (
+                      <Button size="sm" variant="ghost" onClick={() => setReportStatus(r, "dismissed")}>
+                        <X />
+                        Dismiss
+                      </Button>
+                    )}
+                  </div>
                 )}
-                {r.status !== "dismissed" && (
-                  <button className="btn-ghost text-xs" onClick={() => act(() => apiFetch(`/api/reports/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }) }))}>
-                    Dismiss
-                  </button>
-                )}
-              </div>
-            </div>
-            {(r.finding || r.matchedFindings.length > 0) && (
-              <ul className="mt-2 space-y-1 text-xs">
-                {[...(r.finding ? [{ ...r.finding, why: "reported link" }] : []), ...r.matchedFindings.map((f) => ({ ...f, why: "same contact details" }))].map((f) => (
-                  <li key={f.id} className="flex items-center gap-2">
-                    <span className="text-ink-subtle">{f.why}:</span>
-                    <Link href={`/threats/${f.id}`} className="break-all font-mono text-ink hover:text-brand-hover">
-                      {f.identifier}
-                    </Link>
-                    <SeverityBadge severity={f.severity} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-        {!loading && reports.length === 0 && <div className="px-4 py-10 text-center text-sm text-ink-subtle">No reports here.</div>}
-      </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

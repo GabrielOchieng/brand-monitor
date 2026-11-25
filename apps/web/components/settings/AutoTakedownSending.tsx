@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { apiFetch } from "../../lib/api";
 import { CHANNEL_LABELS, MODE_LABELS, SIGNAL_LABELS } from "../../lib/autoTakedown";
-import { Field } from "./Section";
+import { Field, Card } from "./Section";
+import { useConfirm } from "../ui/Confirm";
 
 export interface SendingData {
   automation: {
@@ -25,24 +26,16 @@ export interface SendingData {
   shadowStats: { right: number; wrong: number; unreviewed: number };
 }
 
-function Card({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="card min-w-0 p-5 sm:p-6">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {description && <div className="mt-1 text-sm leading-relaxed text-ink-subtle">{description}</div>}
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
 
 const STAGES = [
-  { key: "shadow", label: "Shadow", text: "Reports are prepared and recorded, never sent. Analysts mark each one right or wrong under Takedowns → Shadow review." },
-  { key: "redirect", label: "Redirect", text: "Reports are sent, but all to your redirect address (Report recipients), to check the wording and delivery." },
+  { key: "shadow", label: "Test: prepare only", text: "Reports are prepared and recorded, never sent. Analysts mark each one right or wrong under Takedowns → Test mode." },
+  { key: "redirect", label: "Test: send to yourself", text: "Reports are sent, but all to your test address (Report recipients), to check the wording and delivery." },
   { key: "live", label: "Live", text: "Reports go to their real recipients." },
 ];
 
 // Settings -> Automatic reporting: when reports are made and sent (TAKEDOWN_AUTOMATION_PLAN.md §6, §7, §10).
 export function AutoTakedownSending({ data, role, onChange, onError }: { data: SendingData; role: string | null; onChange: () => Promise<void>; onError: (m: string | null) => void }) {
+  const ask = useConfirm();
   const isOwner = role === "owner";
   const canManage = isOwner || role === "admin";
   const a = data.automation;
@@ -77,7 +70,7 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
 
   return (
     <>
-      <Card title="Stage" description="Every organization starts in shadow mode. Going live needs the shadow period to have passed, so you've seen what would have been sent.">
+      <Card title="Stage" description="Every organization starts in test mode. Going live needs the test period to have passed, so you've seen what would have been sent.">
         <div className="grid gap-2 sm:grid-cols-3">
           {STAGES.map((s) => (
             <div key={s.key} className={`rounded-md border p-3 ${stage === s.key ? "border-brand bg-brand/5" : "border-line"}`}>
@@ -89,19 +82,19 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
               {isOwner && stage !== s.key && (
                 <button
                   className="btn-secondary mt-2 text-xs"
-                  onClick={() => window.confirm(`Switch to ${s.label.toLowerCase()} mode?`) && put("/api/takedown-automation/stage", { stage: s.key }, "stage")}
+                  onClick={async () => (await ask({ title: `Switch to ${s.label === "Live" ? "live" : s.label.toLowerCase()}?`, body: s.text, confirmLabel: "Switch" })) && put("/api/takedown-automation/stage", { stage: s.key }, "stage")}
                 >
-                  Switch to {s.label.toLowerCase()}
+                  Switch to {s.label === "Live" ? "live" : s.label.charAt(0).toLowerCase() + s.label.slice(1)}
                 </button>
               )}
             </div>
           ))}
         </div>
         <p className="mt-3 text-sm text-ink-muted">
-          Shadow results: {data.shadowStats.right} right, {data.shadowStats.wrong} wrong, {data.shadowStats.unreviewed} not reviewed
+          Test-mode review: {data.shadowStats.right} right, {data.shadowStats.wrong} wrong, {data.shadowStats.unreviewed} not reviewed
           {reviewed > 0 ? ` (${Math.round((data.shadowStats.wrong / reviewed) * 100)}% wrong)` : ""}.
-          {shadowEnds && (shadowEnds > new Date() ? ` Live is possible from ${shadowEnds.toLocaleDateString()}.` : " The shadow period is over.")}
-          {!a?.shadowStartedAt && " The shadow period starts when automatic reporting is turned on."}
+          {shadowEnds && (shadowEnds > new Date() ? ` Live is possible from ${shadowEnds.toLocaleDateString()}.` : " The test period is over.")}
+          {!a?.shadowStartedAt && " The test period starts when automatic reporting is turned on."}
         </p>
       </Card>
 

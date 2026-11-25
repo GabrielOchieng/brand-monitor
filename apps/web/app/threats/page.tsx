@@ -1,88 +1,50 @@
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { serverApiFetch } from "../../lib/serverApi";
-import { ThreatsTable } from "../../components/ThreatsTable";
 import { ExportCsvButton } from "../../components/ExportCsvButton";
-import { ChevronLeftIcon, ChevronRightIcon } from "../../components/icons";
-import { ThreatFilters } from "../../components/ThreatFilters";
-import { PendingLink, PendingProvider, PendingSwap } from "../../components/PendingNavigation";
-import { SkeletonTable } from "../../components/Skeleton";
-import { statusLabel } from "../../lib/format";
 import { PageHeader } from "../../components/ui/PageHeader";
-
-export interface FindingRow {
-  id: string;
-  identifier: string;
-  type: string;
-  source: string;
-  riskScore: number;
-  severity: string;
-  status: string;
-  firstDetectedAt: string;
-  lastScannedAt: string;
-  assigneeId: string | null;
-  tags: string[];
-  brandName: string;
-}
-
-interface FindingsResponse {
-  findings: FindingRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-}
-
-interface Member {
-  userId: string;
-  email: string;
-}
-
+import { LinkTabs } from "../../components/ui/Tabs";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { ThreatQueue } from "../../components/threat/ThreatQueue";
+import { ThreatToolbar } from "../../components/threat/ThreatToolbar";
+import type { FindingsResponse, Member } from "../../components/threat/types";
 
 // Next 15 passes searchParams as a Promise -- must be awaited before use.
-type SearchParams = Promise<{
-  status?: string;
-  severity?: string;
-  assigneeId?: string;
-  brandId?: string;
-  q?: string;
-  sortBy?: string;
-  sortDir?: string;
-  page?: string;
-}>;
+type SearchParams = Promise<Record<string, string | undefined>>;
+
+const PASS_THROUGH = ["severity", "assigneeId", "brandId", "type", "q", "sortBy", "sortDir", "page"] as const;
+
+// Saved views, in the order an analyst works: what needs a decision, then the rest.
+const VIEWS: Array<{ key: string; label: string; statuses: string[] }> = [
+  { key: "open", label: "Needs action", statuses: ["new", "investigating", "confirmed"] },
+  { key: "new", label: "New", statuses: ["new"] },
+  { key: "investigating", label: "Investigating", statuses: ["investigating"] },
+  { key: "confirmed", label: "Confirmed", statuses: ["confirmed"] },
+  { key: "resolved", label: "Resolved", statuses: ["resolved"] },
+  { key: "false_positive", label: "Dismissed", statuses: ["false_positive"] },
+  { key: "all", label: "All", statuses: [] },
+];
 
 export default async function ThreatsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-
-  // No status in the URL is the default view, open findings only; "all" means no filter.
-  const status = sp.status ?? "open";
+  // No status in the URL is the default view, open threats only; "all" means no filter.
+  const view = VIEWS.some((v) => v.key === sp.status) ? sp.status! : "open";
 
   const qs = new URLSearchParams();
+  for (const k of PASS_THROUGH) if (sp[k]) qs.set(k, sp[k]!);
   if (sp.status) qs.set("status", sp.status);
-  if (sp.severity) qs.set("severity", sp.severity);
-  if (sp.assigneeId) qs.set("assigneeId", sp.assigneeId);
-  if (sp.brandId) qs.set("brandId", sp.brandId);
-  if (sp.q) qs.set("q", sp.q);
-  if (sp.sortBy) qs.set("sortBy", sp.sortBy);
-  if (sp.sortDir) qs.set("sortDir", sp.sortDir);
-  if (sp.page) qs.set("page", sp.page);
-
   const apiQs = new URLSearchParams(qs);
-  if (status === "all") apiQs.delete("status");
-  else apiQs.set("status", status);
+  if (view === "all") apiQs.delete("status");
+  else apiQs.set("status", view);
 
   const [data, brands, members] = await Promise.all([
     serverApiFetch<FindingsResponse>(`/api/findings?${apiQs.toString()}`),
-    serverApiFetch<Brand[]>("/api/brands"),
+    serverApiFetch<Array<{ id: string; name: string }>>("/api/brands"),
     serverApiFetch<Member[]>("/api/organization/members"),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
-
-  // Preserves every other active filter/sort param when a link only changes one of them.
-  // Any change but paging resets to page 1.
+  // Preserves every other filter and the sort; any change but paging goes back to page 1.
   function hrefWith(overrides: Record<string, string | undefined>): string {
     const next = new URLSearchParams(qs);
     for (const [key, value] of Object.entries(overrides)) {
@@ -90,54 +52,69 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
       else next.set(key, value);
     }
     if (!("page" in overrides)) next.delete("page");
-    return `/threats?${next.toString()}`;
+    const s = next.toString();
+    return s ? `/threats?${s}` : "/threats";
   }
+  const sortBy = sp.sortBy ?? "riskScore";
+  const sortDir = sp.sortDir ?? "desc";
+  const sortHref = (k: "riskScore" | "firstDetectedAt"): string => hrefWith({ sortBy: k, sortDir: sortBy === k && sortDir === "desc" ? "asc" : "desc" });
 
-  function sortHref(column: "riskScore" | "firstDetectedAt" | "lastScannedAt"): string {
-    const nextDir = sp.sortBy === column && sp.sortDir === "asc" ? "desc" : "asc";
-    return hrefWith({ sortBy: column, sortDir: nextDir });
-  }
+  const count = (statuses: string[]): number =>
+    statuses.length === 0 ? Object.values(data.statusCounts).reduce((a, b) => a + b, 0) : statuses.reduce((a, s) => a + (data.statusCounts[s] ?? 0), 0);
+  const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
 
-  // Every filter and the sort, but not the page: the export is all pages.
   const exportQs = new URLSearchParams(apiQs);
   exportQs.delete("page");
 
-  const viewLabel = status === "open" ? "open" : status === "all" ? "" : statusLabel(status).toLowerCase();
-
   return (
-    <PendingProvider>
+    <div>
       <PageHeader
         title="Threats"
-        description={`${data.total} ${viewLabel} finding${data.total === 1 ? "" : "s"}: lookalike domains, scam pages, fake apps and accounts.`}
+        description="Every lookalike domain, scam page, fake app and account found for your brands, highest risk first."
         actions={<ExportCsvButton query={exportQs.toString()} />}
       />
+      <LinkTabs
+        label="Views"
+        className="mb-3"
+        items={VIEWS.map((v) => ({ href: hrefWith({ status: v.key === "open" ? undefined : v.key }), label: v.label, count: count(v.statuses), active: v.key === view }))}
+      />
+      <ThreatToolbar brands={brands} members={members} />
 
-      <ThreatFilters brands={brands} members={members} />
-
-      <div className="mt-4">
-        <PendingSwap fallback={<SkeletonTable rows={Math.min(10, Math.max(4, data.findings.length))} />}>
-          <ThreatsTable
-            findings={data.findings}
-            sortLinks={{ riskScore: sortHref("riskScore"), firstDetectedAt: sortHref("firstDetectedAt") }}
-            currentSort={{ sortBy: sp.sortBy ?? "riskScore", sortDir: sp.sortDir ?? "desc" }}
-            showBrand={brands.length > 1}
-          />
-        </PendingSwap>
-      </div>
+      {data.findings.length === 0 ? (
+        <EmptyState title={sp.q || sp.severity || sp.type || sp.assigneeId || sp.brandId ? "Nothing matches these filters" : "Nothing in this view"}>
+          {view === "open" ? "No threat needs action right now. New ones appear here as discovery and the feeds find them." : "Try another view or clear the filters."}
+        </EmptyState>
+      ) : (
+        <ThreatQueue findings={data.findings} members={members} showBrand={brands.length > 1} sort={{ sortBy, sortDir }} sortHrefs={{ riskScore: sortHref("riskScore"), firstDetectedAt: sortHref("firstDetectedAt") }} />
+      )}
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm">
-          <PendingLink href={hrefWith({ page: String(Math.max(1, data.page - 1)) })} disabled={data.page <= 1} className="btn-secondary px-3 py-1.5 text-xs">
-            <ChevronLeftIcon className="h-3.5 w-3.5" /> Previous
-          </PendingLink>
-          <span className="text-ink-subtle">
-            Page {data.page} of {totalPages}
+        <nav aria-label="Pages" className="mt-3 flex items-center justify-between text-[13px]">
+          {data.page > 1 ? (
+            <Button size="sm" asChild>
+              <Link href={hrefWith({ page: String(data.page - 1) })}>
+                <ChevronLeft />
+                Previous
+              </Link>
+            </Button>
+          ) : (
+            <span />
+          )}
+          <span className="text-subtle tabular">
+            Page {data.page} of {totalPages} · {data.total} threats
           </span>
-          <PendingLink href={hrefWith({ page: String(Math.min(totalPages, data.page + 1)) })} disabled={data.page >= totalPages} className="btn-secondary px-3 py-1.5 text-xs">
-            Next <ChevronRightIcon className="h-3.5 w-3.5" />
-          </PendingLink>
-        </div>
+          {data.page < totalPages ? (
+            <Button size="sm" asChild>
+              <Link href={hrefWith({ page: String(data.page + 1) })}>
+                Next
+                <ChevronRight />
+              </Link>
+            </Button>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
-    </PendingProvider>
+    </div>
   );
 }

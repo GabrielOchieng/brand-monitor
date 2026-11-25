@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
 import { timeAgo } from "../../lib/format";
 import { Field } from "./Section";
+import { useConfirmText } from "../ui/Confirm";
 import { PasswordInput } from "../ui/PasswordInput";
 
 export interface IntegrationView {
@@ -19,6 +20,7 @@ export interface IntegrationView {
 // checked, reports about sites behind Cloudflare are submitted by API instead of being a manual
 // web-form task.
 export function CloudflareCard({ integration, isOwner, canTest, onChange }: { integration: IntegrationView | null; isOwner: boolean; canTest: boolean; onChange: () => Promise<void> }) {
+  const confirm = useConfirmText();
   const p = integration?.publicConfig ?? {};
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState({
@@ -72,7 +74,7 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
           <div className="text-ink">
             Account <span className="font-mono text-xs">{p.accountId}</span> · reporter {p.name} &lt;{p.email}&gt;
           </div>
-          <div className={integration.lastTestOk ? "text-emerald-700" : integration.lastTestOk === false ? "text-red-600" : "text-ink-subtle"}>
+          <div className={integration.lastTestOk ? "text-ok" : integration.lastTestOk === false ? "text-sev-critical" : "text-ink-subtle"}>
             {integration.lastTestAt ? `${integration.lastTestOk ? "Connection works" : "Check failed"}, ${timeAgo(integration.lastTestAt)}` : "Not checked yet: reports keep going to the web form until it is."}
             {integration.lastTestOk === false && integration.lastTestError && <span className="block text-xs">{integration.lastTestError}</span>}
           </div>
@@ -98,9 +100,9 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
                   Edit
                 </button>
                 <button
-                  className="btn-ghost text-xs text-red-600"
-                  onClick={() =>
-                    window.confirm("Disconnect Cloudflare? Reports to Cloudflare go back to its web form.") &&
+                  className="btn-ghost text-xs text-sev-critical"
+                  onClick={async () =>
+                    (await confirm("Disconnect Cloudflare? Reports to Cloudflare go back to its web form.", { danger: true, confirmLabel: "Disconnect" })) &&
                     run(async () => {
                       await apiFetch("/api/takedown-automation/integrations/cloudflare", { method: "DELETE" });
                       await onChange();
@@ -162,7 +164,7 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
         </form>
       )}
       {!integration && !isOwner && <p className="mt-3 text-sm text-ink-subtle">Not connected. An owner can connect it.</p>}
-      {msg && <p className={`mt-3 text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
+      {msg && <p className={`mt-3 text-sm ${msg.ok ? "text-ok" : "text-sev-critical"}`}>{msg.text}</p>}
     </div>
   );
 }

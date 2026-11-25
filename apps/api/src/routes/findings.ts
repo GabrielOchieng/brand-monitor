@@ -17,6 +17,7 @@ import { parseSocialUrl } from "../lib/socialUrls";
 import { recordSocialSighting } from "../pipeline/socialFindings";
 import { allowManualSubmit } from "../lib/rateLimit";
 import { toCsv } from "../lib/csv";
+import { medianDays, perDay, topReason, webState } from "../lib/findingView";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -42,6 +43,7 @@ function findingsWhere(q: z.infer<typeof FindingsQuerySchema>): Prisma.FindingWh
     ...(q.status === "open" ? { status: { notIn: ["false_positive", "resolved"] } } : q.status ? { status: q.status } : {}),
     ...(q.severity ? { severity: q.severity } : {}),
     ...(q.brandId ? { brandId: q.brandId } : {}),
+    ...(q.type ? { type: q.type } : {}),
     ...(q.assigneeId ? { assigneeId: q.assigneeId === "unassigned" ? null : q.assigneeId } : {}),
     ...(q.q ? { identifier: { contains: q.q, mode: "insensitive" } } : {}),
   };
@@ -52,6 +54,7 @@ const FindingsQuerySchema = z.object({
   severity: SeveritySchema.optional(),
   assigneeId: z.string().min(1).optional(), // the literal "unassigned" means assigneeId: null
   brandId: z.string().min(1).optional(),
+  type: z.enum(["domain", "url", "social"]).optional(),
   q: z.string().trim().max(200).optional(), // identifier search -- Prisma parameterizes `contains`, no injection risk
   sortBy: z.enum(["riskScore", "firstDetectedAt", "lastScannedAt"]).default("riskScore"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
@@ -105,18 +108,26 @@ export async function findingsRoutes(app: FastifyInstance) {
 
     const where = findingsWhere(q);
 
-    const [findings, total] = await withTenant(orgId, (tx) =>
+    // Counts per status for the view tabs: every other filter applies, the status one doesn't.
+    const countWhere = findingsWhere({ ...q, status: undefined });
+    const [findings, total, byStatus] = await withTenant(orgId, (tx) =>
       Promise.all([
         tx.finding.findMany({
           where,
           orderBy: { [q.sortBy]: q.sortDir },
           skip: (q.page - 1) * q.pageSize,
           take: q.pageSize,
-          include: { brand: { select: { name: true } } },
+          include: { brand: { select: { name: true } }, websiteIntel: { select: { looksParked: true, httpStatus: true } } },
         }),
         tx.finding.count({ where }),
+        tx.finding.groupBy({ by: ["status"], where: countWhere, _count: { _all: true } }),
       ])
     );
+    const scanIds = findings.map((f) => f.lastScanId).filter((id): id is string => !!id);
+    const events = scanIds.length
+      ? await withTenant(orgId, (tx) => tx.findingScoreEvent.findMany({ where: { scanId: { in: scanIds } }, select: { scanId: true, delta: true, reason: true } }))
+      : [];
+    const statusCounts = Object.fromEntries(byStatus.map((r) => [r.status, r._count._all]));
 
     return reply.send({
       findings: findings.map((f) => ({
@@ -132,8 +143,11 @@ export async function findingsRoutes(app: FastifyInstance) {
         assigneeId: f.assigneeId,
         tags: f.tags,
         brandName: f.brand.name,
+        webState: webState(f),
+        topReason: topReason(events.filter((e) => e.scanId === f.lastScanId)),
       })),
       total,
+      statusCounts,
       page: q.page,
       pageSize: q.pageSize,
     });
@@ -726,7 +740,7 @@ export async function findingsRoutes(app: FastifyInstance) {
         : await tx.brand.findFirst({ orderBy: { createdAt: "asc" } });
       if (!brand) return null;
 
-      const findings = await tx.finding.findMany({ where: { brandId: brand.id } });
+      const findings = await tx.finding.findMany({ where: { brandId: brand.id }, include: { websiteIntel: { select: { looksParked: true, httpStatus: true } } } });
       const bySeverity = { low: 0, medium: 0, high: 0, critical: 0 } as Record<string, number>;
       for (const f of findings) bySeverity[f.severity] = (bySeverity[f.severity] ?? 0) + 1;
 
@@ -749,11 +763,15 @@ export async function findingsRoutes(app: FastifyInstance) {
       for (const f of findings) if (!CLOSED.includes(f.status)) openBySeverity[f.severity] = (openBySeverity[f.severity] ?? 0) + 1;
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const newThisWeek = findings.filter((f) => f.firstDetectedAt >= weekAgo).length;
-      const attention = findings
+      const attentionRows = findings
         .filter((f) => !CLOSED.includes(f.status) && (f.severity === "critical" || f.severity === "high"))
         .sort((x, y) => Number(y.status === "new") - Number(x.status === "new") || y.riskScore - x.riskScore || y.firstDetectedAt.getTime() - x.firstDetectedAt.getTime())
-        .slice(0, 6)
-        .map((f) => ({
+        .slice(0, 6);
+      const attentionScanIds = attentionRows.map((f) => f.lastScanId).filter((id): id is string => !!id);
+      const attentionEvents = attentionScanIds.length
+        ? await tx.findingScoreEvent.findMany({ where: { scanId: { in: attentionScanIds } }, select: { scanId: true, delta: true, reason: true } })
+        : [];
+      const attention = attentionRows.map((f) => ({
           id: f.id,
           identifier: f.identifier,
           type: f.type,
@@ -762,7 +780,20 @@ export async function findingsRoutes(app: FastifyInstance) {
           riskScore: f.riskScore,
           status: f.status,
           firstDetectedAt: f.firstDetectedAt,
+          webState: webState(f),
+          topReason: topReason(attentionEvents.filter((e) => e.scanId === f.lastScanId)),
         }));
+      const open = findings.filter((f) => !CLOSED.includes(f.status));
+      const liveOpen = open.filter((f) => webState(f) === "live").length;
+      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const completed = await tx.takedown.findMany({
+        where: { status: "completed", resolvedAt: { gte: monthAgo }, finding: { brandId: brand.id } },
+        select: { requestedAt: true, resolvedAt: true },
+      });
+      const takedownsDone = {
+        last30Days: completed.length,
+        medianDays: medianDays(completed.map((t) => ({ requestedAt: t.requestedAt, resolvedAt: t.resolvedAt! }))),
+      };
       const openTakedowns = await tx.takedown.findMany({
         where: { status: { in: ["requested", "acknowledged"] }, finding: { brandId: brand.id } },
         orderBy: { requestedAt: "asc" },
@@ -778,6 +809,9 @@ export async function findingsRoutes(app: FastifyInstance) {
         openBySeverity,
         openTotal: Object.values(openBySeverity).reduce((a, b) => a + b, 0),
         newThisWeek,
+        newPerDay: perDay(findings.map((f) => f.firstDetectedAt), new Date(), 14),
+        liveOpen,
+        takedownsDone,
         attention,
         openTakedowns,
         openTakedownCount,

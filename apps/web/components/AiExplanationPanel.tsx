@@ -56,7 +56,7 @@ export function AiExplanationPanel({
     <section className="card p-5">
       <div className="flex items-center gap-2">
         <h2 className="label">AI explanation</h2>
-        <span className="rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+        <span className="rounded-md border border-info/40 bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-info">
           AI-generated
         </span>
       </div>
@@ -86,7 +86,7 @@ export function AiExplanationPanel({
       {(!explanation || explanation.status === "failed") && !generating && (
         <div className="mt-3">
           {explanation?.status === "failed" && (
-            <p className="text-sm text-red-600">Last attempt failed: {readableAiError(explanation.error)}</p>
+            <p className="text-sm text-sev-critical">Last attempt failed: {readableAiError(explanation.error)}</p>
           )}
           <button onClick={handleGenerate} disabled={generating} className="btn-secondary mt-2">
             {generating ? "Generating…" : "Generate AI explanation"}
@@ -94,7 +94,7 @@ export function AiExplanationPanel({
         </div>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm text-sev-critical">{error}</p>}
     </section>
   );
 }

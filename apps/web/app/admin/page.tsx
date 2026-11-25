@@ -64,7 +64,7 @@ function CreateOrg() {
       <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
         Cancel
       </button>
-      {error && <p className="w-full text-sm text-red-600">{error}</p>}
+      {error && <p className="w-full text-sm text-sev-critical">{error}</p>}
     </form>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirmText } from "../ui/Confirm";
 import { apiFetch } from "../../lib/api";
 
 interface Target {
@@ -15,6 +16,7 @@ type ActionKey = "sign-out" | "password-link" | "reset-2fa" | "delete";
 // Per-user admin actions. A native <select> rather than a popover: the tables scroll
 // horizontally on phones, which would clip a popover. Every action asks for confirmation.
 export function UserActions({ user, onDone }: { user: Target; onDone: (message: { ok: boolean; text: string }) => void }) {
+  const confirm = useConfirmText();
   const [busy, setBusy] = useState(false);
 
   const actions: Record<ActionKey, { label: string; confirm: string; path: string; method: "POST" | "DELETE"; success: string }> = {
@@ -51,7 +53,7 @@ export function UserActions({ user, onDone }: { user: Target; onDone: (message: 
 
   async function run(key: ActionKey) {
     const a = actions[key];
-    if (!window.confirm(a.confirm)) return;
+    if (!await confirm(a.confirm)) return;
     setBusy(true);
     try {
       await apiFetch(a.path, { method: a.method });

@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { Check, Clock } from "lucide-react";
+import { cn } from "../../lib/cn";
+import { Banner } from "../ui/Banner";
+import { Button, buttonVariants } from "../ui/Button";
+import { Switch, ToggleRow } from "../ui/Switch";
+import { useConfirm } from "../ui/Confirm";
+import { useToast } from "../ui/Toast";
 import { API_URL, apiFetch } from "../../lib/api";
 import { useSession, type Role } from "../../lib/session";
 import { fullDate, timeAgo } from "../../lib/format";
 import { authorizationStatus, BLOCKER_LABELS, DOCUMENT_KIND_LABELS, EVENT_LABELS, formatBytes, PROVIDER_LABELS } from "../../lib/autoTakedown";
 import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
-import { Field, Toggle } from "./Section";
-import { AutoTakedownSending, type SendingData } from "./AutoTakedownSending";
-import { CloudflareCard, type IntegrationView } from "./CloudflareCard";
+import { Field, Card, SettingsHead, Toggle } from "./Section";
+import type { SendingData } from "./AutoTakedownSending";
+import type { IntegrationView } from "./CloudflareCard";
 import { PasswordInput } from "../ui/PasswordInput";
 
 type Provider = "graph" | "gmail" | "smtp";
@@ -59,7 +67,7 @@ interface Authorization {
   documents: Doc[];
 }
 
-interface Overview extends Omit<SendingData, "automation"> {
+export interface Overview extends Omit<SendingData, "automation"> {
   integrations: IntegrationView[];
   platformEnabled: boolean;
   encryptionConfigured: boolean;
@@ -73,198 +81,318 @@ interface Overview extends Omit<SendingData, "automation"> {
   events: Array<{ id: string; actorEmail: string | null; action: string; details: Record<string, unknown> | null; createdAt: string }>;
 }
 
-function Card({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="card min-w-0 p-5 sm:p-6">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {description && <div className="mt-1 text-sm leading-relaxed text-ink-subtle">{description}</div>}
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
 
-// Settings -> Takedowns -> Automatic reporting. Step 1 of TAKEDOWN_AUTOMATION_PLAN.md: the
-// switches, the sender mailbox and the authorization. Nothing is sent automatically yet.
-export function AutoTakedownSettings({ role }: { role: Role | null }) {
+const AutomationContext = createContext<{ data: Overview | null; error: string | null; setError: (e: string | null) => void; reload: () => Promise<void> } | null>(null);
+
+// Loads the automatic-reporting overview once for every page under Settings -> Automatic reporting.
+export function AutomationProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const isOwner = role === "owner";
-  const canManage = role === "owner" || role === "admin";
-  const canStop = canManage || role === "analyst";
-
-  const load = useCallback(async () => {
+  const reload = useCallback(async () => {
     try {
       setData(await apiFetch<Overview>("/api/takedown-automation"));
     } catch (err: any) {
       setError(err.message);
     }
   }, []);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    reload();
+  }, [reload]);
+  return <AutomationContext.Provider value={{ data, error, setError, reload }}>{children}</AutomationContext.Provider>;
+}
 
-  async function act(path: string, body?: unknown, confirmText?: string) {
-    if (confirmText && !window.confirm(confirmText)) return;
+export function useAutomation(): { data: Overview | null; error: string | null; setError: (e: string | null) => void; reload: () => Promise<void> } {
+  const v = useContext(AutomationContext);
+  if (!v) throw new Error("useAutomation must be used inside <AutomationProvider>");
+  return v;
+}
+
+export function AutomationLoading() {
+  const { error } = useAutomation();
+  return <LoadingRegion label="Loading automatic reporting settings">{error ? <p className="text-sm text-sev-critical">{error}</p> : <Skeleton className="h-40 w-full" />}</LoadingRegion>;
+}
+
+type Step = { key: string; title: string; text: ReactNode; state: "done" | "todo" | "warn" | "wait" | "optional"; href?: string; action?: string };
+
+// What's left before reports go out on their own, worked out from the same blockers the
+// dispatcher checks (lib/takedownAutomation.ts automationBlockers).
+function setupSteps(data: Overview): Step[] {
+  const b = new Set(data.blockers);
+  const stage = data.automation?.stage ?? "shadow";
+  const cloudflare = data.integrations.find((i) => i.provider === "cloudflare");
+  const inForce = data.authorizations.filter((a) => authorizationStatus(a) === "in_force");
+  return [
+    {
+      key: "sender",
+      title: "Sender mailbox",
+      state: b.has("no_sender") ? "todo" : b.has("sender_untested") ? "warn" : "done",
+      text: !data.sender ? (
+        "Connect the mailbox reports are sent from (Microsoft 365, Gmail or SMTP)."
+      ) : (
+        <>
+          <span className="font-mono">{data.sender.fromAddress}</span> · {PROVIDER_LABELS[data.sender.provider] ?? data.sender.provider}.{" "}
+          {b.has("sender_untested") ? "Send a test with its current settings." : data.sender.lastTestAt ? `Tested ${timeAgo(data.sender.lastTestAt)}.` : ""}
+        </>
+      ),
+      href: "/settings/automatic-reporting/sender",
+      action: b.has("no_sender") ? "Connect" : b.has("sender_untested") ? "Test" : "Manage",
+    },
+    {
+      key: "authorization",
+      title: "Authorization",
+      state: b.has("no_authorization") ? "todo" : "done",
+      text: inForce.length
+        ? `${inForce.length} in force. ${inForce[0].signatoryName}, ${inForce[0].signatoryTitle}${inForce[0].expiresAt ? `, until ${new Date(inForce[0].expiresAt).toLocaleDateString()}` : ""}.`
+        : "Record who authorizes reports on your behalf, and attach the signed letter.",
+      href: "/settings/automatic-reporting/authorization",
+      action: b.has("no_authorization") ? "Add" : "View",
+    },
+    {
+      key: "rules",
+      title: "Sending rules and test mode",
+      state: stage === "live" ? "done" : "warn",
+      text:
+        stage === "shadow"
+          ? "Test mode: reports are prepared and recorded, never sent. Review them under Takedowns → Test mode, then move on."
+          : stage === "redirect"
+            ? `Test mode: reports are sent, but to ${data.automation?.redirectTo ?? "your test address"} instead of the real recipients.`
+            : "Live: reports go to their real recipients.",
+      href: "/settings/automatic-reporting/sending",
+      action: "Review",
+    },
+    {
+      key: "allowed",
+      title: "Approval from the platform team",
+      state: b.has("not_allowed") ? "wait" : "done",
+      text: data.allowedAt ? `Allowed ${timeAgo(data.allowedAt)}.` : "Brand Monitor checks every organization's authorization before its first automatic report.",
+    },
+    {
+      key: "enabled",
+      title: "Turned on by an owner",
+      state: b.has("not_enabled") ? "todo" : "done",
+      text: data.automation?.enabledAt ? `On since ${timeAgo(data.automation.enabledAt)}${data.automation.enabledBy ? ` (${data.automation.enabledBy})` : ""}.` : "The last switch, once everything above is done.",
+    },
+    {
+      key: "cloudflare",
+      title: "Cloudflare",
+      state: cloudflare?.enabled && cloudflare.lastTestOk ? "done" : "optional",
+      text: cloudflare?.enabled ? (cloudflare.lastTestOk ? "Connected: reports about Cloudflare sites go through its API." : "Saved, but the connection hasn't passed a check yet.") : "Reports about sites behind Cloudflare skip its web form. Usually the fastest takedown.",
+      href: "/settings/automatic-reporting/cloudflare",
+      action: cloudflare ? "Manage" : "Connect",
+    },
+  ];
+}
+
+const STEP_ICON: Record<Step["state"], { cls: string; icon: ReactNode }> = {
+  done: { cls: "bg-ok/15 text-ok border-transparent", icon: <Check className="size-3.5" strokeWidth={2.6} /> },
+  warn: { cls: "bg-sev-medium/15 text-sev-medium border-transparent", icon: <span className="text-xs font-bold">!</span> },
+  todo: { cls: "border-dashed border-border-strong text-muted-foreground", icon: <span className="size-1.5 rounded-full bg-current" /> },
+  wait: { cls: "border-dashed border-border-strong text-muted-foreground", icon: <Clock className="size-3.5" /> },
+  optional: { cls: "border-border-strong text-subtle", icon: <span className="size-1.5 rounded-full bg-current" /> },
+};
+
+// Settings -> Automatic reporting: a checklist of what's left, the switches, and Stop all.
+export function AutomationSetup({ role }: { role: Role | null }) {
+  const { data, error, setError, reload } = useAutomation();
+  const ask = useConfirm();
+  const toast = useToast();
+  const isOwner = role === "owner";
+  const canManage = role === "owner" || role === "admin";
+  const canStop = canManage || role === "analyst";
+
+  async function act(path: string, body?: unknown) {
     setError(null);
     try {
-      await apiFetch(path, {
-        method: "POST",
-        ...(body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
-      });
-      await load();
+      await apiFetch(path, { method: "POST", ...(body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
+      await reload();
+      return true;
     } catch (err: any) {
       setError(err.message);
+      return false;
     }
   }
 
-  if (!data) {
-    return (
-      <LoadingRegion label="Loading automatic reporting settings">
-        {error ? <p className="text-sm text-red-600">{error}</p> : <Skeleton className="h-40 w-full" />}
-      </LoadingRegion>
-    );
-  }
+  if (!data) return <AutomationLoading />;
 
   const enabled = !!data.automation?.enabledAt;
   const stopped = !!data.automation?.stoppedAt;
   const setupMissing = data.blockers.filter((b) => ["not_allowed", "no_sender", "sender_untested", "no_authorization"].includes(b));
   const live = data.blockers.length === 0;
+  const steps = setupSteps(data);
+  const required = steps.filter((s) => s.state !== "optional");
+  const done = required.filter((s) => s.state === "done").length;
 
   return (
-    <section className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">Automatic reporting</h2>
-        <div className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-subtle">
-          Abuse reports for lookalike <strong>websites</strong> sent from your own mailbox, to registrars, hosts and CERTs. Social media accounts are always reported by
-          hand. Every switch below must be on before anything is sent.
-        </div>
-        <p className="mt-3 max-w-2xl rounded-md border border-line bg-elevated/60 px-3 py-2 text-xs text-ink-muted">
-          Order of setup: sender mailbox and authorization here, wording under Report templates, recipients under Report recipients, then the platform admin allows
-          it and an owner turns it on. It starts in shadow mode: nothing is sent until you move it to redirect and then live.
-        </p>
-      </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      {/* Status and switches */}
-      <Card title="Status">
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-              stopped ? "border-red-200 bg-red-50 text-red-700" : live ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-line bg-elevated text-ink-subtle"
-            }`}
-          >
-            {stopped ? "Stopped" : live ? "Ready to send" : enabled ? "On, but blocked" : "Off"}
+    <section className="flex flex-col gap-4">
+      <SettingsHead
+        title="Automatic takedown reporting"
+        description={
+          <>
+            Abuse reports for lookalike <strong className="text-foreground">websites</strong>, sent from your own mailbox to registrars, hosts and CERTs. Social media accounts
+            are always reported by hand. Until every step below is done, reports are prepared and wait for approval under Takedowns.
+          </>
+        }
+      />
+      {error && <Banner tone="error">{error}</Banner>}
+      {data.blockers.includes("platform_disabled") && (
+        <Banner tone="info" title="Switched off on this server.">
+          Automatic sending is disabled for the whole Brand Monitor installation, so nothing is sent whatever the settings here say.
+        </Banner>
+      )}
+      {stopped ? (
+        <Banner tone="error" title="All sending is stopped.">
+          Stopped {timeAgo(data.automation!.stoppedAt!)}
+          {data.automation!.stoppedBy ? ` by ${data.automation!.stoppedBy}` : ""}
+          {data.automation!.stopReason ? `: ${data.automation!.stopReason}` : ""}. Only an owner can resume.
+        </Banner>
+      ) : live ? (
+        <Banner tone="ok" title="Sending automatically.">
+          Reports for qualifying threats go out on their own, within your sending rules.
+        </Banner>
+      ) : (
+        <Banner tone="warn" title={`Not sending yet: ${required.length - done} step${required.length - done === 1 ? "" : "s"} left.`}>
+          <span className="mt-2 flex items-center gap-2.5">
+            <span className="h-1.5 w-full max-w-60 overflow-hidden rounded-full bg-border-strong">
+              <span className="block h-full bg-primary" style={{ width: `${(done / required.length) * 100}%` }} />
+            </span>
+            <span className="whitespace-nowrap font-mono text-xs text-subtle">
+              {done} of {required.length}
+            </span>
           </span>
-          {data.allowedAt && <span className="text-xs text-ink-subtle">Allowed by the platform admin {timeAgo(data.allowedAt)}</span>}
-        </div>
-        {data.blockers.length > 0 && (
-          <ul className="mt-3 space-y-1 text-sm text-ink-muted">
-            {data.blockers.map((b) => (
-              <li key={b} className="flex gap-2">
-                <span className="text-ink-subtle">•</span>
-                {BLOCKER_LABELS[b] ?? b}
-              </li>
-            ))}
-          </ul>
-        )}
-        {stopped && (
-          <p className="mt-3 text-sm text-red-700">
-            Stopped {timeAgo(data.automation!.stoppedAt!)}
-            {data.automation!.stoppedBy ? ` by ${data.automation!.stoppedBy}` : ""}
-            {data.automation!.stopReason ? `: ${data.automation!.stopReason}` : ""}. Only an owner can resume.
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {isOwner &&
-            (enabled ? (
-              <button className="btn-secondary" onClick={() => act("/api/takedown-automation/disable", undefined, "Turn automatic reporting off? Reports go back to being sent by hand.")}>
-                Turn off
-              </button>
-            ) : (
-              <button className="btn-primary" disabled={setupMissing.length > 0} title={setupMissing.length ? "Finish the setup first" : undefined} onClick={() => act("/api/takedown-automation/enable")}>
-                Turn on
-              </button>
-            ))}
-          {canStop && !stopped && (
-            <button
-              className="btn-danger"
-              onClick={() => {
-                const reason = window.prompt("Stop all automatic sending for the whole organization now? Optionally say why:");
-                if (reason !== null) act("/api/takedown-automation/stop", { reason });
+        </Banner>
+      )}
+
+      <ul className="overflow-hidden rounded-md border border-border bg-card">
+        {steps.map((s) => (
+          <li key={s.key} className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-3 border-b border-border p-3.5 last:border-b-0 sm:grid-cols-[28px_minmax(0,1fr)_auto]">
+            <span className={cn("grid size-6 place-items-center rounded-full border", STEP_ICON[s.state].cls)} aria-label={s.state}>
+              {STEP_ICON[s.state].icon}
+            </span>
+            <div className="min-w-0">
+              <h4 className="mb-0.5 flex flex-wrap items-center gap-2 text-[13.5px] font-semibold">
+                {s.title}
+                {s.state === "optional" && <span className="rounded-sm border border-border-strong px-1.5 text-[10.5px] font-medium text-subtle">Optional</span>}
+                {s.state === "wait" && <span className="rounded-sm border border-border-strong px-1.5 text-[10.5px] font-medium text-subtle">Waiting</span>}
+              </h4>
+              <p className="text-[12.5px] text-muted-foreground">{s.text}</p>
+            </div>
+            {s.href && (
+              <Link href={s.href} className={cn(buttonVariants({ variant: s.state === "todo" || s.state === "warn" ? "secondary" : "ghost", size: "sm" }), "col-start-2 justify-self-start sm:col-start-auto")}>
+                {s.action}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <Card title="Switches" description={isOwner ? undefined : "Only an owner can turn automatic reporting on or off."}>
+        <ToggleRow label="Automatic reporting for the organization" hint={setupMissing.length ? "Available once the setup steps above are done." : enabled ? "On" : "Off"}>
+          <Switch
+            checked={enabled}
+            disabled={!isOwner || (!enabled && setupMissing.length > 0)}
+            aria-label="Automatic reporting for the organization"
+            onCheckedChange={async (next) => {
+              if (!next && !(await ask({ title: "Turn automatic reporting off?", body: "Reports go back to being sent by hand.", confirmLabel: "Turn off" }))) return;
+              if (await act(next ? "/api/takedown-automation/enable" : "/api/takedown-automation/disable")) toast(next ? "Automatic reporting is on" : "Automatic reporting is off");
+            }}
+          />
+        </ToggleRow>
+        {data.brands.map((b) => (
+          <ToggleRow
+            key={b.id}
+            label={b.name}
+            hint={b.blockers.length === 0 ? "Ready" : b.blockers.includes("brand_off") ? "Off: this brand's reports stay manual" : b.blockers.includes("no_authorization") ? "No authorization covers this brand" : "Waiting on the organization's setup"}
+          >
+            <Switch
+              checked={b.autoTakedownEnabled}
+              disabled={!canManage}
+              aria-label={`Automatic reporting for ${b.name}`}
+              onCheckedChange={async (next) => {
+                setError(null);
+                try {
+                  await apiFetch(`/api/takedown-automation/brands/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }) });
+                  await reload();
+                } catch (err: any) {
+                  setError(err.message);
+                }
+              }}
+            />
+          </ToggleRow>
+        ))}
+      </Card>
+
+      {(canStop || (isOwner && stopped)) && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-sev-critical/35 bg-card p-4">
+          <div>
+            <b className="text-[13.5px] text-sev-critical">{stopped ? "Sending is stopped" : "Stop all sending"}</b>
+            <p className="mt-0.5 text-xs text-subtle">
+              {stopped ? "Resuming lets qualifying reports go out again." : "Stops every automatic report for every brand at once, effective immediately. Use it if something looks wrong."}
+            </p>
+          </div>
+          {!stopped && canStop && (
+            <Button
+              variant="danger"
+              onClick={async () => {
+                const reason = await ask({
+                  title: "Stop all automatic sending?",
+                  body: "Nothing is sent automatically for any brand until an owner resumes it.",
+                  confirmLabel: "Stop all sending",
+                  danger: true,
+                  input: { label: "Why (shown to your team)", placeholder: "e.g. wrong recipient on registrar reports", optional: true },
+                });
+                if (reason !== null && (await act("/api/takedown-automation/stop", { reason }))) toast("All automatic sending stopped");
               }}
             >
               Stop all sending
-            </button>
+            </Button>
           )}
-          {isOwner && stopped && (
-            <button className="btn-secondary" onClick={() => act("/api/takedown-automation/resume", undefined, "Resume sending? Reports that qualify will be sent again.")}>
+          {stopped && isOwner && (
+            <Button
+              onClick={async () => {
+                if (await ask({ title: "Resume sending?", body: "Reports that qualify will be sent again.", confirmLabel: "Resume" })) await act("/api/takedown-automation/resume");
+              }}
+            >
               Resume sending
-            </button>
+            </Button>
           )}
         </div>
-      </Card>
-
-      <AutoTakedownSending data={data} role={role} onChange={load} onError={setError} />
-
-      <SenderCard data={data} isOwner={isOwner} canTest={canManage} onChange={load} />
-      <AuthorizationCard data={data} isOwner={isOwner} onChange={load} />
-      <CloudflareCard integration={data.integrations.find((i) => i.provider === "cloudflare") ?? null} isOwner={isOwner} canTest={canManage} onChange={load} />
-
-      {data.brands.length > 0 && (
-        <Card title="Brands" description="Turn automatic reporting off for a brand to keep its reports manual.">
-          <ul className="divide-y divide-line">
-            {data.brands.map((b) => (
-              <li key={b.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-ink">{b.name}</div>
-                  <div className="truncate text-xs text-ink-subtle">
-                    {b.blockers.length === 0 ? "Ready" : b.blockers.includes("brand_off") ? "Off for this brand" : b.blockers.includes("no_authorization") ? "No authorization covers this brand" : "Blocked by the organization settings"}
-                  </div>
-                </div>
-                <Toggle
-                  checked={b.autoTakedownEnabled}
-                  disabled={!canManage}
-                  label={`Automatic reporting for ${b.name}`}
-                  onChange={async (next) => {
-                    setError(null);
-                    try {
-                      await apiFetch(`/api/takedown-automation/brands/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }) });
-                      await load();
-                    } catch (err: any) {
-                      setError(err.message);
-                    }
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-        </Card>
       )}
+    </section>
+  );
+}
 
-      <Card title="History" description="Every change to these settings and every test send.">
+export function AutomationHistory() {
+  const { data } = useAutomation();
+  if (!data) return <AutomationLoading />;
+  return (
+    <section className="flex flex-col gap-4">
+      <SettingsHead title="History" description="Every change to the automatic-reporting settings and every test send." />
+      <div className="rounded-md border border-border bg-card">
         {data.events.length === 0 ? (
-          <p className="text-sm text-ink-subtle">Nothing yet.</p>
+          <p className="p-4 text-[13px] text-subtle">Nothing yet.</p>
         ) : (
-          <ul className="space-y-1.5 text-sm">
+          <ul>
             {data.events.map((e) => (
-              <li key={e.id} className="flex flex-wrap gap-x-2">
-                <span className="text-ink">{EVENT_LABELS[e.action] ?? e.action}</span>
-                {e.action === "sender.test" && e.details && (
-                  <span className={e.details.ok ? "text-emerald-700" : "text-red-600"}>
-                    {e.details.ok ? "delivered" : "failed"} ({String(e.details.to)})
-                  </span>
-                )}
-                {e.action === "document.upload" && e.details && <span className="text-ink-subtle">{String(e.details.filename)}</span>}
-                <span className="text-ink-subtle">
-                  {e.actorEmail ?? "someone"} · <span title={fullDate(e.createdAt)}>{timeAgo(e.createdAt)}</span>
+              <li key={e.id} className="grid grid-cols-[90px_1fr] gap-3 border-b border-border px-4 py-2.5 text-[13px] last:border-b-0">
+                <time className="font-mono text-[11.5px] text-subtle" title={fullDate(e.createdAt)}>
+                  {timeAgo(e.createdAt)}
+                </time>
+                <span>
+                  {EVENT_LABELS[e.action] ?? e.action}
+                  {e.action === "sender.test" && e.details && (
+                    <span className={e.details.ok ? "text-ok" : "text-sev-critical"}>
+                      {" "}
+                      {e.details.ok ? "delivered" : "failed"} ({String(e.details.to)})
+                    </span>
+                  )}
+                  {e.action === "document.upload" && e.details && <span className="text-subtle"> {String(e.details.filename)}</span>}
+                  <span className="text-subtle"> · {e.actorEmail ?? "someone"}</span>
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </Card>
+      </div>
     </section>
   );
 }
@@ -294,7 +422,8 @@ const PROVIDER_HELP: Record<Provider, ReactNode> = {
   ),
 };
 
-function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOwner: boolean; canTest: boolean; onChange: () => Promise<void> }) {
+export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOwner: boolean; canTest: boolean; onChange: () => Promise<void> }) {
+  const ask = useConfirm();
   const { me } = useSession();
   const s = data.sender;
   const [editing, setEditing] = useState(!s);
@@ -381,7 +510,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
   }
 
   async function remove() {
-    if (!window.confirm("Remove the sender mailbox? Its stored credentials are deleted.")) return;
+    if (!(await ask({ title: "Remove the sender mailbox?", body: "Its stored credentials are deleted, and automatic reporting stops until a mailbox is connected and tested again.", confirmLabel: "Remove mailbox", danger: true }))) return;
     try {
       await apiFetch("/api/takedown-automation/sender", { method: "DELETE" });
       setEditing(true);
@@ -396,7 +525,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
       title="Sender mailbox"
       description="Reports are sent from your organization's own mailbox (for example brandprotection@yourcompany.com), never from Brand Monitor's, so registrars see your domain and replies come back to you."
     >
-      {!data.encryptionConfigured && <p className="mb-3 text-sm text-red-600">The server has no AUTH_ENCRYPTION_KEY, so sender credentials can&apos;t be stored.</p>}
+      {!data.encryptionConfigured && <p className="mb-3 text-sm text-sev-critical">The server has no AUTH_ENCRYPTION_KEY, so sender credentials can&apos;t be stored.</p>}
 
       {s && !editing && (
         <div className="space-y-3 text-sm">
@@ -424,7 +553,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
               </span>
             ))}
             <dt className="text-ink-subtle">Last test</dt>
-            <dd className={s.lastTestOk ? "text-emerald-700" : s.lastTestOk === false ? "text-red-600" : "text-ink-subtle"}>
+            <dd className={s.lastTestOk ? "text-ok" : s.lastTestOk === false ? "text-sev-critical" : "text-ink-subtle"}>
               {s.lastTestAt ? `${s.lastTestOk ? "Delivered" : "Failed"} to ${s.lastTestTo}, ${timeAgo(s.lastTestAt)}` : "Not tested since the last change"}
               {s.lastTestOk === false && s.lastTestError && <span className="mt-0.5 block text-xs">{s.lastTestError}</span>}
             </dd>
@@ -442,7 +571,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
             </div>
           )}
           {testResult && (
-            <p className={`text-sm ${testResult.ok ? "text-emerald-700" : "text-red-600"}`}>
+            <p className={`text-sm ${testResult.ok ? "text-ok" : "text-sev-critical"}`}>
               {testResult.ok ? (
                 <>
                   <CheckIcon className="mr-1 inline h-4 w-4" />
@@ -465,7 +594,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                     : "Matches replies to reports by their [BM-…] tag, marks takedowns acknowledged and stops reporting to addresses that bounce. Needs the gmail.readonly scope in the domain-wide delegation too."}
               </p>
               {s.readReplies && (
-                <p className={`mt-1 text-xs ${s.repliesError ? "text-red-600" : "text-ink-subtle"}`}>
+                <p className={`mt-1 text-xs ${s.repliesError ? "text-sev-critical" : "text-ink-subtle"}`}>
                   {s.repliesError ? `Last check failed: ${s.repliesError}` : s.repliesCheckedAt ? `Last checked ${timeAgo(s.repliesCheckedAt)}.` : "Not checked yet (every 10 minutes)."}
                 </p>
               )}
@@ -495,7 +624,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                 <button className="btn-ghost text-xs" onClick={() => setEditing(true)}>
                   Edit
                 </button>
-                <button className="btn-ghost text-xs text-red-600" onClick={remove}>
+                <button className="btn-ghost text-xs text-sev-critical" onClick={remove}>
                   Remove
                 </button>
               </>
@@ -586,7 +715,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
             <textarea rows={4} className="field w-full" value={form.signature} onChange={set("signature")} />
           </Field>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-sev-critical">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" className="btn-primary" disabled={saving || !data.encryptionConfigured}>
               {saving ? "Saving…" : "Save sender"}
@@ -601,14 +730,15 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
         </form>
       )}
       {!s && !isOwner && <p className="text-sm text-ink-subtle">No sender mailbox yet. An owner sets it up.</p>}
-      {error && !editing && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && !editing && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Card>
   );
 }
 
 // --- Authorization ------------------------------------------------------------------------------
 
-function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwner: boolean; onChange: () => Promise<void> }) {
+export function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwner: boolean; onChange: () => Promise<void> }) {
+  const ask = useConfirm();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ brandId: "", signatoryName: "", signatoryTitle: "", signatoryEmail: "", signatoryPhone: "", scope: "", validFrom: "", expiresAt: "" });
   const [error, setError] = useState<string | null>(null);
@@ -664,7 +794,7 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
   }
 
   async function call(path: string, method: string, confirmText: string) {
-    if (!window.confirm(confirmText)) return;
+    if (!(await ask({ title: confirmText, confirmLabel: "Continue", danger: true }))) return;
     setError(null);
     try {
       await apiFetch(path, { method });
@@ -703,13 +833,13 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      status === "in_force" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-line bg-elevated text-ink-subtle"
+                      status === "in_force" ? "border-ok/40 bg-ok/10 text-ok" : "border-line bg-elevated text-ink-subtle"
                     }`}
                   >
                     {{ in_force: "In force", revoked: "Revoked", expired: "Expired", not_started: "Not started" }[status]}
                   </span>
                   {isOwner && !a.revokedAt && (
-                    <button className="btn-ghost text-xs text-red-600" onClick={() => call(`/api/takedown-automation/authorizations/${a.id}/revoke`, "POST", `Revoke ${a.signatoryName}'s authorization? It can't be undone.`)}>
+                    <button className="btn-ghost text-xs text-sev-critical" onClick={() => call(`/api/takedown-automation/authorizations/${a.id}/revoke`, "POST", `Revoke ${a.signatoryName}'s authorization? It can't be undone.`)}>
                       Revoke
                     </button>
                   )}
@@ -727,7 +857,7 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
                       {DOCUMENT_KIND_LABELS[d.kind] ?? d.kind} · {formatBytes(d.sizeBytes)} · {d.uploadedBy}, {timeAgo(d.createdAt)}
                     </span>
                     {isOwner && (
-                      <button className="text-red-600 hover:underline" onClick={() => call(`/api/takedown-automation/documents/${d.id}`, "DELETE", `Delete ${d.filename}?`)}>
+                      <button className="text-sev-critical hover:underline" onClick={() => call(`/api/takedown-automation/documents/${d.id}`, "DELETE", `Delete ${d.filename}?`)}>
                         delete
                       </button>
                     )}
@@ -792,7 +922,7 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
           </div>
         </form>
       )}
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Card>
   );
 }

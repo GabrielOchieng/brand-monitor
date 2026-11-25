@@ -19,12 +19,13 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     unavailable = true;
   }
 
-  // Seen by a brand's customers, not our users: no app chrome, just the form.
+  // Seen by a brand's customers, not our users: no app chrome, just the form, and always the
+  // light theme (the console's dark default suits analysts, not someone reporting a scam).
   return (
-    <main className="min-h-screen bg-base px-4 py-10 sm:py-16">
+    <main data-theme="light" className="min-h-screen bg-background px-4 py-10 text-foreground sm:py-16">
     <div className="mx-auto max-w-lg">
       {unavailable ? (
-        <div className="card p-6 text-center">
+        <div className="rounded-md border border-border bg-card p-6 text-center">
           <h1 className="text-lg font-semibold text-ink">Reporting is temporarily unavailable</h1>
           <p className="mt-2 text-sm text-ink-muted">Please try again in a few minutes.</p>
         </div>
@@ -39,7 +40,7 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
           <ReportForm token={token} siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""} />
         </>
       ) : (
-        <div className="card p-6 text-center">
+        <div className="rounded-md border border-border bg-card p-6 text-center">
           <h1 className="text-lg font-semibold text-ink">This report link isn&apos;t active</h1>
           <p className="mt-2 text-sm text-ink-muted">Please use the link on the company&apos;s official website.</p>
         </div>

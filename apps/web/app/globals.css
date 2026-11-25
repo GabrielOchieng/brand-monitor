@@ -1,82 +1,101 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './theme.css';
 
-/* Design system (tailwind.config.js holds the tokens). Every page uses these classes instead of
-   ad hoc borders, buttons and badges, so the product looks and behaves the same everywhere. */
+/* Legacy tokens (first redesign). Pages still on the old look use them; deleted once every page is
+   migrated to the theme in theme.css (UI_REDESIGN_PLAN.md step 7). */
+@theme inline {
+  --color-critical: var(--sev-critical);
+  --color-high: var(--sev-high);
+  --color-medium: var(--sev-medium);
+  --color-low: var(--sev-low);
+  --color-base: var(--background);
+  --color-surface: var(--card);
+  --color-panel: var(--card);
+  --color-elevated: var(--raised);
+  --color-line: var(--border);
 
-@layer base {
-  body {
-    background-color: #f4f6f9;
-    color: #0f1623;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+  --color-ink: var(--foreground);
+  --color-ink-muted: var(--muted-foreground);
+  --color-ink-subtle: var(--subtle);
+  --color-ink-faint: var(--subtle);
+
+  --color-brand: var(--primary);
+  --color-brand-hover: var(--primary);
+  --color-brand-strong: var(--primary);
+  --color-brand-soft: var(--primary-soft);
+  --color-brand-muted: var(--primary-soft);
+
+  --color-shell: var(--sunk);
+  --color-shell-raised: var(--raised);
+  --color-shell-line: var(--border);
+  --color-shell-ink: var(--foreground);
+  --color-shell-muted: var(--muted-foreground);
+  --color-shell-faint: var(--subtle);
+
+
+  --shadow-card: 0 0 0 0 transparent;
+  --shadow-pop: var(--shadow-popover);
+}
+
+@utility card {
+  @apply rounded-md border border-line bg-panel;
+}
+
+@utility btn {
+  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
+     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
+  @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-brand px-3.5 py-2 text-primary-foreground hover:brightness-110;
+}
+
+@utility btn-secondary {
+  @apply btn border border-border-strong bg-raised px-3.5 py-2 text-ink-muted hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
+}
+
+@utility btn-ghost {
+  @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
+}
+
+@utility btn-danger {
+  @apply btn px-2 py-1 text-sev-critical hover:bg-sev-critical/10;
+}
+
+@utility field {
+  @apply rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-hidden focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
+}
+
+@utility field-sm {
+  @apply field px-2.5 py-1.5 text-xs;
+}
+
+@utility label {
+  @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
+}
+
+@utility pill {
+  /* Status pills: a tone class plus .pill. */
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
+}
+
+@utility data-table {
+  /* Data tables: dense, scannable, aligned. */
+  @apply w-full text-sm;
+  & thead th {
+    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
   }
-  /* One visible focus style for keyboard users, everywhere; none for mouse clicks. */
-  :focus-visible {
-    outline: 2px solid #0d6c76;
-    outline-offset: 2px;
+  & tbody td {
+    @apply border-b border-line/70 px-4 py-3 align-middle;
   }
-  ::selection {
-    background: #0d6c7633;
+  & tbody tr:last-child td {
+    @apply border-b-0;
   }
 }
 
-@layer components {
-  .card {
-    @apply rounded-lg border border-line bg-panel shadow-card;
-  }
-
-  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
-     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
-  .btn {
-    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-primary {
-    @apply btn bg-brand px-3.5 py-2 text-white shadow-sm hover:bg-brand-hover active:bg-brand-strong;
-  }
-  .btn-secondary {
-    @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted shadow-sm hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
-  }
-  .btn-ghost {
-    @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
-  }
-  .btn-danger {
-    @apply btn px-2 py-1 text-red-700 hover:bg-red-50 hover:text-red-800;
-  }
-
-  .field {
-    @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
-  }
-  .field-sm {
-    @apply field px-2.5 py-1.5 text-xs;
-  }
-
-  .label {
-    @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-  }
-
-  /* Status pills: a tone class plus .pill. */
-  .pill {
-    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
-  }
-
-  /* Data tables: dense, scannable, aligned. */
-  .data-table {
-    @apply w-full text-sm;
-  }
-  .data-table thead th {
-    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-  }
-  .data-table tbody td {
-    @apply border-b border-line/70 px-4 py-3 align-middle;
-  }
-  .data-table tbody tr:last-child td {
-    @apply border-b-0;
-  }
-
+@utility ident {
   /* Domains, URLs, IPs, references: the data analysts read character by character. */
-  .ident {
-    @apply font-mono text-[0.92em] tracking-tight;
-  }
+  @apply font-mono text-[0.92em] tracking-tight;
 }

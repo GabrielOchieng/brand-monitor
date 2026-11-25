@@ -127,7 +127,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
                   label={`Pair ${k.keyword} with the other paired keywords`}
                 />
                 {editable && (
-                  <button onClick={() => remove(k)} disabled={busyId === k.id} aria-label={`Remove ${k.keyword}`} className="btn-ghost hover:text-red-600">
+                  <button onClick={() => remove(k)} disabled={busyId === k.id} aria-label={`Remove ${k.keyword}`} className="btn-ghost hover:text-sev-critical">
                     <TrashIcon className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -153,7 +153,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
           </button>
         </form>
       )}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-sev-critical">{error}</p>}
     </div>
   );
 }
