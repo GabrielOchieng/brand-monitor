@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
+import { useConfirmText } from "../ui/Confirm";
 import { CheckIcon, LinkIcon } from "../icons";
 
 // The brand's public scam-report form link (/report/<token>): create, copy, rotate, turn off.
@@ -16,6 +17,7 @@ export function ReportLink({
   editable: boolean;
   onChange: (token: string | null) => void;
 }) {
+  const confirm = useConfirmText();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,13 +73,13 @@ export function ReportLink({
       {editable && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            onClick={() => window.confirm("Get a new link? The current one stops working everywhere it's been shared.") && run("POST")}
+            onClick={async () => (await confirm("Get a new link? The current one stops working everywhere it's been shared.", { confirmLabel: "Get new link" })) && run("POST")}
             disabled={busy}
             className="btn-ghost text-xs"
           >
             New link
           </button>
-          <button onClick={() => window.confirm("Turn off the public form for this brand?") && run("DELETE")} disabled={busy} className="btn-danger text-xs">
+          <button onClick={async () => (await confirm("Turn off the public form for this brand?", { danger: true, confirmLabel: "Turn off" })) && run("DELETE")} disabled={busy} className="btn-danger text-xs">
             Turn off
           </button>
         </div>

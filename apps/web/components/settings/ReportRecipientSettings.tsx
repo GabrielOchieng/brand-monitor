@@ -6,7 +6,8 @@ import { CHANNEL_LABELS } from "../../lib/autoTakedown";
 import type { Role } from "../../lib/session";
 import { ContactForm, ContactTable, type ContactRule } from "../ContactBook";
 import { Skeleton } from "../Skeleton";
-import { Field } from "./Section";
+import { useConfirmText } from "../ui/Confirm";
+import { Field, Card } from "./Section";
 
 interface RecipientsData {
   contacts: ContactRule[];
@@ -17,20 +18,12 @@ interface RecipientsData {
   redirectTo: string | null;
 }
 
-function Card({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="card min-w-0 p-5 sm:p-6">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {description && <div className="mt-1 text-sm leading-relaxed text-ink-subtle">{description}</div>}
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
 
 const split = (s: string) => s.split(/[\s,;]+/).filter(Boolean);
 
 // Settings -> Takedowns -> Report recipients (TAKEDOWN_AUTOMATION_PLAN.md §3).
 export function ReportRecipientSettings({ role }: { role: Role | null }) {
+  const confirm = useConfirmText();
   const canManage = role === "owner" || role === "admin";
   const isOwner = role === "owner";
   const [data, setData] = useState<RecipientsData | null>(null);
@@ -83,7 +76,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
           contacts={data.contacts}
           editable={canManage}
           onEdit={(c) => setEditing(c)}
-          onDelete={(c) => window.confirm("Delete this entry?") && call(`/api/report-recipients/contacts/${c.id}`, "DELETE")}
+          onDelete={async (c) => (await confirm("Delete this entry?", { danger: true, confirmLabel: "Delete" })) && call(`/api/report-recipients/contacts/${c.id}`, "DELETE")}
         />
         {canManage && editing === null && (
           <button className="btn-secondary mt-3" onClick={() => setEditing("new")}>

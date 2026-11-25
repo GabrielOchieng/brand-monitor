@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
 import { timeAgo } from "../../lib/format";
 import { Field } from "./Section";
+import { useConfirmText } from "../ui/Confirm";
 import { PasswordInput } from "../ui/PasswordInput";
 
 export interface IntegrationView {
@@ -19,6 +20,7 @@ export interface IntegrationView {
 // checked, reports about sites behind Cloudflare are submitted by API instead of being a manual
 // web-form task.
 export function CloudflareCard({ integration, isOwner, canTest, onChange }: { integration: IntegrationView | null; isOwner: boolean; canTest: boolean; onChange: () => Promise<void> }) {
+  const confirm = useConfirmText();
   const p = integration?.publicConfig ?? {};
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState({
@@ -99,8 +101,8 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
                 </button>
                 <button
                   className="btn-ghost text-xs text-sev-critical"
-                  onClick={() =>
-                    window.confirm("Disconnect Cloudflare? Reports to Cloudflare go back to its web form.") &&
+                  onClick={async () =>
+                    (await confirm("Disconnect Cloudflare? Reports to Cloudflare go back to its web form.", { danger: true, confirmLabel: "Disconnect" })) &&
                     run(async () => {
                       await apiFetch("/api/takedown-automation/integrations/cloudflare", { method: "DELETE" });
                       await onChange();

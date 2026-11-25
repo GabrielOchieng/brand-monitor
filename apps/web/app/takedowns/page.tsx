@@ -174,7 +174,7 @@ function Takedowns() {
         description="Every takedown report: waiting for you, about to send, sent and answered."
         actions={
           <Button asChild>
-            <Link href="/settings?section=auto-takedown">
+            <Link href="/settings/automatic-reporting">
               <Settings2 />
               Sending settings
             </Link>
@@ -205,7 +205,7 @@ function Takedowns() {
           className="mb-3.5"
           title="Automatic sending is off."
           action={
-            <Link href="/settings?section=auto-takedown" className="whitespace-nowrap text-primary hover:underline">
+            <Link href="/settings/automatic-reporting" className="whitespace-nowrap text-primary hover:underline">
               Finish setup →
             </Link>
           }

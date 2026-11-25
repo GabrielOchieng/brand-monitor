@@ -6,6 +6,7 @@ import { timeAgo } from "../../lib/format";
 import { CHANNEL_LABELS, KIND_LABELS, LANGUAGE_LABELS } from "../../lib/autoTakedown";
 import type { Role } from "../../lib/session";
 import { Skeleton } from "../Skeleton";
+import { useConfirmText } from "../ui/Confirm";
 import { Field } from "./Section";
 
 interface Version {
@@ -211,6 +212,7 @@ function TemplateEditor({
   canPublish: boolean;
   onChanged: () => Promise<void>;
 }) {
+  const confirm = useConfirmText();
   const start = row.draft ?? row.published ?? row.effective;
   const [subject, setSubject] = useState(start.subject);
   const [body, setBody] = useState(start.body);
@@ -351,7 +353,7 @@ function TemplateEditor({
             title={dirty ? "Save the draft first" : undefined}
             onClick={() =>
               run("publish", async () => {
-                if (!window.confirm(`Publish draft v${savedDraft.version}? New reports will use it.`)) return;
+                if (!(await confirm(`Publish draft v${savedDraft.version}? New reports will use it.`, { confirmLabel: "Publish" }))) return;
                 await post(`/api/report-templates/${row.templateId}/publish`);
                 setMessage({ ok: true, text: `Published v${savedDraft.version}.` });
                 await onChanged();
@@ -394,7 +396,7 @@ function TemplateEditor({
             disabled={!!busy}
             onClick={() =>
               run("discard", async () => {
-                if (!window.confirm("Discard the draft?")) return;
+                if (!(await confirm("Discard the draft?", { danger: true, confirmLabel: "Discard" }))) return;
                 await apiFetch(`/api/report-templates/${row.templateId}/draft`, { method: "DELETE" });
                 const back = row.published ?? row.effective;
                 setSubject(back.subject);
@@ -412,7 +414,7 @@ function TemplateEditor({
             disabled={!!busy}
             onClick={() =>
               run("retire", async () => {
-                if (!window.confirm(`Stop using v${row.published!.version}? Reports fall back to ${scope.brandId ? "the all-brands text" : "the built-in text"}.`)) return;
+                if (!(await confirm(`Stop using v${row.published!.version}? Reports fall back to ${scope.brandId ? "the all-brands text" : "the built-in text"}.`, { confirmLabel: "Stop using it" }))) return;
                 await post(`/api/report-templates/${row.templateId}/retire`);
                 await onChanged();
               })

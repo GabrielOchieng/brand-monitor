@@ -87,3 +87,9 @@ export function useConfirm(): Ask {
   if (!ask) throw new Error("useConfirm must be used inside <ConfirmProvider>");
   return ask;
 }
+
+// The quick form, for a plain yes/no question written as one sentence: `await confirm("Delete this entry?")`.
+export function useConfirmText(): (text: string, opts?: { danger?: boolean; confirmLabel?: string }) => Promise<boolean> {
+  const ask = useConfirm();
+  return useCallback((text: string, opts?: { danger?: boolean; confirmLabel?: string }) => ask({ title: text, confirmLabel: opts?.confirmLabel ?? "Continue", danger: opts?.danger }), [ask]);
+}

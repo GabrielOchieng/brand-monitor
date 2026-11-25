@@ -81,7 +81,7 @@ export default function ReportsPage() {
       <section className="card mt-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="label">Public report form</h2>
-          <Link href="/settings?section=report-form" className="btn-ghost text-xs">
+          <Link href="/brands?tab=report-form" className="btn-ghost text-xs">
             Manage in Settings
           </Link>
         </div>

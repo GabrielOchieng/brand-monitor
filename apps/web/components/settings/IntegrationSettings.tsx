@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { CheckIcon } from "../icons";
 import { LoadingRegion, Skeleton } from "../Skeleton";
+import { useConfirmText } from "../ui/Confirm";
 import { Field, ReadOnlyNote, Section, Toggle } from "./Section";
 
 interface WebhookConfig {
@@ -14,6 +15,7 @@ interface WebhookConfig {
 
 // The alert webhook: where it posts, whether it's on, the signing secret and a test send.
 export function IntegrationSettings({ editable }: { editable: boolean }) {
+  const confirm = useConfirmText();
   const [config, setConfig] = useState<WebhookConfig | null | undefined>(undefined);
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
   }
 
   async function rotate() {
-    if (!window.confirm("Make a new signing secret? The receiver must be updated with it, or it will reject the next alert.")) return;
+    if (!(await confirm("Make a new signing secret? The receiver must be updated with it, or it will reject the next alert.", { confirmLabel: "Make new secret" }))) return;
     setError(null);
     try {
       const data = await apiFetch<WebhookConfig>("/api/webhook-config/rotate-secret", { method: "POST" });

@@ -10,6 +10,7 @@ export interface BrandSummary {
   name: string;
   primaryDomain: string;
   monitoringPausedAt?: string | null;
+  reportToken?: string | null;
 }
 
 interface BrandValue {
