@@ -530,38 +530,38 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
       {s && !editing && (
         <div className="space-y-3 text-sm">
           <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-[9rem_minmax(0,1fr)]">
-            <dt className="text-ink-subtle">Sends with</dt>
-            <dd className="text-ink">{PROVIDER_LABELS[s.provider]}</dd>
-            <dt className="text-ink-subtle">From</dt>
-            <dd className="break-all text-ink">{s.fromName ? `${s.fromName} <${s.fromAddress}>` : s.fromAddress}</dd>
+            <dt className="text-subtle">Sends with</dt>
+            <dd className="text-foreground">{PROVIDER_LABELS[s.provider]}</dd>
+            <dt className="text-subtle">From</dt>
+            <dd className="break-all text-foreground">{s.fromName ? `${s.fromName} <${s.fromAddress}>` : s.fromAddress}</dd>
             {s.replyTo && (
               <>
-                <dt className="text-ink-subtle">Replies to</dt>
-                <dd className="break-all text-ink">{s.replyTo}</dd>
+                <dt className="text-subtle">Replies to</dt>
+                <dd className="break-all text-foreground">{s.replyTo}</dd>
               </>
             )}
             {s.bccArchive && (
               <>
-                <dt className="text-ink-subtle">Archive copy (BCC)</dt>
-                <dd className="break-all text-ink">{s.bccArchive}</dd>
+                <dt className="text-subtle">Archive copy (BCC)</dt>
+                <dd className="break-all text-foreground">{s.bccArchive}</dd>
               </>
             )}
             {Object.entries(s.publicConfig).map(([k, v]) => (
               <span key={k} className="contents">
-                <dt className="text-ink-subtle">{{ tenantId: "Tenant ID", clientId: "Client ID", serviceAccount: "Service account", host: "Host", port: "Port", username: "Username" }[k] ?? k}</dt>
-                <dd className="break-all text-ink">{String(v)}</dd>
+                <dt className="text-subtle">{{ tenantId: "Tenant ID", clientId: "Client ID", serviceAccount: "Service account", host: "Host", port: "Port", username: "Username" }[k] ?? k}</dt>
+                <dd className="break-all text-foreground">{String(v)}</dd>
               </span>
             ))}
-            <dt className="text-ink-subtle">Last test</dt>
-            <dd className={s.lastTestOk ? "text-ok" : s.lastTestOk === false ? "text-sev-critical" : "text-ink-subtle"}>
+            <dt className="text-subtle">Last test</dt>
+            <dd className={s.lastTestOk ? "text-ok" : s.lastTestOk === false ? "text-sev-critical" : "text-subtle"}>
               {s.lastTestAt ? `${s.lastTestOk ? "Delivered" : "Failed"} to ${s.lastTestTo}, ${timeAgo(s.lastTestAt)}` : "Not tested since the last change"}
               {s.lastTestOk === false && s.lastTestError && <span className="mt-0.5 block text-xs">{s.lastTestError}</span>}
             </dd>
           </dl>
-          {s.signature && <pre className="whitespace-pre-wrap rounded-md border border-line bg-elevated/60 p-3 font-sans text-xs text-ink-muted">{s.signature}</pre>}
+          {s.signature && <pre className="whitespace-pre-wrap rounded-md border border-border bg-raised/60 p-3 font-sans text-xs text-muted-foreground">{s.signature}</pre>}
 
           {canTest && (
-            <div className="flex flex-wrap items-end gap-2 border-t border-line pt-3">
+            <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
               <Field label="Send a test to" hint="A real email from the sender mailbox. Passing it marks the sender as working.">
                 <input type="email" className="field w-72 max-w-full" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
               </Field>
@@ -583,10 +583,10 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
             </p>
           )}
 
-          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-line pt-3">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-border pt-3">
             <div className="min-w-0 text-sm">
-              <div className="text-ink">Read replies and bounces</div>
-              <p className="mt-0.5 text-xs leading-relaxed text-ink-subtle">
+              <div className="text-foreground">Read replies and bounces</div>
+              <p className="mt-0.5 text-xs leading-relaxed text-subtle">
                 {s.provider === "smtp"
                   ? "Not available for SMTP senders: log replies by hand on the finding."
                   : s.provider === "graph"
@@ -594,7 +594,7 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
                     : "Matches replies to reports by their [BM-…] tag, marks takedowns acknowledged and stops reporting to addresses that bounce. Needs the gmail.readonly scope in the domain-wide delegation too."}
               </p>
               {s.readReplies && (
-                <p className={`mt-1 text-xs ${s.repliesError ? "text-sev-critical" : "text-ink-subtle"}`}>
+                <p className={`mt-1 text-xs ${s.repliesError ? "text-sev-critical" : "text-subtle"}`}>
                   {s.repliesError ? `Last check failed: ${s.repliesError}` : s.repliesCheckedAt ? `Last checked ${timeAgo(s.repliesCheckedAt)}.` : "Not checked yet (every 10 minutes)."}
                 </p>
               )}
@@ -631,12 +631,12 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
             )}
           </div>
           {dns && (
-            <div className="rounded-md border border-line p-3 text-xs">
-              <div className="text-ink-subtle">SPF for {dns.domain}</div>
-              <div className="break-all font-mono text-ink">{dns.spf ?? "none found"}</div>
-              <div className="mt-2 text-ink-subtle">DMARC</div>
-              <div className="break-all font-mono text-ink">{dns.dmarc ?? "none found"}</div>
-              <p className="mt-2 text-ink-muted">
+            <div className="rounded-md border border-border p-3 text-xs">
+              <div className="text-subtle">SPF for {dns.domain}</div>
+              <div className="break-all font-mono text-foreground">{dns.spf ?? "none found"}</div>
+              <div className="mt-2 text-subtle">DMARC</div>
+              <div className="break-all font-mono text-foreground">{dns.dmarc ?? "none found"}</div>
+              <p className="mt-2 text-muted-foreground">
                 {!dns.spf || !dns.dmarc
                   ? "Without SPF and DMARC, abuse desks are more likely to treat reports as spam. Ask your IT team to publish them."
                   : "Records found. Mail sent through your own provider passes them when DKIM is set up for the domain."}
@@ -655,7 +655,7 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
               </button>
             ))}
           </div>
-          <p className="text-xs leading-relaxed text-ink-subtle">{PROVIDER_HELP[provider]}</p>
+          <p className="text-xs leading-relaxed text-subtle">{PROVIDER_HELP[provider]}</p>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="From address" hint="The mailbox reports are sent from.">
@@ -726,10 +726,10 @@ export function SenderCard({ data, isOwner, canTest, onChange }: { data: Overvie
               </button>
             )}
           </div>
-          <p className="text-xs text-ink-subtle">Saving clears the last test: send a new test afterwards.</p>
+          <p className="text-xs text-subtle">Saving clears the last test: send a new test afterwards.</p>
         </form>
       )}
-      {!s && !isOwner && <p className="text-sm text-ink-subtle">No sender mailbox yet. An owner sets it up.</p>}
+      {!s && !isOwner && <p className="text-sm text-subtle">No sender mailbox yet. An owner sets it up.</p>}
       {error && !editing && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Card>
   );
@@ -809,31 +809,31 @@ export function AuthorizationCard({ data, isOwner, onChange }: { data: Overview;
       title="Authorization"
       description="Who authorizes abuse reports in your organization's name. Registrars and hosts often ask for a signed letter of authorization from the rights owner, and sometimes a trademark registration: upload them here so they can be attached to reports. A record can't be edited: revoke it and add a new one."
     >
-      {data.authorizations.length === 0 && <p className="text-sm text-ink-subtle">None recorded yet.</p>}
+      {data.authorizations.length === 0 && <p className="text-sm text-subtle">None recorded yet.</p>}
       <ul className="space-y-3">
         {data.authorizations.map((a) => {
           const status = authorizationStatus(a);
           return (
-            <li key={a.id} className={`rounded-md border p-3 ${status === "in_force" ? "border-line" : "border-line bg-elevated/50 opacity-80"}`}>
+            <li key={a.id} className={`rounded-md border p-3 ${status === "in_force" ? "border-border" : "border-border bg-raised/50 opacity-80"}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 text-sm">
-                  <div className="font-medium text-ink">
+                  <div className="font-medium text-foreground">
                     {a.signatoryName}, {a.signatoryTitle}
                   </div>
-                  <div className="break-all text-xs text-ink-subtle">
+                  <div className="break-all text-xs text-subtle">
                     {a.signatoryEmail}
                     {a.signatoryPhone ? ` · ${a.signatoryPhone}` : ""}
                   </div>
-                  <div className="mt-1 text-xs text-ink-muted">
+                  <div className="mt-1 text-xs text-muted-foreground">
                     {brandName(a.brandId)} · from {new Date(a.validFrom).toLocaleDateString()}
                     {a.expiresAt ? ` to ${new Date(a.expiresAt).toLocaleDateString()}` : ", no end date"}
                   </div>
-                  {a.scope && <div className="mt-1 text-xs text-ink-muted">{a.scope}</div>}
+                  {a.scope && <div className="mt-1 text-xs text-muted-foreground">{a.scope}</div>}
                 </div>
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      status === "in_force" ? "border-ok/40 bg-ok/10 text-ok" : "border-line bg-elevated text-ink-subtle"
+                      status === "in_force" ? "border-ok/40 bg-ok/10 text-ok" : "border-border bg-raised text-subtle"
                     }`}
                   >
                     {{ in_force: "In force", revoked: "Revoked", expired: "Expired", not_started: "Not started" }[status]}
@@ -847,13 +847,13 @@ export function AuthorizationCard({ data, isOwner, onChange }: { data: Overview;
               </div>
 
               <div className="mt-3 space-y-1">
-                {a.documents.length === 0 && <p className="text-xs text-ink-subtle">No documents uploaded.</p>}
+                {a.documents.length === 0 && <p className="text-xs text-subtle">No documents uploaded.</p>}
                 {a.documents.map((d) => (
                   <div key={d.id} className="flex flex-wrap items-center gap-x-2 text-xs">
-                    <a className="text-brand hover:underline" href={`${API_URL}/api/takedown-automation/documents/${d.id}`}>
+                    <a className="text-primary hover:underline" href={`${API_URL}/api/takedown-automation/documents/${d.id}`}>
                       {d.filename}
                     </a>
-                    <span className="text-ink-subtle">
+                    <span className="text-subtle">
                       {DOCUMENT_KIND_LABELS[d.kind] ?? d.kind} · {formatBytes(d.sizeBytes)} · {d.uploadedBy}, {timeAgo(d.createdAt)}
                     </span>
                     {isOwner && (
@@ -876,7 +876,7 @@ export function AuthorizationCard({ data, isOwner, onChange }: { data: Overview;
         </button>
       )}
       {isOwner && adding && (
-        <form onSubmit={create} className="mt-4 space-y-3 border-t border-line pt-4">
+        <form onSubmit={create} className="mt-4 space-y-3 border-t border-border pt-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Signatory name">
               <input required className="field w-full" value={form.signatoryName} onChange={set("signatoryName")} />

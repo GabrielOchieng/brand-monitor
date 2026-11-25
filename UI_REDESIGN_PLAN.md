@@ -201,3 +201,11 @@ Each step is its own commit (pushed only when the owner says so).
   the light theme: it's seen by a brand's customers, not analysts. Admin pages were checked with the
   local test user made a platform admin with 2FA (throwaway local AUTH_ENCRYPTION_KEY), then reverted
   with `auth:disable-2fa` and `auth:make-admin --revoke`.
+- 2026-11-25, step 7: legacy colour tokens removed (343 class names renamed to theme tokens across 37
+  files; the legacy `@theme` block is gone). Deviation from the plan: the `.card/.btn-*/.field/.label/
+  .ident` utility classes were kept, rewritten in theme tokens and component sizes, as a documented
+  shortcut for simple markup (about 290 uses in editors that kept their markup); `.pill`,
+  `.data-table` and the legacy shadows were unused and removed. Deleted unused ScreenshotImage,
+  SeverityBadge, STATUS_PILL and 22 unused icons. Remaining "veto window" / "redirect mode" / "shadow"
+  wording in the UI aligned with test mode / hold. Docs: CLAUDE.md (Web UI), README §8 and the
+  takedown passage, ARCHITECTURE "As built", DEPLOYMENT.

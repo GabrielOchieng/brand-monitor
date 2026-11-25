@@ -33,14 +33,6 @@ export function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 }
 
-export const STATUS_PILL: Record<string, string> = {
-  new: "border-brand/30 bg-brand/10 text-brand",
-  investigating: "border-sky-200 bg-sky-50 text-sky-700",
-  confirmed: "border-amber-200 bg-amber-50 text-amber-800",
-  false_positive: "border-line bg-elevated text-ink-subtle",
-  resolved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-};
-
 // "just now", "12m ago", "5h ago", "3d ago", then a short date.
 export function timeAgo(iso: string | Date, now: Date = new Date()): string {
   const date = typeof iso === "string" ? new Date(iso) : iso;

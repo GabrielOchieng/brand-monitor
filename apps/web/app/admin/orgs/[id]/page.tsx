@@ -103,7 +103,7 @@ function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string 
   return (
     <section className="rounded-lg border border-sev-critical/40 bg-sev-critical/5 p-4">
       <h2 className="text-base font-semibold text-sev-critical">Delete organization</h2>
-      <p className="mt-1 text-sm text-ink-muted">
+      <p className="mt-1 text-sm text-muted-foreground">
         Permanently deletes {org.name}: {brands} brand{brands === 1 ? "" : "s"}, {findings.toLocaleString()} finding{findings === 1 ? "" : "s"}, every scan,
         report and setting, and its screenshots. Members who belong to no other organization are deleted too. This can't be undone.
       </p>
@@ -113,7 +113,7 @@ function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string 
         </button>
       ) : (
         <form onSubmit={submit} className="mt-3 space-y-2 sm:max-w-md">
-          <label htmlFor="confirm-org-name" className="block text-sm text-ink">
+          <label htmlFor="confirm-org-name" className="block text-sm text-foreground">
             Type <span className="font-semibold">{org.name}</span> to confirm
           </label>
           <input id="confirm-org-name" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} className="field w-full" />
@@ -201,15 +201,15 @@ function OrgPage() {
     <AdminShell title={data?.org.name ?? "Organization"} blocked={blocked} error={error ?? actionError} loading={!data && !error}>
       {data && (
         <>
-          <Link href="/admin" className="text-sm text-ink-subtle hover:text-ink">
+          <Link href="/admin" className="text-sm text-subtle hover:text-foreground">
             ← All organizations
           </Link>
           <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3 text-sm">
-              <span className="text-ink">Monitoring</span>
+              <span className="text-foreground">Monitoring</span>
               <MonitoringStatus pausedAt={data.org.pausedAt} />
               {data.org.pausedAt && (
-                <span className="text-xs text-ink-subtle">
+                <span className="text-xs text-subtle">
                   since {day(data.org.pausedAt)}
                   {data.org.pausedBy ? ` by ${data.org.pausedBy}` : ""}
                 </span>
@@ -235,16 +235,16 @@ function OrgPage() {
           <InviteForm orgId={id} hasOwner={hasOwner} onDone={reload} />
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-ink">Members ({data.members.length})</h2>
+            <h2 className="text-base font-semibold text-foreground">Members ({data.members.length})</h2>
             {data.members.length === 0 ? (
-              <p className="text-sm text-ink-subtle">No members yet.</p>
+              <p className="text-sm text-subtle">No members yet.</p>
             ) : (
               <AdminTable head={["Email", "Role", "Sign-in", "2FA", "Last active", "Joined", ""]}>
                 {data.members.map((m) => (
                   <tr key={m.userId}>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-ink">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-foreground">
                       {m.email}
-                      {m.name && <span className="ml-2 text-xs text-ink-subtle">{m.name}</span>}
+                      {m.name && <span className="ml-2 text-xs text-subtle">{m.name}</span>}
                     </td>
                     <td className={`${td} capitalize`}>{m.role}</td>
                     <td className={td}>{[m.hasPassword && "password", m.googleLinked && "Google"].filter(Boolean).join(" + ") || "not set up yet"}</td>
@@ -264,11 +264,11 @@ function OrgPage() {
 
           {data.invites.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-base font-semibold text-ink">Pending invites</h2>
+              <h2 className="text-base font-semibold text-foreground">Pending invites</h2>
               <AdminTable head={["Email", "Role", "Expires", ""]}>
                 {data.invites.map((i) => (
                   <tr key={i.id}>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-ink">{i.email}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-foreground">{i.email}</td>
                     <td className={`${td} capitalize`}>{i.role}</td>
                     <td className={td}>{day(i.expiresAt)}</td>
                     <td className="px-4 py-2.5 text-right">
@@ -283,14 +283,14 @@ function OrgPage() {
           )}
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-ink">Brands ({data.brands.length})</h2>
+            <h2 className="text-base font-semibold text-foreground">Brands ({data.brands.length})</h2>
             {data.brands.length === 0 ? (
-              <p className="text-sm text-ink-subtle">No brands yet.</p>
+              <p className="text-sm text-subtle">No brands yet.</p>
             ) : (
               <AdminTable head={["Brand", "Domain", "Monitoring", "Findings", "Scans this month", "Emails this month", "Tavily this month", "Last scan", "Created", ""]}>
                 {data.brands.map((b) => (
                   <tr key={b.id}>
-                    <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink">{b.name}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 font-medium text-foreground">{b.name}</td>
                     <td className={td}>{b.primaryDomain}</td>
                     <td className={td}>
                       <MonitoringStatus pausedAt={data.org.pausedAt ?? b.pausedAt} />
@@ -303,7 +303,7 @@ function OrgPage() {
                     <td className={td}>{day(b.createdAt)}</td>
                     <td className="px-4 py-2.5 text-right">
                       {data.org.pausedAt ? (
-                        <span className="text-xs text-ink-subtle">org paused</span>
+                        <span className="text-xs text-subtle">org paused</span>
                       ) : (
                         <button className="btn-ghost text-xs" disabled={busy === b.id} onClick={() => setPaused("brands", b.id, b.name, !b.pausedAt)}>
                           {b.pausedAt ? "Resume" : "Pause"}
@@ -316,7 +316,7 @@ function OrgPage() {
             )}
           </section>
           <AutoTakedownAdmin orgId={data.org.id} orgName={data.org.name} />
-          <p className="text-xs text-ink-subtle">Created {day(data.org.createdAt)} · {data.org.id}</p>
+          <p className="text-xs text-subtle">Created {day(data.org.createdAt)} · {data.org.id}</p>
           <DeleteOrg org={data.org} brands={data.brands.length} findings={data.brands.reduce((a, b) => a + b.findings, 0)} />
         </>
       )}

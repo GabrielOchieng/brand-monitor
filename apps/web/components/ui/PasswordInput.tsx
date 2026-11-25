@@ -18,7 +18,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttribut
         aria-label={shown ? "Hide" : "Show"}
         aria-pressed={shown}
         title={shown ? "Hide" : "Show"}
-        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-ink-faint hover:text-ink-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-subtle hover:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
       >
         {shown ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-[18px] w-[18px]" aria-hidden="true">

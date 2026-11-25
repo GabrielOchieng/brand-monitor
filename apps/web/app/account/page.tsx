@@ -178,10 +178,10 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
   }
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-muted">
-        Save these recovery codes somewhere safe, like a password manager. If you lose your phone, each one gets you in once. <span className="font-medium text-ink">They won't be shown again.</span>
+      <p className="text-sm text-muted-foreground">
+        Save these recovery codes somewhere safe, like a password manager. If you lose your phone, each one gets you in once. <span className="font-medium text-foreground">They won't be shown again.</span>
       </p>
-      <ul className="grid grid-cols-2 gap-2 rounded-md border border-line bg-elevated/50 p-4 font-mono text-sm text-ink sm:max-w-sm">
+      <ul className="grid grid-cols-2 gap-2 rounded-md border border-border bg-raised/50 p-4 font-mono text-sm text-foreground sm:max-w-sm">
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}
@@ -324,12 +324,12 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
         </form>
       ) : stage === "scan" && setup ? (
         <form onSubmit={confirmSetup} className="space-y-4">
-          <p className="text-sm text-ink-muted">Scan this with your authenticator app, then enter the 6-digit code it shows.</p>
+          <p className="text-sm text-muted-foreground">Scan this with your authenticator app, then enter the 6-digit code it shows.</p>
           {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the API, nothing to optimise */}
-          <img src={setup.qrCodeDataUrl} alt="QR code for your authenticator app" width={180} height={180} className="rounded-md border border-line bg-card p-2" />
-          <details className="text-sm text-ink-muted">
+          <img src={setup.qrCodeDataUrl} alt="QR code for your authenticator app" width={180} height={180} className="rounded-md border border-border bg-card p-2" />
+          <details className="text-sm text-muted-foreground">
             <summary className="cursor-pointer">Can't scan it? Enter this key instead</summary>
-            <code className="mt-2 block break-all rounded-sm bg-elevated px-2 py-1 font-mono text-xs text-ink">{setup.secret.match(/.{1,4}/g)?.join(" ")}</code>
+            <code className="mt-2 block break-all rounded-sm bg-raised px-2 py-1 font-mono text-xs text-foreground">{setup.secret.match(/.{1,4}/g)?.join(" ")}</code>
           </details>
           <div className="sm:max-w-sm">
             <label htmlFor="totp-confirm-code" className="label mb-1">
@@ -358,7 +358,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
         </form>
       ) : stage === "regenerate" ? (
         <form onSubmit={regenerate} className="space-y-3 sm:max-w-sm">
-          <p className="text-sm text-ink-muted">Your current recovery codes will stop working.</p>
+          <p className="text-sm text-muted-foreground">Your current recovery codes will stop working.</p>
           {passwordField("totp-regen-password")}
           <StatusLine status={status} />
           <div className="flex gap-2">
@@ -386,7 +386,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
               onChange={(e) => setCode(e.target.value)}
               className="field w-full font-mono"
             />
-            <button type="button" className="mt-1 text-xs text-ink-subtle hover:text-ink" onClick={() => setUseRecovery((r) => !r)}>
+            <button type="button" className="mt-1 text-xs text-subtle hover:text-foreground" onClick={() => setUseRecovery((r) => !r)}>
               {useRecovery ? "Use a code from the app instead" : "Use a recovery code instead"}
             </button>
           </div>
@@ -474,7 +474,7 @@ function GoogleSection({ me }: { me: Me }) {
               {busy ? "Unlinking…" : "Unlink Google"}
             </button>
           ) : (
-            <p className="text-sm text-ink-subtle">Google is your only way to sign in. To unlink it, first set a password with "Forgot password" on the sign-in page.</p>
+            <p className="text-sm text-subtle">Google is your only way to sign in. To unlink it, first set a password with "Forgot password" on the sign-in page.</p>
           )
         ) : (
           <div className="sm:max-w-xs">
@@ -567,15 +567,15 @@ function SessionsSection({ reloadKey }: { reloadKey: number }) {
         </LoadingRegion>
       ) : (
         <div className="space-y-4">
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-border">
             {sessions.map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm text-ink">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
                     <span className="truncate">{describeDevice(s.userAgent)}</span>
-                    {s.current && <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[10px] font-medium text-ink-subtle">This device</span>}
+                    {s.current && <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-subtle">This device</span>}
                   </div>
-                  <div className="text-xs text-ink-subtle">
+                  <div className="text-xs text-subtle">
                     {s.ip ?? "unknown IP"} · active {timeAgo(s.lastSeenAt)} · signed in {new Date(s.createdAt).toLocaleDateString()}
                   </div>
                 </div>

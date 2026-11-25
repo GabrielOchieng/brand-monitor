@@ -85,8 +85,8 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
   if (state === "sent") {
     return (
       <div className="mt-6 rounded-md border border-border bg-card p-6">
-        <h2 className="text-lg font-semibold text-ink">Thank you — report received</h2>
-        <p className="mt-2 text-sm text-ink-muted">
+        <h2 className="text-lg font-semibold text-foreground">Thank you — report received</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           Our team will look into it. If you paid money or shared a PIN or password, contact your bank or mobile money
           provider right away.
         </p>

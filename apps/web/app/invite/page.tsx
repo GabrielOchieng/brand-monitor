@@ -66,13 +66,13 @@ function AcceptInvite() {
     }
   }
 
-  if (loadError) return <p className="text-sm text-ink-muted">{loadError}</p>;
-  if (!invite) return <p className="text-sm text-ink-subtle">Loading invite…</p>;
+  if (loadError) return <p className="text-sm text-muted-foreground">{loadError}</p>;
+  if (!invite) return <p className="text-sm text-subtle">Loading invite…</p>;
 
   if (joined) {
     return (
       <>
-        <p className="text-sm text-ink-muted">
+        <p className="text-sm text-muted-foreground">
           You've joined {invite.organizationName}. Sign in with your existing password to open it.
         </p>
         <Link href="/login" className="btn-primary mt-4 w-full">
@@ -84,9 +84,9 @@ function AcceptInvite() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <p className="text-sm text-ink-muted">
-        Join <span className="font-medium text-ink">{invite.organizationName}</span> as {invite.role === "admin" || invite.role === "analyst" ? "an" : "a"}{" "}
-        <span className="font-medium text-ink">{invite.role}</span>, signed in as <span className="font-medium text-ink">{invite.email}</span>.
+      <p className="text-sm text-muted-foreground">
+        Join <span className="font-medium text-foreground">{invite.organizationName}</span> as {invite.role === "admin" || invite.role === "analyst" ? "an" : "a"}{" "}
+        <span className="font-medium text-foreground">{invite.role}</span>, signed in as <span className="font-medium text-foreground">{invite.email}</span>.
       </p>
       {invite.needsPassword && (
         <>
@@ -94,7 +94,7 @@ function AcceptInvite() {
             <>
               <GoogleButton href={googleStartUrl({ mode: "invite", invite: token })} label={`Join with Google (${invite.email})`} />
               <OrDivider />
-              <p className="text-xs text-ink-subtle">Or choose a password:</p>
+              <p className="text-xs text-subtle">Or choose a password:</p>
             </>
           )}
           <div>

@@ -82,7 +82,7 @@ function LoginForm() {
           <label htmlFor="password" className="label">
             Password
           </label>
-          <Link href="/forgot-password" className="text-xs text-brand hover:underline">
+          <Link href="/forgot-password" className="text-xs text-primary hover:underline">
             Forgot password?
           </Link>
         </div>
@@ -128,7 +128,7 @@ function SecondFactorForm({ challenge, onDone, onRestart }: { challenge: string;
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <p className="text-sm text-ink-muted">
+      <p className="text-sm text-muted-foreground">
         {useRecovery ? "Enter one of your recovery codes. Each works once." : "Enter the 6-digit code from your authenticator app."}
       </p>
       <div>
@@ -165,7 +165,7 @@ function SecondFactorForm({ challenge, onDone, onRestart }: { challenge: string;
           setValue("");
           setError(null);
         }}
-        className="block w-full text-center text-sm text-ink-subtle hover:text-ink"
+        className="block w-full text-center text-sm text-subtle hover:text-foreground"
       >
         {useRecovery ? "Use a code from the app instead" : "Lost your phone? Use a recovery code"}
       </button>

@@ -27,10 +27,10 @@ function Confirm() {
       .catch((err) => setState({ ok: false, text: err.message }));
   }, [token]);
 
-  if (!state) return <p className="text-sm text-ink-subtle">Confirming…</p>;
+  if (!state) return <p className="text-sm text-subtle">Confirming…</p>;
   return (
     <>
-      <p className={`text-sm ${state.ok ? "text-ink-muted" : "text-sev-critical"}`}>{state.text}</p>
+      <p className={`text-sm ${state.ok ? "text-muted-foreground" : "text-sev-critical"}`}>{state.text}</p>
       <Link href={state.ok ? "/account" : "/login"} className="btn-secondary mt-4 w-full">
         {state.ok ? "Back to your account" : "Go to sign in"}
       </Link>

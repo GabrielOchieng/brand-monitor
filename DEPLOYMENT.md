@@ -97,7 +97,7 @@ Confirm with `https://brand-monitor-api.gabrielochieng.com/health` → `{"ok":tr
    1,000 searches/month; never enable pay-as-you-go) as `TAVILY_API_KEY` on the API. Without it
    those jobs do nothing. `TAVILY_MONTHLY_CAP` (default 900) is a hard stop counted in
    `provider_usage`; each brand uses ~276/month (so ~3 brands fit). Then add each brand's official social accounts
-   and WhatsApp link under **Settings → Official accounts and apps**, or its own accounts get reported.
+   and WhatsApp link under **Brands → Official accounts**, or its own accounts get reported.
 
 ## 4. Auth (our own since 2026-11; Clerk before)
 

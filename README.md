@@ -96,7 +96,7 @@ and keeps the registered ones (DNS check):
   1,440 candidates (~6k DNS queries) per run, so keep the list to words attackers actually use.
 
 The brand's own allowlisted domains are always excluded. Keywords are edited under
-**Settings → Brand**.
+**Brands**.
 
 **Certificate Transparency** (`lib/ctNamesTiles.ts`, `pipeline/ctMonitorJob.ts`, since
 2026-11-21). Every 5 minutes, reads every certificate name newly logged to the CT logs that
@@ -149,7 +149,7 @@ publisher resembles the brand (one-letter typos and digit look-alikes count) and
 the brand's official list. Google Play has no search API, so it uses the unofficial
 `google-play-scraper` package. That sits outside Google's terms and breaks when Google changes its
 pages; failures show as a stale `google_play` source on `/health/jobs`. Official apps are added
-as store links under **Settings → Brand → Official accounts and apps**.
+as store links under **Brands → Official accounts**.
 
 **Social accounts** (`pipeline/socialFindings.ts`, needs `TAVILY_API_KEY`). Once a day, web
 searches through Tavily restricted to Facebook, Instagram, TikTok, X, Telegram and YouTube:
@@ -228,7 +228,7 @@ yet (retried every 6h).
 
 **Brand matching** (`lib/favicon.ts`, `lib/visualSimilarity.ts`). Compares the favicon hash with
 the brand's, and a regional perceptual hash of the screenshot with the brand's real site (the
-"visual reference" under **Settings → Brand**).
+"visual reference" under **Brands**).
 
 **Campaign correlation** (`pipeline/correlation.ts`). Groups findings registered at the same
 registrar within 7 days, per brand.
@@ -282,7 +282,7 @@ on/off, channels and threshold, one rule per kind (`routes/alertRules.ts`).
 **Channels:**
 - **In-app**: the bell icon and `/notifications`.
 - **Email**: plain SMTP to every member.
-- **Webhook**: configured under **Settings → Integrations**. HTTPS to a public host only, signed
+- **Webhook**: configured under **Settings → Webhook**. HTTPS to a public host only, signed
   with a secret (shown to owners and admins, can be rotated), with a "send test" button.
 
 The parked-page detector sometimes misreads one scan of a live site, so alerts are debounced:
@@ -310,7 +310,7 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   or the host's abuse email), Google Safe Browsing, Safaricom 333 SMS for Kenyan numbers,
   WhatsApp in-app report per number, KE-CIRT/CC, and the platform's impersonation form for
   social findings. **Nothing is sent automatically**; the analyst sends each one.
-- **Automatic reporting, setup only** (Settings → Takedowns → Automatic reporting;
+- **Automatic reporting, setup only** (Settings → Automatic reporting;
   `routes/takedownAutomation.ts`, step 1 of `TAKEDOWN_AUTOMATION_PLAN.md`). Websites only, never
   social. Nothing is sent automatically yet: this step stores what the sending step will need.
   - *Sender mailbox*: the org's own Microsoft 365 (Graph, app-only, scoped to one mailbox with RBAC
@@ -327,7 +327,7 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
     in force), a tested sender, an authorization in force, the owner's switch, no "Stop all sending"
     (analyst and up can stop, only an owner resumes), monitoring not paused, the brand switch on.
   - Every change and test send is in the org's history (`takedown_automation_events`).
-- **Report templates** (Settings → Takedowns → Report templates; `lib/reportTemplates.ts`,
+- **Report templates** (Settings → Report templates; `lib/reportTemplates.ts`,
   `routes/reportTemplates.ts`, step 2). One template per channel (registrar, hosting provider,
   national CERT, blocklist web-form text) and message kind (first report, follow-up, escalation),
   for all brands or one brand, per language (falls back to English, then to the built-in text).
@@ -346,7 +346,7 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   force), save, rewrite from the template, copy, or send a test to themselves only. The `[BM-...]`
   tag must stay in the subject. There is no real send yet: that comes with the dispatcher (step 4).
   Test sends (sender, template, draft) share a limit of 20 a day per org.
-- **Report recipients** (Settings → Takedowns → Report recipients; `lib/recipients.ts`,
+- **Report recipients** (Settings → Report recipients; `lib/recipients.ts`,
   `routes/reportRecipients.ts`, step 3). A report goes to the most specific enabled entry in the
   **contact book** for its channel (registrar IANA ID > registrar/host name contains > domain ending
   > every report; the org's own entry wins a tie with the platform's), else to the abuse contact in
@@ -373,12 +373,13 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
   (`findings.last_reactivated_at`); a cancel counts. Web-form-only recipients become **manual tasks**.
   **Stages**: *shadow* (default, 14 days: reports are recorded, never sent; analysts mark them right or
   wrong) → *redirect* (sent to the org's redirect address only) → *live* (going live is refused before
-  the shadow period ends). At send time everything is checked again: switches off, stop-all, pause or
+  the shadow period ends). The UI calls *shadow* "Test: prepare only", *redirect* "Test: send to
+  yourself" (the redirect address is the "test address"), and the veto window "hold before sending". At send time everything is checked again: switches off, stop-all, pause or
   a **cap** (25/day per org, 5/day per recipient) put a report on hold; a dismissed or down finding, or
   one that no longer qualifies, skips it. A send creates the tracker row (`Takedown`, reference =
   the `[BM-…]` tag). Analysts approve/send, cancel, retry and close manual tasks on **/takedowns**
-  (tabs: needs approval, veto window, manual tasks, failed, shadow review, sent, closed) or on the
-  finding. Alerts: the `takedown_activity` rule (in-app; email to owners/admins when a send fails).
+  (tabs: needs approval, sending soon, manual tasks, failed, test mode, sent, cancelled) or on the
+  finding's Takedown tab. Alerts: the `takedown_activity` rule (in-app; email to owners/admins when a send fails).
   Nothing runs unless `AUTO_TAKEDOWN_ENABLED=1`.
 - **Replies, follow-ups, escalation, completion** (step 5; `pipeline/takedownReplies.ts`,
   `lib/replyParsing.ts`). With **Read replies** on (owner; Microsoft 365 needs `Mail.Read`, Google
@@ -431,31 +432,35 @@ The parked-page detector sometimes misreads one scan of a live site, so alerts a
 
 ### 8. Web app
 
-**Layout and design system** (redesign 2026-11-30). Signed in, every page sits in one frame
-(`components/AppFrame.tsx`): a navy sidebar grouped as *Monitor* (Overview, Threats, Mentions),
-*Respond* (Takedowns, Public reports, Notifications), *Configure* (Settings, Account & security) and,
-for platform admins, *Platform* (Admin panel); a drawer on small screens (focus kept inside, Escape
-closes); a slim top bar with the organization switcher, notifications and account menu. Signed out:
-the landing page (`/`, `components/landing/Landing.tsx`: what the product does, how it works,
-capabilities, security; "Request access" opens an email to `NEXT_PUBLIC_CONTACT_EMAIL`, hidden when
-unset; a visitor with a session goes straight to the dashboard), the sign-in pages (split layout,
-`components/AuthCard.tsx`) and the public scam-report form (no app chrome). Tokens live in
-`tailwind.config.js` (petrol-teal accent `brand`, navy `shell`, cool neutrals, severity colours),
-shared classes in `app/globals.css` (`.btn-*`, `.field`, `.pill`, `.data-table`, `.ident` =
-JetBrains Mono for domains, URLs, IPs and references, one keyboard focus ring), shared pieces in
-`components/ui/` (`PageHeader`, `EmptyState`, `PasswordInput` with a show/hide toggle on every
-password and secret field, `Logo`).
+**Layout and design system** (console redesign, `UI_REDESIGN_PLAN.md`). Dark by default, with a light
+toggle in the top bar and the account menu (remembered per browser, applied before the first paint).
+Signed in, every page sits in one shell (`components/shell/`): a sidebar grouped as *Monitor*
+(Overview, Threats, Mentions), *Respond* (Takedowns, Public reports), *Configure* (Brands, Settings,
+Team) and, for platform admins, *Platform* (Admin panel); a top bar with the **brand switcher** (every
+page shows the brand picked here), **search** (Ctrl/Cmd+K: any threat by domain, URL or handle, or any
+page), the **notifications** bell (latest alerts, mark all read) and the account menu (account and
+security, theme, switching organization, sign out). On phones a bottom bar holds Overview, Threats,
+Takedowns and More. Signed out: the landing page (`/`, `components/landing/Landing.tsx`; "Request
+access" opens an email to `NEXT_PUBLIC_CONTACT_EMAIL`, hidden when unset; a visitor with a session goes
+straight to the Overview), the sign-in pages (`components/AuthCard.tsx`) and the public scam-report form
+(always light, because a brand's customers see it). Theme tokens are in `app/theme.css` (shadcn-style
+names plus severity colours), components in `components/ui/` (built on Radix: dialogs, menus, tabs,
+switches, toasts, in-page confirmations) and `components/threat/`. Domains, URLs and IPs are set in IBM
+Plex Mono with look-alike characters (`acmeaír`, `jamb0jet`) highlighted.
 
 | Page | What it shows |
 |---|---|
-| **Overview** (`/dashboard`) | Open threats by severity, new this week, a **Needs attention** list (open high/critical, untriaged first), takedowns in progress, source health, recent activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
-| **Threats** (`/threats`) | The threat feed. Open findings by default ("All" shows everything), filters, sorting, paging, bulk actions, CSV export. Targets shown by name (`@handle` + platform, app id, host + path). |
-| **Finding page** (`/threats/[id]`) | Left: evidence (screenshot or social post, score breakdown, AI explanation, contacts, reports, related findings). Right: triage, takedown kit and tracker, takedown reports (drafts and sent), domain details and history. |
-| **Takedowns** (`/takedowns`) | The org's takedown report queue: needs approval, veto window, manual tasks, failed, shadow review, sent, closed; and Results (who answers and how fast). |
-| **Mentions** (`/mentions`) | Non-threat brand mentions with 7-day counts and filters. |
-| **Reports** (`/reports`) | Public scam reports and the per-brand report link. |
-| **Notifications** (`/notifications`) | In-app alerts. |
-| **Settings** (`/settings?section=<id>`) | Sidebar, one setting at a time (dropdown on phones). **Brand**: details and domains, keywords with the paired switch, official accounts and apps, report link, visual reference, add/delete brand. **Alerts**, **Integrations** (webhook), **Team**. |
+| **Overview** (`/dashboard`) | Summary strip (open threats by severity and how many are live, new this week with a 14-day trend, decisions waiting on you, sites taken down in 30 days with the median time), **Needs a decision** (open high/critical, untriaged first, with Confirm / Dismiss and Undo), takedowns waiting on you, source health, activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
+| **Threats** (`/threats`) | The triage queue. Saved views with counts (Needs action, New, Investigating, Confirmed, Resolved, Dismissed, All), filters in the URL (search, severity, type, brand, assignee), sorting, paging, CSV export. Each row shows the main score reason and whether the site is live, parked or offline. On desktop a row opens a **side panel** (screenshot, why this score, key facts, decision buttons); keyboard: j/k move, Enter open, x select, c confirm, d dismiss, o full page, Esc close. Selected rows get a bulk bar (status, assignee). Phones get stacked rows. |
+| **Threat page** (`/threats/[id]`) | Sticky header with severity, score, status, live state and the decision buttons (a bottom bar on phones), then tabs, linkable with `?tab=`: **Evidence** (screenshot or social post, AI explanation, public reports, why this score, triage with status / assignee / tags / notes, key facts), **Infrastructure** (registration, DNS, hosting, website, abuse contacts), **Related** (shared contact and payment details, same-registrar campaign), **History** (registration and site changes, evidence), **Takedown** (send a report: pick who to report to, prepare, review, edit and send from your mailbox; and the takedown log: the report-it-yourself kit and request outcomes). |
+| **Takedowns** (`/takedowns`) | Summary strip, a banner when automatic sending is off and why, tabs (Needs approval, Sending soon, Manual tasks, Failed, Test mode, Sent, Cancelled, Results) in the URL, and a table with a side panel per report: its text, the conversation so far, and every action its state allows (approve and send, send now, cancel, retry, mark reported, test to yourself, Right / Wrong for test-mode reports). Results: who answers and how fast, per channel, registrar and host. |
+| **Mentions** (`/mentions`) | Non-threat brand mentions for the selected brand: 7-day summary with the sentiment split, platform, category and sentiment filters, paging. |
+| **Public reports** (`/reports`) | Scam reports from the public form, by status, with the threats they match; the form link per brand. |
+| **Notifications** (`/notifications`) | Every in-app alert; the bell shows the latest. |
+| **Brands** (`/brands`) | Per brand: details and delete, discovery keywords with the paired switch, official accounts and apps, visual reference, public report form. Tabs in `?tab=`; add a brand with `?add=1`. |
+| **Settings** (`/settings/...`) | One page per section: **Alerts**, **Webhook**, and for takedown reporting **Setup** (a checklist of what's left before reports go out on their own, the organization and per-brand switches, Stop all sending), **Sending rules** (test mode or live, which threats qualify, hold before sending, limits, follow-ups, channels), **Sender mailbox**, **Authorization**, **Report templates**, **Report recipients**, **Cloudflare** and **History**. Old `/settings?section=` links redirect. |
+| **Team** (`/team`) | Invite people, change roles, remove members, pending invites. |
+| **Account and security** (`/account`) | Profile, password, two-factor sign-in, Google sign-in, email, signed-in devices. |
 | **Public report form** (`/report/<token>`) | No login. |
 
 Every page has a skeleton loading state, and a thin progress bar shows navigation in flight. The
@@ -464,7 +469,7 @@ selected brand is remembered per browser.
 ### 9. Accounts, roles and tenancy
 
 - **Sign-in** is our own (no auth provider since 2026-11): email + password, invite-only. Owners
-  and admins invite people by email under **Settings → Team**, choosing their role (only owners
+  and admins invite people by email on the **Team** page, choosing their role (only owners
   invite owners); the invite link lasts 7 days, and the new person sets a password on accepting.
   "Forgot password" emails a 1-hour reset link. Only platform admins create organizations (see
   below). The very first account is created from the CLI (`npm run auth:create-user`, see Local
@@ -527,7 +532,7 @@ selected brand is remembered per browser.
   `server.ts`), since SameSite treats sibling subdomains as same-site. Login is limited to 10
   tries per email and 30 per IP per 15 minutes; a reset or password change signs out everywhere.
 - **Roles** (`owner`, `admin`, `analyst`, `viewer`) live in the `memberships` table. Owners
-  change roles and remove members under **Settings → Team**, never their own, and the last owner
+  change roles and remove members on the **Team** page, never their own, and the last owner
   can't be demoted or removed. Only owners and admins can change settings; others see them
   read-only.
 - **Tenancy**: Postgres row-level security. Every request and pipeline query runs through

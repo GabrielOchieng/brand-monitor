@@ -50,7 +50,7 @@ export function ReportLink({
   if (!url) {
     return (
       <div>
-        <p className="text-sm text-ink-muted">The public form is off for this brand.</p>
+        <p className="text-sm text-muted-foreground">The public form is off for this brand.</p>
         {editable && (
           <button onClick={() => run("POST")} disabled={busy} className="btn-primary mt-3">
             <LinkIcon className="h-4 w-4" /> {busy ? "Creating…" : "Create link"}

@@ -73,10 +73,10 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
 
   return (
     <section className="space-y-2">
-      <h2 className="text-base font-semibold text-ink">Automatic takedown reporting</h2>
+      <h2 className="text-base font-semibold text-foreground">Automatic takedown reporting</h2>
       <div className="card space-y-3 p-4 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-ink">
+          <div className="text-foreground">
             {data.allowedAt ? (
               <>
                 Allowed {day(data.allowedAt)}
@@ -85,7 +85,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
             ) : (
               "Not allowed"
             )}
-            <span className="ml-2 text-xs text-ink-subtle">
+            <span className="ml-2 text-xs text-subtle">
               Owner switch: {data.automation?.enabledAt ? `on (${data.automation.enabledBy ?? "owner"})` : "off"}
               {data.automation?.stoppedAt ? ` · stopped by ${data.automation.stoppedBy ?? "a member"}` : ""}
               {!data.platformEnabled ? " · AUTO_TAKEDOWN_ENABLED is off on this server" : ""}
@@ -102,13 +102,13 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
           )}
         </div>
         {data.blockers.length > 0 && (
-          <ul className="space-y-0.5 text-xs text-ink-muted">
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
             {data.blockers.map((b) => (
               <li key={b}>• {BLOCKER_LABELS[b] ?? b}</li>
             ))}
           </ul>
         )}
-        <div className="text-xs text-ink-muted">
+        <div className="text-xs text-muted-foreground">
           Sender:{" "}
           {data.sender
             ? `${PROVIDER_LABELS[data.sender.provider] ?? data.sender.provider}, ${data.sender.fromAddress} · last test ${
@@ -118,33 +118,33 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
         </div>
 
         {data.authorizations.length === 0 ? (
-          <p className="text-xs text-ink-subtle">No authorization recorded.</p>
+          <p className="text-xs text-subtle">No authorization recorded.</p>
         ) : (
           <ul className="space-y-2">
             {data.authorizations.map((a) => (
-              <li key={a.id} className="rounded-md border border-line p-3">
+              <li key={a.id} className="rounded-md border border-border p-3">
                 <div className="flex flex-wrap justify-between gap-2">
                   <div>
-                    <div className="font-medium text-ink">
+                    <div className="font-medium text-foreground">
                       {a.signatoryName}, {a.signatoryTitle}
                     </div>
-                    <div className="text-xs text-ink-subtle">
+                    <div className="text-xs text-subtle">
                       {a.signatoryEmail}
                       {a.signatoryPhone ? ` · ${a.signatoryPhone}` : ""} · {a.brandId ? (a.brandName ?? "deleted brand") : "all brands"} · {day(a.validFrom)} to{" "}
                       {a.expiresAt ? day(a.expiresAt) : "no end date"} · recorded by {a.createdBy}
                     </div>
-                    {a.scope && <div className="mt-1 text-xs text-ink-muted">{a.scope}</div>}
+                    {a.scope && <div className="mt-1 text-xs text-muted-foreground">{a.scope}</div>}
                   </div>
-                  <span className="text-xs capitalize text-ink-subtle">{authorizationStatus(a).replace("_", " ")}</span>
+                  <span className="text-xs capitalize text-subtle">{authorizationStatus(a).replace("_", " ")}</span>
                 </div>
                 <ul className="mt-2 space-y-0.5 text-xs">
-                  {a.documents.length === 0 && <li className="text-ink-subtle">No documents.</li>}
+                  {a.documents.length === 0 && <li className="text-subtle">No documents.</li>}
                   {a.documents.map((d) => (
                     <li key={d.id}>
-                      <a className="text-brand hover:underline" href={`${API_URL}/api/admin/orgs/${orgId}/takedown-documents/${d.id}`}>
+                      <a className="text-primary hover:underline" href={`${API_URL}/api/admin/orgs/${orgId}/takedown-documents/${d.id}`}>
                         {d.filename}
                       </a>{" "}
-                      <span className="text-ink-subtle">
+                      <span className="text-subtle">
                         {DOCUMENT_KIND_LABELS[d.kind] ?? d.kind} · {formatBytes(d.sizeBytes)} · sha256 {d.sha256.slice(0, 12)}…
                       </span>
                     </li>

@@ -37,7 +37,7 @@ export function NewPasswordFields({
           onChange={(e) => onPassword(e.target.value)}
           className="field w-full"
         />
-        <p className="mt-1 text-xs text-ink-subtle">At least {PASSWORD_MIN_LENGTH} characters. A few unrelated words work well.</p>
+        <p className="mt-1 text-xs text-subtle">At least {PASSWORD_MIN_LENGTH} characters. A few unrelated words work well.</p>
       </div>
       <div>
         <label htmlFor="confirm-password" className="label mb-1">

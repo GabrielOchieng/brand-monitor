@@ -29,7 +29,7 @@ export default function AdminContactsPage() {
     <AdminShell title="Contact book" blocked={blocked} error={error ?? actionError} loading={!data && !error}>
       {data && (
         <>
-          <p className="max-w-2xl text-sm text-ink-subtle">
+          <p className="max-w-2xl text-sm text-subtle">
             Shared by every organization. Use it for what&apos;s true of a provider for everyone: a registrar that only takes web forms, a better abuse address than the registry
             record gives, the blocklist forms. Organizations can override it in their own contact book.
           </p>

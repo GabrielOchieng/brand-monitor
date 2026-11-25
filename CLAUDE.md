@@ -56,11 +56,17 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   social-search-monitor (daily social search + weekly fact-check, two keyed schedules) (global, no dispatcher), takedown-dispatch 5min
   (automatic takedown reports; does nothing unless `AUTO_TAKEDOWN_ENABLED=1`). Queues are declared in `queue/boss.ts`.
 
-- Web UI (redesign 2026-11-30): signed-in pages render inside `components/AppFrame.tsx` (sidebar +
-  top bar); `/`, sign-in pages and `/report/*` are bare (`isBarePath`). Use the design system, not ad hoc
-  styles: tokens in `tailwind.config.js`, classes in `app/globals.css` (`.btn-*`, `.field`, `.pill`,
-  `.data-table`, `.ident` for domains/URLs/IPs), `components/ui/PageHeader` on every page, `PasswordInput`
-  for every password or secret field.
+- Web UI (console redesign, `UI_REDESIGN_PLAN.md`): dark by default with a light toggle (`app/theme.css`,
+  `data-theme` on `<html>`, saved in `localStorage` `bm.theme`). Tokens follow shadcn names (`background`,
+  `card`, `primary`, `muted-foreground`, `border`...) plus `sunk`/`raised`/`hover`, `subtle`, `border-strong`
+  and `sev-critical/high/medium/low`, `ok`, `info`. Never hard-code colours. Signed-in pages render in
+  `components/shell/AppShell.tsx` (sidebar, top bar with brand switcher, Ctrl+K search, notifications,
+  account menu; bottom bar on phones); `/`, sign-in pages and `/report/*` are bare (`isBarePath` in
+  `shell/nav.ts`). Build from `components/ui/` (Button, Panel, Field/FormSection, Tabs/LinkTabs,
+  Dialog/Sheet, Menu, Switch, Banner, StatStrip, Toast, Confirm) and `components/threat/atoms.tsx`
+  (SeverityTag, ScoreMeter, StatusPill, Pill, Ident). Ask with `useConfirm()`, never `window.confirm`.
+  The selected brand is `useBrands()` (`lib/brand.tsx`). `PasswordInput` for every password or secret field.
+  Settings are one route per section (`/settings/...`); old `?section=` links redirect (`lib/settingsRoutes.ts`).
 
 ## Deployment (auto-deploys on push to `main`)
 Since 2026-11-19: Vercel (web) + an OVH VPS running Dokploy (`panel.gabrielochieng.com`): the API and

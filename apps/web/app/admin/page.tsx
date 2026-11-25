@@ -86,9 +86,9 @@ export default function AdminOrgsPage() {
           </div>
           <AdminTable head={["Organization", "Monitoring", "Members", "Brands", "Findings", "Scans this month", "Emails this month", "Tavily this month", "Last active", "Created"]}>
             {data.orgs.map((o) => (
-              <tr key={o.id} className="hover:bg-elevated/50">
+              <tr key={o.id} className="hover:bg-raised/50">
                 <td className="whitespace-nowrap px-4 py-2.5">
-                  <Link href={`/admin/orgs/${o.id}`} className="font-medium text-ink hover:text-brand">
+                  <Link href={`/admin/orgs/${o.id}`} className="font-medium text-foreground hover:text-primary">
                     {o.name}
                   </Link>
                 </td>
@@ -106,7 +106,7 @@ export default function AdminOrgsPage() {
               </tr>
             ))}
           </AdminTable>
-          <p className="text-xs text-ink-subtle">
+          <p className="text-xs text-subtle">
             Last active: the most recent sign-in activity of any member. Scans, emails and Tavily searches count this calendar month (UTC). Tavily is counted per brand since 2026-11-24; searches before that show as not attributed.
           </p>
         </>

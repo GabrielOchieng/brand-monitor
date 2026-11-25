@@ -3,7 +3,7 @@
 // "Loading…". Pure markup: usable from server (loading.tsx) and client components.
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden className={`animate-pulse rounded-md bg-elevated ${className}`} />;
+  return <div aria-hidden className={`animate-pulse rounded-md bg-raised ${className}`} />;
 }
 
 // Screen readers get one status message per loading region instead of silent grey boxes.
@@ -32,13 +32,13 @@ export function SkeletonPageHeader({ withSubtitle = false, withAction = false }:
 export function SkeletonTable({ rows = 8, columns = ["w-2/5", "w-20", "w-10", "w-24", "w-16", "w-24"] }: { rows?: number; columns?: string[] }) {
   return (
     <div className="card overflow-hidden">
-      <div className="flex items-center gap-6 border-b border-line px-4 py-3.5">
+      <div className="flex items-center gap-6 border-b border-border px-4 py-3.5">
         {columns.map((w, i) => (
           <Skeleton key={i} className={`h-3 ${i === 0 ? "w-16" : "w-12"}`} />
         ))}
       </div>
       {Array.from({ length: rows }, (_, r) => (
-        <div key={r} className="flex items-center gap-6 border-b border-line px-4 py-4 last:border-b-0">
+        <div key={r} className="flex items-center gap-6 border-b border-border px-4 py-4 last:border-b-0">
           {columns.map((w, i) => (
             <Skeleton key={i} className={`h-4 ${w} ${i === 0 ? "" : "hidden sm:block"}`} />
           ))}
@@ -51,7 +51,7 @@ export function SkeletonTable({ rows = 8, columns = ["w-2/5", "w-20", "w-10", "w
 // A stack of list items (mentions, notifications, reports).
 export function SkeletonList({ rows = 5, lines = 2 }: { rows?: number; lines?: number }) {
   return (
-    <div className="card divide-y divide-line">
+    <div className="card divide-y divide-border">
       {Array.from({ length: rows }, (_, r) => (
         <div key={r} className="space-y-2.5 p-4">
           <div className="flex items-center justify-between gap-4">

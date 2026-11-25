@@ -23,7 +23,7 @@ const KINDS: Record<string, { title: string; description: string }> = {
   site_reactivated: { title: "Site back online", description: "A site confirmed down after a takedown is live again." },
   registration_changed: { title: "Registration changed", description: "A domain's registrar, nameservers, IP or registry status changes." },
   public_report: { title: "Public report", description: "Someone submits the public scam-report form. In-app only." },
-  takedown_activity: { title: "Takedown reports", description: "Automatic takedown reports: one is waiting for its veto window or for approval, was sent, or failed. Email (to owners and admins) only for failures." },
+  takedown_activity: { title: "Takedown reports", description: "Automatic takedown reports: one is waiting for approval or in its hold before sending, was sent, or failed. Email (to owners and admins) only for failures." },
 };
 
 const CHANNEL_LABELS: Record<Channel, string> = { email: "Email", in_app: "In-app", webhook: "Webhook" };
@@ -93,7 +93,7 @@ export function AlertSettings({ editable }: { editable: boolean }) {
         }
       >
         {rules === null ? (
-          <LoadingRegion label="Loading alert rules" className="divide-y divide-line">
+          <LoadingRegion label="Loading alert rules" className="divide-y divide-border">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className="flex items-center gap-4 py-4 first:pt-0">
                 <Skeleton className="h-5 w-9 rounded-full" />
@@ -105,7 +105,7 @@ export function AlertSettings({ editable }: { editable: boolean }) {
             ))}
           </LoadingRegion>
         ) : (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-border">
             {rules.map((rule) => {
               const meta = KINDS[rule.kind] ?? { title: rule.kind, description: "" };
               const busy = savingKind === rule.kind;
@@ -116,11 +116,11 @@ export function AlertSettings({ editable }: { editable: boolean }) {
                       <Toggle checked={rule.enabled} onChange={(v) => save({ ...rule, enabled: v })} disabled={!editable || busy} label={`${meta.title} alerts`} />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         {meta.title}
                         {savedKind === rule.kind && <span className="text-xs font-normal text-ok">Saved</span>}
                       </div>
-                      <p className="mt-0.5 text-xs text-ink-subtle">{meta.description}</p>
+                      <p className="mt-0.5 text-xs text-subtle">{meta.description}</p>
                       {rule.enabled && rule.channels.length === 0 && <p className="mt-1 text-xs text-sev-medium">On, but no channel is selected, so nothing is sent.</p>}
                     </div>
                   </div>
@@ -157,13 +157,13 @@ export function AlertSettings({ editable }: { editable: boolean }) {
                       </select>
                     )}
                     {rule.allowedChannels.map((c) => (
-                      <label key={c} className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+                      <label key={c} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         <input
                           type="checkbox"
                           checked={rule.channels.includes(c)}
                           onChange={() => toggleChannel(rule, c)}
                           disabled={!editable || busy || !rule.enabled}
-                          className="accent-brand"
+                          className="accent-primary"
                         />
                         {CHANNEL_LABELS[c]}
                       </label>

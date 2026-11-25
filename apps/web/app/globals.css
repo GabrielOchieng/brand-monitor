@@ -2,100 +2,49 @@
 @import 'tw-animate-css';
 @import './theme.css';
 
-/* Legacy tokens (first redesign). Pages still on the old look use them; deleted once every page is
-   migrated to the theme in theme.css (UI_REDESIGN_PLAN.md step 7). */
-@theme inline {
-  --color-critical: var(--sev-critical);
-  --color-high: var(--sev-high);
-  --color-medium: var(--sev-medium);
-  --color-low: var(--sev-low);
-  --color-base: var(--background);
-  --color-surface: var(--card);
-  --color-panel: var(--card);
-  --color-elevated: var(--raised);
-  --color-line: var(--border);
-
-  --color-ink: var(--foreground);
-  --color-ink-muted: var(--muted-foreground);
-  --color-ink-subtle: var(--subtle);
-  --color-ink-faint: var(--subtle);
-
-  --color-brand: var(--primary);
-  --color-brand-hover: var(--primary);
-  --color-brand-strong: var(--primary);
-  --color-brand-soft: var(--primary-soft);
-  --color-brand-muted: var(--primary-soft);
-
-  --color-shell: var(--sunk);
-  --color-shell-raised: var(--raised);
-  --color-shell-line: var(--border);
-  --color-shell-ink: var(--foreground);
-  --color-shell-muted: var(--muted-foreground);
-  --color-shell-faint: var(--subtle);
-
-
-  --shadow-card: 0 0 0 0 transparent;
-  --shadow-pop: var(--shadow-popover);
-}
+/* Class shortcuts for simple markup (forms and editors that don't need a component). New UI
+   should prefer the components in components/ui (Button, Panel, Input, Select, ...); these use the
+   same tokens and sizes so the two look identical. */
 
 @utility card {
-  @apply rounded-md border border-line bg-panel;
+  @apply rounded-md border border-border bg-card;
 }
 
 @utility btn {
-  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
-     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
-  @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50;
+  /* primary = the one main action in a view; secondary = other actions; ghost = low emphasis;
+     danger = destructive. Same heights as components/ui/Button. */
+  @apply inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-3 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility btn-primary {
-  @apply btn bg-brand px-3.5 py-2 text-primary-foreground hover:brightness-110;
+  @apply btn bg-primary text-primary-foreground hover:brightness-110;
 }
 
 @utility btn-secondary {
-  @apply btn border border-border-strong bg-raised px-3.5 py-2 text-ink-muted hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
+  @apply btn border-border-strong bg-raised text-foreground hover:bg-hover;
 }
 
 @utility btn-ghost {
-  @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
+  @apply btn text-muted-foreground hover:bg-hover hover:text-foreground;
 }
 
 @utility btn-danger {
-  @apply btn px-2 py-1 text-sev-critical hover:bg-sev-critical/10;
+  @apply btn border-sev-critical/35 text-sev-critical hover:bg-sev-critical/10;
 }
 
 @utility field {
-  @apply rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-hidden focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
+  @apply min-w-0 rounded-md border border-input bg-background px-2.5 py-1.5 text-[13px] text-foreground placeholder:text-subtle focus:border-transparent focus:outline-2 focus:-outline-offset-1 focus:outline-primary disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 @utility field-sm {
-  @apply field px-2.5 py-1.5 text-xs;
+  @apply field px-2 py-1 text-xs;
 }
 
 @utility label {
-  @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-}
-
-@utility pill {
-  /* Status pills: a tone class plus .pill. */
-  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
-}
-
-@utility data-table {
-  /* Data tables: dense, scannable, aligned. */
-  @apply w-full text-sm;
-  & thead th {
-    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-  }
-  & tbody td {
-    @apply border-b border-line/70 px-4 py-3 align-middle;
-  }
-  & tbody tr:last-child td {
-    @apply border-b-0;
-  }
+  @apply block text-[12.5px] font-medium text-muted-foreground;
 }
 
 @utility ident {
   /* Domains, URLs, IPs, references: the data analysts read character by character. */
-  @apply font-mono text-[0.92em] tracking-tight;
+  @apply font-mono text-[0.93em] tracking-[-0.01em];
 }

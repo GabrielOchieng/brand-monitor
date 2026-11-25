@@ -75,7 +75,7 @@ export function NavProgress() {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5" aria-hidden>
       <div
-        className={`h-full bg-brand shadow-[0_0_8px_rgba(91,79,224,0.6)] transition-[width,opacity] duration-300 ease-out ${state === "done" ? "opacity-0" : "opacity-100"}`}
+        className={`h-full bg-primary shadow-[0_0_8px_rgba(91,79,224,0.6)] transition-[width,opacity] duration-300 ease-out ${state === "done" ? "opacity-0" : "opacity-100"}`}
         style={{ width: `${width}%` }}
       />
     </div>
