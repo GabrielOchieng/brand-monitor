@@ -183,3 +183,14 @@ Each step is its own commit (pushed only when the owner says so).
   replaces window.confirm/prompt here (the rest go in step 5). Status names: shadow = "Test mode",
   pending_veto = "Sending soon". No API changes. Checked locally with 4 drafts made through the UI and
   moved into queue states by SQL, deleted afterwards; no Send button was clicked.
+- 2026-11-25, step 5: Settings is a layout with a section menu and one route per section
+  (`/settings/alerts`, `/webhook`, `/report-templates`, `/report-recipients`,
+  `/automatic-reporting` + `/sending`, `/sender`, `/authorization`, `/cloudflare`, `/history`; one
+  overview request shared by `AutomationProvider`). The automatic-reporting setup is a checklist built
+  from `automationBlockers`. `/settings?section=` and `?tab=` redirect (`lib/settingsRoutes.ts`,
+  tested). `/brands` (tabs in `?tab=`, add with `?add=1`) and `/team` are their own pages. Account is
+  one panel of label-left sections; Mentions, Public reports and Notifications rebuilt
+  (`lib/notificationHref.ts`, tested, also fixes report-only notifications in the bell and the
+  Overview feed). Stages shown as "Test: prepare only" / "Test: send to yourself" / "Live". The
+  mockup's "Send to Threats" on a mention was left out: there is no API for it. Browser dialogs remain
+  only in the admin panel (step 6).

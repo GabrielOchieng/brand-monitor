@@ -9,16 +9,16 @@ import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 import { GoogleButton, errorText, googleStartUrl, useGoogleEnabled } from "../../components/GoogleButton";
 import { PasswordInput } from "../../components/ui/PasswordInput";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { FormSection } from "../../components/ui/Field";
 
 type Status = { ok: boolean; text: string } | null;
 
+// One part of the account page: what it is on the left, its controls on the right.
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section className="card p-6">
-      <h2 className="text-base font-semibold text-ink">{title}</h2>
-      {description && <p className="mt-1 text-sm text-ink-muted">{description}</p>}
-      <div className="mt-5">{children}</div>
-    </section>
+    <FormSection title={title} description={description} className="px-4 sm:px-5">
+      {children}
+    </FormSection>
   );
 }
 
@@ -612,14 +612,16 @@ export default function AccountPage() {
     );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <PageHeader title="Account and security" description="Your profile, password, two-factor sign-in, linked Google account and the devices you're signed in on." />
+    <div className="max-w-4xl">
+      <PageHeader title="Account and security" description="Your profile, how you sign in, and where you're signed in." />
+      <div className="rounded-md border border-border bg-card">
       <ProfileSection me={me} />
       <PasswordSection onChanged={() => setSessionsKey((k) => k + 1)} />
       <TwoFactorSection me={me} onChanged={() => setSessionsKey((k) => k + 1)} />
       <GoogleSection me={me} />
       <EmailSection me={me} />
       <SessionsSection reloadKey={sessionsKey} />
+      </div>
     </div>
   );
 }

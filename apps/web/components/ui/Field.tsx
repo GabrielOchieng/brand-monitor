@@ -38,7 +38,7 @@ type FormSectionProps = { title: ReactNode; description?: ReactNode; children: R
 // Settings layout: what this group is about on the left, its controls on the right (stacked on mobile).
 export function FormSection({ title, description, children, danger, className }: FormSectionProps) {
   return (
-    <div className={cn("grid gap-3 border-t border-border py-5 first:border-t-0 first:pt-1 lg:grid-cols-[minmax(200px,280px)_minmax(0,1fr)] lg:gap-6", className)}>
+    <div className={cn("grid gap-3 border-t border-border py-5 first:border-t-0 lg:grid-cols-[minmax(200px,280px)_minmax(0,1fr)] lg:gap-6", className)}>
       <div>
         <h3 className={cn("text-[13.5px] font-semibold", danger && "text-sev-critical")}>{title}</h3>
         {description && <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{description}</p>}

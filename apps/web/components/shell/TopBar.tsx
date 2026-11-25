@@ -7,6 +7,7 @@ import { apiFetch } from "../../lib/api";
 import { useBrands } from "../../lib/brand";
 import { useSession } from "../../lib/session";
 import { timeAgo } from "../../lib/format";
+import { notificationHref } from "../../lib/notificationHref";
 import { cn } from "../../lib/cn";
 import { useTheme } from "../theme/theme";
 import { Button, Kbd } from "../ui/Button";
@@ -55,6 +56,7 @@ interface NotificationItem {
   id: string;
   findingId: string | null;
   link: string | null;
+  reportId?: string | null;
   message: string;
   readAt: string | null;
   createdAt: string;
@@ -118,17 +120,18 @@ export function NotificationsButton() {
               <li key={n.id} className="grid grid-cols-[8px_1fr] gap-2.5 border-b border-border px-3.5 py-2.5 text-[13px] last:border-b-0">
                 <span className={cn("mt-1.5 size-2 rounded-full", n.readAt ? "bg-transparent" : "bg-primary")} aria-hidden="true" />
                 <div className="min-w-0">
-                  {n.findingId ? (
-                    <Link href={`/threats/${n.findingId}`} className="hover:text-primary">
-                      {n.message}
-                    </Link>
-                  ) : n.link ? (
-                    <a href={n.link} target="_blank" rel="noreferrer" className="hover:text-primary">
-                      {n.message}
-                    </a>
-                  ) : (
-                    n.message
-                  )}
+                  {(() => {
+                    const { href, external } = notificationHref(n);
+                    return external ? (
+                      <a href={href} target="_blank" rel="noreferrer" className="hover:text-primary">
+                        {n.message}
+                      </a>
+                    ) : (
+                      <Link href={href} className="hover:text-primary">
+                        {n.message}
+                      </Link>
+                    );
+                  })()}
                   <time className="block font-mono text-[11.5px] text-subtle">{timeAgo(n.createdAt)}</time>
                 </div>
               </li>

@@ -1,17 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "../../lib/session";
+import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { useBrands } from "../../lib/brand";
 import { apiFetch } from "../../lib/api";
-import { ExternalLinkIcon } from "../../components/icons";
-import { LoadingRegion, Skeleton, SkeletonList } from "../../components/Skeleton";
 import { cleanSnippet, fullDate, timeAgo } from "../../lib/format";
+import { cn } from "../../lib/cn";
 import { PageHeader } from "../../components/ui/PageHeader";
-
-interface Brand {
-  id: string;
-  name: string;
-}
+import { Stat, StatStrip } from "../../components/ui/StatStrip";
+import { Button } from "../../components/ui/Button";
+import { Select } from "../../components/ui/Field";
+import { Banner } from "../../components/ui/Banner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Pill } from "../../components/threat/atoms";
+import { LoadingRegion, SkeletonList } from "../../components/Skeleton";
 
 interface Mention {
   id: string;
@@ -39,35 +41,23 @@ const CATEGORIES = ["news", "complaint", "promotion", "general", "unlabelled"] a
 const SENTIMENTS = ["negative", "neutral", "positive"] as const;
 const PLATFORMS = ["facebook", "instagram", "tiktok", "x", "telegram", "youtube"] as const;
 
-const PLATFORM_LABEL: Record<string, string> = {
-  facebook: "Facebook",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  x: "X",
-  telegram: "Telegram",
-  youtube: "YouTube",
-};
+const PLATFORM_LABEL: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", x: "X", telegram: "Telegram", youtube: "YouTube" };
+const PLATFORM_SHORT: Record<string, string> = { facebook: "FB", instagram: "IG", tiktok: "TT", x: "X", telegram: "TG", youtube: "YT" };
+const SENTIMENT_DOT: Record<string, string> = { negative: "bg-sev-critical", neutral: "bg-sev-low", positive: "bg-ok" };
+const SENTIMENT_TONE: Record<string, string> = { negative: "danger", neutral: "neutral", positive: "ok" };
 
-const SENTIMENT_CLASS: Record<string, string> = {
-  negative: "border-sev-critical/40 bg-sev-critical/10 text-sev-critical",
-  neutral: "border-line bg-surface text-ink-muted",
-  positive: "border-ok/40 bg-ok/10 text-ok",
-};
+const cap = (s: string): string => s[0].toUpperCase() + s.slice(1);
 
-function capitalize(s: string) {
-  return s[0].toUpperCase() + s.slice(1);
-}
+const chip = "inline-flex h-8 items-center whitespace-nowrap rounded-md border px-2.5 text-[12.5px]";
 
-// Non-threat social posts that name the brand, collected by the daily social search
+// Posts that name the brand without impersonating it, from the daily social search
 // (apps/api/src/pipeline/brandMentions.ts). A sample, not full social listening.
 export default function MentionsPage() {
-  const { isLoaded, orgId } = useSession();
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [brandId, setBrandId] = useState<string | null>(null);
+  const { selected } = useBrands();
+  const brandId = selected?.id ?? null;
   const [filters, setFiltersState] = useState({ category: "", sentiment: "", platform: "" });
   const [page, setPage] = useState(1);
   const [data, setData] = useState<MentionsResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // A new filter or brand starts again from page 1.
@@ -75,19 +65,6 @@ export default function MentionsPage() {
     setFiltersState(next);
     setPage(1);
   }
-
-  useEffect(() => {
-    if (!isLoaded || !orgId) return;
-    (async () => {
-      try {
-        const list = await apiFetch<Brand[]>("/api/brands");
-        setBrands(list);
-        setBrandId((current) => current ?? list[0]?.id ?? null);
-      } catch (err: any) {
-        setError(err.message);
-      }
-    })();
-  }, [isLoaded, orgId]);
 
   const query = useCallback(() => {
     const qs = new URLSearchParams();
@@ -100,20 +77,16 @@ export default function MentionsPage() {
   }, [brandId, filters, page]);
 
   useEffect(() => {
+    setPage(1);
+  }, [brandId]);
+
+  useEffect(() => {
     if (!brandId) return;
     let cancelled = false;
-    (async () => {
-      setError(null);
-      setLoading(true);
-      try {
-        const next = await apiFetch<MentionsResponse>(query());
-        if (!cancelled) setData(next);
-      } catch (err: any) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    setError(null);
+    apiFetch<MentionsResponse>(query())
+      .then((next) => !cancelled && setData(next))
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)));
     return () => {
       cancelled = true;
     };
@@ -125,164 +98,133 @@ export default function MentionsPage() {
   }
 
   const summary = data?.summary;
+  const topCategory = summary ? Object.entries(summary.byCategory).filter(([k]) => k !== "unlabelled").sort((a, b) => b[1] - a[1])[0] : undefined;
 
   return (
     <div>
       <PageHeader
         title="Mentions"
-        description="Social media posts that mention the brand but aren't threats: news, complaints, promotions and general chatter. A sample from the daily social search (posts search engines indexed in the past month), not full social listening. Labels are AI-generated."
-        actions={brands.length > 1 && (
-          <select
-            value={brandId ?? ""}
-            onChange={(e) => {
-              setBrandId(e.target.value);
-              setPage(1);
-            }}
-            className="field-sm"
-            aria-label="Brand"
-          >
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        )}
+        description={`What people say about ${selected?.name ?? "your brand"} on social media. For reading, not triage: impersonation and scams go to Threats on their own.`}
       />
 
-      {!summary && !error && (
-        <LoadingRegion label="Loading summary" className="card mt-6 flex flex-wrap gap-10 p-5">
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-8 w-12" />
-          </div>
-          {[3, 5].map((n, i) => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-3 w-20" />
-              <div className="flex gap-2">
-                {Array.from({ length: n }, (_, j) => (
-                  <Skeleton key={j} className="h-6 w-20" />
+      {summary && (
+        <StatStrip label="Mentions summary">
+          <Stat label={`Last ${summary.days} days`} value={summary.total} note="mentions">
+            {summary.total > 0 && (
+              <div className="mb-2 mt-2.5 flex h-2 gap-0.5 overflow-hidden rounded-sm" role="img" aria-label="Mentions by sentiment">
+                {SENTIMENTS.filter((s) => summary.bySentiment[s]).map((s) => (
+                  <span key={s} className={SENTIMENT_DOT[s]} style={{ flex: summary.bySentiment[s] }} />
                 ))}
               </div>
-            </div>
-          ))}
-        </LoadingRegion>
-      )}
-
-      {summary && (
-        <section className="card mt-6 grid gap-4 p-5 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-          <div>
-            <div className="label">Last {summary.days} days</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">{summary.total}</div>
-            <div className="text-xs text-ink-subtle">new mentions</div>
-          </div>
-          <div>
-            <div className="label">Sentiment</div>
-            <div className="mt-2 flex flex-wrap gap-2">
+            )}
+            <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-muted-foreground">
               {SENTIMENTS.map((s) => (
-                <span key={s} className={`rounded-md border px-2 py-0.5 text-xs tabular-nums ${SENTIMENT_CLASS[s]}`}>
-                  {capitalize(s)} {summary.bySentiment[s] ?? 0}
+                <span key={s} className="inline-flex items-center gap-1.5">
+                  <span className={cn("size-2 rounded-[1px]", SENTIMENT_DOT[s])} aria-hidden="true" />
+                  {cap(s)} <b className="font-mono font-medium text-foreground">{summary.bySentiment[s] ?? 0}</b>
                 </span>
               ))}
             </div>
-          </div>
-          <div>
-            <div className="label">Category</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {CATEGORIES.filter((c) => c !== "unlabelled" || summary.byCategory.unlabelled).map((c) => (
-                <span key={c} className="rounded-md border border-line bg-surface px-2 py-0.5 text-xs tabular-nums text-ink-muted">
-                  {capitalize(c)} {summary.byCategory[c] ?? 0}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
+          </Stat>
+          <Stat label="Complaints" value={summary.byCategory.complaint ?? 0} tone={(summary.byCategory.complaint ?? 0) > 0 ? "text-sev-medium" : undefined} />
+          <Stat label="Most common" value={topCategory ? cap(topCategory[0]) : "–"} note={topCategory ? `${topCategory[1]} of ${summary.total}` : undefined} />
+          <Stat label="Unlabelled" value={summary.byCategory.unlabelled ?? 0} note="not classified yet" />
+        </StatStrip>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="field-sm" aria-label="Category">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Platform">
+          <button type="button" aria-pressed={!filters.platform} onClick={() => setFilters({ ...filters, platform: "" })} className={cn(chip, !filters.platform ? "border-primary/50 bg-primary-soft text-foreground" : "border-dashed border-border-strong text-muted-foreground hover:border-solid")}>
+            All platforms
+          </button>
+          {PLATFORMS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={filters.platform === p}
+              onClick={() => setFilters({ ...filters, platform: filters.platform === p ? "" : p })}
+              className={cn(chip, filters.platform === p ? "border-primary/50 bg-primary-soft text-foreground" : "border-dashed border-border-strong text-muted-foreground hover:border-solid hover:text-foreground")}
+            >
+              {PLATFORM_LABEL[p]}
+            </button>
+          ))}
+        </div>
+        <Select aria-label="Category" className="h-8 w-auto" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>
           <option value="">All categories</option>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {capitalize(c)}
+              {cap(c)}
             </option>
           ))}
-        </select>
-        <select value={filters.sentiment} onChange={(e) => setFilters({ ...filters, sentiment: e.target.value })} className="field-sm" aria-label="Sentiment">
+        </Select>
+        <Select aria-label="Sentiment" className="h-8 w-auto" value={filters.sentiment} onChange={(e) => setFilters({ ...filters, sentiment: e.target.value })}>
           <option value="">All sentiment</option>
           {SENTIMENTS.map((s) => (
             <option key={s} value={s}>
-              {capitalize(s)}
+              {cap(s)}
             </option>
           ))}
-        </select>
-        <select value={filters.platform} onChange={(e) => setFilters({ ...filters, platform: e.target.value })} className="field-sm" aria-label="Platform">
-          <option value="">All platforms</option>
-          {PLATFORMS.map((p) => (
-            <option key={p} value={p}>
-              {PLATFORM_LABEL[p]}
-            </option>
-          ))}
-        </select>
+        </Select>
       </div>
 
-      {error && <p className="mt-4 text-sm text-sev-critical">{error}</p>}
-      {(loading || !data) && !error && (
-        <LoadingRegion label="Loading mentions" className="mt-3">
-          <SkeletonList rows={5} lines={2} />
+      {error && (
+        <Banner tone="error" className="mb-3">
+          {error}
+        </Banner>
+      )}
+
+      {!data ? (
+        <LoadingRegion label="Loading mentions">
+          <SkeletonList rows={5} />
         </LoadingRegion>
-      )}
-
-      {data && !loading && (
-        <div className="card mt-3 divide-y divide-line">
-          {data.mentions.map((m) => (
-            <article key={m.id} className="px-4 py-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-ink-subtle">
-                <span className="font-medium text-ink">{PLATFORM_LABEL[m.platform] ?? m.platform}</span>
-                {m.handle && <span className="font-mono">@{m.handle}</span>}
-                <span title={fullDate(m.firstSeenAt)}>· found {timeAgo(m.firstSeenAt)}</span>
-                <span className="ml-auto flex gap-1.5">
-                  {m.category ? (
-                    <span className="rounded-sm border border-line px-1.5 py-0.5">{capitalize(m.category)}</span>
-                  ) : (
-                    <span className="rounded-sm border border-dashed border-line px-1.5 py-0.5">Unlabelled</span>
-                  )}
-                  {m.sentiment && <span className={`rounded-sm border px-1.5 py-0.5 ${SENTIMENT_CLASS[m.sentiment]}`}>{capitalize(m.sentiment)}</span>}
+      ) : data.mentions.length === 0 ? (
+        <EmptyState title="No mentions here">
+          {filters.category || filters.sentiment || filters.platform ? "Nothing matches these filters." : "The daily social search adds posts that name the brand as it finds them."}
+        </EmptyState>
+      ) : (
+        <ul className="rounded-md border border-border bg-card">
+          {data.mentions.map((m) => {
+            const text = cleanSnippet(m.snippet, m.title);
+            return (
+              <li key={m.id} className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-3 border-b border-border px-3.5 py-3 text-[13px] last:border-b-0">
+                <span className="grid size-8 place-items-center rounded-md border border-border bg-raised text-[11px] font-bold text-muted-foreground" aria-hidden="true">
+                  {PLATFORM_SHORT[m.platform] ?? m.platform.slice(0, 2).toUpperCase()}
                 </span>
-              </div>
-              <a href={m.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-start gap-1 font-medium text-ink hover:text-brand-hover">
-                <span className="min-w-0 wrap-break-word">{m.title ?? m.url}</span>
-                <ExternalLinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              </a>
-              {cleanSnippet(m.snippet, m.title) && <p className="mt-1 line-clamp-3 text-ink-muted">{cleanSnippet(m.snippet, m.title)}</p>}
-            </article>
-          ))}
-          {data.mentions.length === 0 && (
-            <p className="px-4 py-6 text-sm text-ink-subtle">
-              No mentions yet. They&apos;re collected by the daily social search (or &quot;Search now&quot; on the dashboard).
-            </p>
-          )}
-        </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="text-[12.5px] text-subtle">
+                    {m.handle && <b className="font-medium text-foreground">@{m.handle}</b>}
+                    {m.handle && " · "}
+                    {PLATFORM_LABEL[m.platform] ?? m.platform} · <span title={fullDate(m.firstSeenAt)}>{timeAgo(m.firstSeenAt)}</span>
+                  </div>
+                  <a href={m.url} target="_blank" rel="noopener noreferrer" className="group inline-flex items-start gap-1 font-medium hover:text-primary">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{m.title ?? m.url}</span>
+                    <ExternalLink className="mt-0.5 size-3.5 shrink-0 text-subtle group-hover:text-primary" aria-hidden="true" />
+                  </a>
+                  {text && <p className="line-clamp-3 text-muted-foreground">{text}</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone={m.category === "complaint" ? "warn" : "neutral"}>{m.category ? cap(m.category) : "Unlabelled"}</Pill>
+                    {m.sentiment && <Pill tone={SENTIMENT_TONE[m.sentiment]}>{cap(m.sentiment)}</Pill>}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {data && data.total > 0 && (
-        <nav className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Pages">
-          <span className="text-ink-subtle tabular-nums">
-            {(data.page - 1) * data.pageSize + 1}–{Math.min(data.page * data.pageSize, data.total)} of {data.total}
+      {data && data.totalPages > 1 && (
+        <nav aria-label="Pages" className="mt-3 flex items-center justify-between text-[13px]">
+          <Button size="sm" disabled={data.page <= 1} onClick={() => goTo(data.page - 1)}>
+            <ChevronLeft />
+            Previous
+          </Button>
+          <span className="text-subtle tabular">
+            Page {data.page} of {data.totalPages} · {data.total} mentions
           </span>
-          {data.totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <button onClick={() => goTo(page - 1)} disabled={loading || page <= 1} className="btn-secondary">
-                Previous
-              </button>
-              <span className="tabular-nums text-ink-muted">
-                Page {data.page} of {data.totalPages}
-              </span>
-              <button onClick={() => goTo(page + 1)} disabled={loading || page >= data.totalPages} className="btn-secondary">
-                Next
-              </button>
-            </div>
-          )}
+          <Button size="sm" disabled={data.page >= data.totalPages} onClick={() => goTo(data.page + 1)}>
+            Next
+            <ChevronRight />
+          </Button>
         </nav>
       )}
     </div>

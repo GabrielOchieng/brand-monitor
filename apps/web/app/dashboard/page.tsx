@@ -8,6 +8,7 @@ import { useBrands } from "../../lib/brand";
 import { apiFetch, API_URL } from "../../lib/api";
 import { describeTarget, fullDate, sourceLabel, timeAgo } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { notificationHref } from "../../lib/notificationHref";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Panel, PanelHeader } from "../../components/ui/Panel";
 import { Stat, StatStrip } from "../../components/ui/StatStrip";
@@ -65,6 +66,7 @@ interface NotificationItem {
   id: string;
   findingId: string | null;
   link: string | null;
+  reportId?: string | null;
   message: string;
   readAt: string | null;
   createdAt: string;
@@ -440,17 +442,18 @@ export default function OverviewPage() {
                       <time className="pt-px font-mono text-[11.5px] text-subtle" title={fullDate(n.createdAt)}>
                         {timeAgo(n.createdAt)}
                       </time>
-                      {n.findingId ? (
-                        <Link href={`/threats/${n.findingId}`} className="hover:text-primary">
-                          {body}
-                        </Link>
-                      ) : n.link ? (
-                        <a href={n.link} target="_blank" rel="noreferrer" className="hover:text-primary">
-                          {body}
-                        </a>
-                      ) : (
-                        body
-                      )}
+                      {(() => {
+                        const { href, external } = notificationHref(n);
+                        return external ? (
+                          <a href={href} target="_blank" rel="noreferrer" className="hover:text-primary">
+                            {body}
+                          </a>
+                        ) : (
+                          <Link href={href} className="hover:text-primary">
+                            {body}
+                          </Link>
+                        );
+                      })()}
                     </li>
                   );
                 })}
