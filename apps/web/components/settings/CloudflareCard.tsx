@@ -62,8 +62,8 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
 
   return (
     <div className="card min-w-0 p-5 sm:p-6">
-      <h3 className="text-sm font-semibold text-ink">Cloudflare abuse reports (optional)</h3>
-      <p className="mt-1 text-sm leading-relaxed text-ink-subtle">
+      <h3 className="text-sm font-semibold text-foreground">Cloudflare abuse reports (optional)</h3>
+      <p className="mt-1 text-sm leading-relaxed text-subtle">
         Many phishing sites sit behind Cloudflare, which normally takes reports through a web form. If your Cloudflare account has the <em>abuse-reports</em> entitlement
         (Enterprise accounts do; others ask Cloudflare), connect it here and those reports are submitted by API. The token needs the <em>Trust and Safety Write</em>{" "}
         permission. Cloudflare may pass the reporter details on to the host and, if you choose, to the site owner.
@@ -71,10 +71,10 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
 
       {integration && !editing && (
         <div className="mt-4 space-y-2 text-sm">
-          <div className="text-ink">
+          <div className="text-foreground">
             Account <span className="font-mono text-xs">{p.accountId}</span> · reporter {p.name} &lt;{p.email}&gt;
           </div>
-          <div className={integration.lastTestOk ? "text-ok" : integration.lastTestOk === false ? "text-sev-critical" : "text-ink-subtle"}>
+          <div className={integration.lastTestOk ? "text-ok" : integration.lastTestOk === false ? "text-sev-critical" : "text-subtle"}>
             {integration.lastTestAt ? `${integration.lastTestOk ? "Connection works" : "Check failed"}, ${timeAgo(integration.lastTestAt)}` : "Not checked yet: reports keep going to the web form until it is."}
             {integration.lastTestOk === false && integration.lastTestError && <span className="block text-xs">{integration.lastTestError}</span>}
           </div>
@@ -163,7 +163,7 @@ export function CloudflareCard({ integration, isOwner, canTest, onChange }: { in
           </div>
         </form>
       )}
-      {!integration && !isOwner && <p className="mt-3 text-sm text-ink-subtle">Not connected. An owner can connect it.</p>}
+      {!integration && !isOwner && <p className="mt-3 text-sm text-subtle">Not connected. An owner can connect it.</p>}
       {msg && <p className={`mt-3 text-sm ${msg.ok ? "text-ok" : "text-sev-critical"}`}>{msg.text}</p>}
     </div>
   );

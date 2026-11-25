@@ -91,7 +91,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
   return (
     <div>
       {keywords === null ? (
-        <LoadingRegion label="Loading keywords" className="divide-y divide-line rounded-md border border-line">
+        <LoadingRegion label="Loading keywords" className="divide-y divide-border rounded-md border border-border">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center justify-between px-3 py-2.5">
               <Skeleton className="h-4 w-24" />
@@ -100,21 +100,21 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
           ))}
         </LoadingRegion>
       ) : keywords.length === 0 ? (
-        <p className="rounded-md border border-dashed border-line px-3 py-4 text-center text-xs text-ink-subtle">No keywords yet. Discovery only checks typos of the name.</p>
+        <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-subtle">No keywords yet. Discovery only checks typos of the name.</p>
       ) : (
-        <div className="overflow-hidden rounded-md border border-line">
-          <div className="flex items-center justify-between border-b border-line bg-elevated/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+        <div className="overflow-hidden rounded-md border border-border">
+          <div className="flex items-center justify-between border-b border-border bg-raised/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-subtle">
             <span>Keyword</span>
             <span className={editable ? "mr-10" : ""}>
               Paired {paired.length}/{MAX_PAIRED}
             </span>
           </div>
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-border">
             {keywords.map((k) => (
               <li key={k.id} className="flex items-center gap-3 px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{k.keyword}</div>
-                  <div className="truncate text-xs text-ink-subtle">
+                  <div className="text-sm font-medium text-foreground">{k.keyword}</div>
+                  <div className="truncate text-xs text-subtle">
                     {k.keyword}
                     {brandRoot}.com · {brandRoot}
                     {k.keyword}.com
@@ -138,7 +138,7 @@ export function BrandKeywords({ brandId, brandRoot, editable = true }: { brandId
       )}
 
       {paired.length >= 2 && (
-        <p className="mt-2 text-xs text-ink-subtle">
+        <p className="mt-2 text-xs text-subtle">
           Paired keywords are also combined with each other, e.g. {paired[0]}
           {brandRoot}
           {paired[1]}.xyz.

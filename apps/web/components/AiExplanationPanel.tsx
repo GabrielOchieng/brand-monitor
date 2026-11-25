@@ -62,19 +62,19 @@ export function AiExplanationPanel({
       </div>
 
       {(generating || explanation?.status === "pending") && (
-        <LoadingRegion label="Writing the explanation" className="mt-3 space-y-2 rounded-md border border-line bg-surface p-4">
+        <LoadingRegion label="Writing the explanation" className="mt-3 space-y-2 rounded-md border border-border bg-card p-4">
           <Skeleton className="h-3.5 w-full" />
           <Skeleton className="h-3.5 w-full" />
           <Skeleton className="h-3.5 w-4/5" />
           <Skeleton className="h-3.5 w-3/5" />
-          <p className="pt-1 text-xs text-ink-faint">Writing the explanation. This takes a few seconds.</p>
+          <p className="pt-1 text-xs text-subtle">Writing the explanation. This takes a few seconds.</p>
         </LoadingRegion>
       )}
 
       {explanation?.status === "succeeded" && !generating && (
-        <div className="mt-3 rounded-md border border-line bg-surface p-4">
-          <p className="text-sm text-ink-muted">{explanation.response}</p>
-          <p className="mt-2 text-xs text-ink-faint">
+        <div className="mt-3 rounded-md border border-border bg-card p-4">
+          <p className="text-sm text-muted-foreground">{explanation.response}</p>
+          <p className="mt-2 text-xs text-subtle">
             Written by {explanation.model} {timeAgo(explanation.createdAt)}. It describes the score; it doesn't set it.
           </p>
           <button onClick={handleGenerate} disabled={generating} className="btn-ghost mt-3 px-0 text-xs">

@@ -50,23 +50,23 @@ function describeTarget(c: ContactRule): string {
 }
 
 export function ContactTable({ contacts, editable, onEdit, onDelete }: { contacts: ContactRule[]; editable: boolean; onEdit?: (c: ContactRule) => void; onDelete?: (c: ContactRule) => void }) {
-  if (contacts.length === 0) return <p className="text-sm text-ink-subtle">No entries.</p>;
+  if (contacts.length === 0) return <p className="text-sm text-subtle">No entries.</p>;
   return (
-    <ul className="divide-y divide-line">
+    <ul className="divide-y divide-border">
       {contacts.map((c) => (
         <li key={c.id} className={`flex flex-wrap items-start justify-between gap-2 py-2.5 text-sm ${c.enabled ? "" : "opacity-60"}`}>
           <div className="min-w-0">
-            <div className="text-ink">
+            <div className="text-foreground">
               <span className="font-medium">{CHANNEL_LABELS[c.channel] ?? c.channel}</span>
-              <span className="text-ink-muted"> · {describeMatch(c)}</span>
-              {!c.enabled && <span className="ml-2 text-xs text-ink-subtle">(off)</span>}
+              <span className="text-muted-foreground"> · {describeMatch(c)}</span>
+              {!c.enabled && <span className="ml-2 text-xs text-subtle">(off)</span>}
             </div>
-            <div className="break-all text-xs text-ink-muted">
+            <div className="break-all text-xs text-muted-foreground">
               {METHOD_LABELS[c.method] ?? c.method}: {describeTarget(c)}
               {c.language ? ` · ${LANGUAGE_LABELS[c.language] ?? c.language}` : ""}
             </div>
-            {c.instructions && <div className="mt-0.5 text-xs text-ink-subtle">{c.instructions}</div>}
-            {c.note && <div className="mt-0.5 text-xs italic text-ink-subtle">{c.note}</div>}
+            {c.instructions && <div className="mt-0.5 text-xs text-subtle">{c.instructions}</div>}
+            {c.note && <div className="mt-0.5 text-xs italic text-subtle">{c.note}</div>}
           </div>
           {editable && (
             <div className="flex shrink-0 gap-1">
@@ -130,7 +130,7 @@ export function ContactForm({ endpoint, existing, onDone, onCancel }: { endpoint
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-md border border-line p-4">
+    <form onSubmit={submit} className="space-y-3 rounded-md border border-border p-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="label mb-1">Channel</span>

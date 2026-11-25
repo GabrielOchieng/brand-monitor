@@ -26,13 +26,13 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
     <div className="mx-auto max-w-lg">
       {unavailable ? (
         <div className="rounded-md border border-border bg-card p-6 text-center">
-          <h1 className="text-lg font-semibold text-ink">Reporting is temporarily unavailable</h1>
-          <p className="mt-2 text-sm text-ink-muted">Please try again in a few minutes.</p>
+          <h1 className="text-lg font-semibold text-foreground">Reporting is temporarily unavailable</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Please try again in a few minutes.</p>
         </div>
       ) : brand ? (
         <>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Report a {brand.brandName} scam</h1>
-          <p className="mt-2 text-sm text-ink-muted">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Report a {brand.brandName} scam</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Seen a fake website, social media page, or a phone/WhatsApp number pretending to be {brand.brandName}? Tell us
             here. Our team reviews every report. We can&apos;t reply to each one, and we will never ask you for a password,
             PIN or payment.
@@ -41,8 +41,8 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
         </>
       ) : (
         <div className="rounded-md border border-border bg-card p-6 text-center">
-          <h1 className="text-lg font-semibold text-ink">This report link isn&apos;t active</h1>
-          <p className="mt-2 text-sm text-ink-muted">Please use the link on the company&apos;s official website.</p>
+          <h1 className="text-lg font-semibold text-foreground">This report link isn&apos;t active</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Please use the link on the company&apos;s official website.</p>
         </div>
       )}
     </div>

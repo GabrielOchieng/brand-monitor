@@ -39,7 +39,7 @@ function ResetForm() {
   if (!token) {
     return (
       <>
-        <p className="text-sm text-ink-muted">This page needs the link from your email.</p>
+        <p className="text-sm text-muted-foreground">This page needs the link from your email.</p>
         <Link href="/forgot-password" className="btn-secondary mt-4 w-full">
           Send a new link
         </Link>
@@ -50,7 +50,7 @@ function ResetForm() {
   if (done) {
     return (
       <>
-        <p className="text-sm text-ink-muted">Your password is set. You've been signed out everywhere else; sign in with the new password.</p>
+        <p className="text-sm text-muted-foreground">Your password is set. You've been signed out everywhere else; sign in with the new password.</p>
         <Link href="/login" className="btn-primary mt-4 w-full">
           Sign in
         </Link>

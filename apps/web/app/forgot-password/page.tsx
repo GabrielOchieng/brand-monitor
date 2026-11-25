@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
         <button type="submit" disabled={busy} className="btn-primary w-full">
           {busy ? "Sending…" : "Send reset link"}
         </button>
-        <Link href="/login" className="block text-center text-sm text-ink-subtle hover:text-ink">
+        <Link href="/login" className="block text-center text-sm text-subtle hover:text-foreground">
           Back to sign in
         </Link>
       </form>

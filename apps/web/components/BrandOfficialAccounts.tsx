@@ -73,7 +73,7 @@ export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: s
   return (
     <div>
       {urls === null ? (
-        <LoadingRegion label="Loading official accounts" className="divide-y divide-line rounded-md border border-line">
+        <LoadingRegion label="Loading official accounts" className="divide-y divide-border rounded-md border border-border">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex items-center gap-3 px-3 py-2.5">
               <Skeleton className="h-8 w-8" />
@@ -85,19 +85,19 @@ export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: s
           ))}
         </LoadingRegion>
       ) : urls.length === 0 ? (
-        <p className="rounded-md border border-dashed border-line px-3 py-4 text-center text-xs text-ink-subtle">
+        <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-subtle">
           None yet. Until the real accounts are listed, the searches may report them as fakes.
         </p>
       ) : (
-        <ul className="divide-y divide-line rounded-md border border-line">
+        <ul className="divide-y divide-border rounded-md border border-border">
           {urls.map((u) => {
             const d = describeOfficial(u);
             return (
               <li key={u} className="flex items-center gap-3 px-3 py-2.5">
                 <TargetIcon type={d.type} platform={d.platform} />
                 <a href={u} target="_blank" rel="noreferrer" className="min-w-0 flex-1" title={u}>
-                  <div className="truncate text-sm font-medium text-ink hover:text-brand">{d.primary}</div>
-                  <div className="truncate text-xs text-ink-subtle">{d.secondary}</div>
+                  <div className="truncate text-sm font-medium text-foreground hover:text-primary">{d.primary}</div>
+                  <div className="truncate text-xs text-subtle">{d.secondary}</div>
                 </a>
                 {editable && <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-sev-critical">
                   <TrashIcon className="h-3.5 w-3.5" />

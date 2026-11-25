@@ -19,12 +19,12 @@ function RequestAccess({ email, className = "" }: { email: string | null; classN
 
 function Section({ id, eyebrow, title, intro, children, tone = "light" }: { id?: string; eyebrow: string; title: string; intro?: ReactNode; children: ReactNode; tone?: "light" | "muted" }) {
   return (
-    <section id={id} className={`scroll-mt-16 border-t border-line ${tone === "muted" ? "bg-base" : "bg-card"}`}>
+    <section id={id} className={`scroll-mt-16 border-t border-border ${tone === "muted" ? "bg-base" : "bg-card"}`}>
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="max-w-2xl">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{eyebrow}</div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{title}</h2>
-          {intro && <p className="mt-3 text-base leading-relaxed text-ink-subtle">{intro}</p>}
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{title}</h2>
+          {intro && <p className="mt-3 text-base leading-relaxed text-subtle">{intro}</p>}
         </div>
         <div className="mt-10">{children}</div>
       </div>
@@ -43,31 +43,31 @@ function ProductIllustration() {
   return (
     <figure className="relative" aria-label="Illustration of the threat feed with example data">
             <div className="overflow-hidden rounded-md border border-border-strong bg-card shadow-popover">
-        <div className="flex items-center justify-between border-b border-shell-line px-4 py-3">
-          <div className="text-xs font-medium text-shell-ink">Threats · open</div>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="text-xs font-medium text-foreground">Threats · open</div>
           <div className="flex gap-1.5" aria-hidden="true">
-            <span className="h-2 w-2 rounded-full bg-shell-line" />
-            <span className="h-2 w-2 rounded-full bg-shell-line" />
-            <span className="h-2 w-2 rounded-full bg-shell-line" />
+            <span className="h-2 w-2 rounded-full bg-border" />
+            <span className="h-2 w-2 rounded-full bg-border" />
+            <span className="h-2 w-2 rounded-full bg-border" />
           </div>
         </div>
-        <ul className="divide-y divide-shell-line">
+        <ul className="divide-y divide-border">
           {rows.map((r) => (
             <li key={r.d} className="flex items-center gap-3 px-4 py-3">
               <SeverityTag severity={r.sev} className="w-[74px] shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-[13px] text-shell-ink">{r.d}</div>
-                <div className="truncate text-[11px] text-shell-muted">{r.why}</div>
+                <div className="truncate font-mono text-[13px] text-foreground">{r.d}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{r.why}</div>
               </div>
-              <span className="hidden shrink-0 text-[11px] text-shell-faint sm:inline">{r.status}</span>
+              <span className="hidden shrink-0 text-[11px] text-subtle sm:inline">{r.status}</span>
             </li>
           ))}
         </ul>
-        <div className="border-t border-shell-line bg-shell px-4 py-3 text-[11px] text-shell-muted">
+        <div className="border-t border-border bg-sunk px-4 py-3 text-[11px] text-muted-foreground">
           <span className="font-mono text-primary">[BM-7KQ2X9TD]</span> takedown report to the registrar · sent from your mailbox after the hold
         </div>
       </div>
-      <figcaption className="mt-3 text-center text-[11px] text-shell-faint">Illustration with example domains</figcaption>
+      <figcaption className="mt-3 text-center text-[11px] text-subtle">Illustration with example domains</figcaption>
     </figure>
   );
 }
@@ -113,24 +113,24 @@ type LandingProps = { contactEmail: string | null };
 export function Landing({ contactEmail }: LandingProps) {
   return (
     <div className="min-h-screen bg-card">
-      <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-20 border-b border-border bg-sunk/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" aria-label="Brand Monitor home">
             <Logo tone="light" />
           </Link>
-          <nav aria-label="Sections" className="hidden items-center gap-6 text-sm text-shell-muted md:flex">
-            <a href="#how" className="hover:text-shell-ink">
+          <nav aria-label="Sections" className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
+            <a href="#how" className="hover:text-foreground">
               How it works
             </a>
-            <a href="#capabilities" className="hover:text-shell-ink">
+            <a href="#capabilities" className="hover:text-foreground">
               Capabilities
             </a>
-            <a href="#security" className="hover:text-shell-ink">
+            <a href="#security" className="hover:text-foreground">
               Security
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/login" className="btn rounded-md px-3 py-2 text-shell-ink hover:bg-shell-raised">
+            <Link href="/login" className="btn rounded-md px-3 py-2 text-foreground hover:bg-raised">
               Sign in
             </Link>
             <RequestAccess email={contactEmail} className="hidden sm:inline-flex" />
@@ -138,37 +138,37 @@ export function Landing({ contactEmail }: LandingProps) {
         </div>
       </header>
 
-      <section className="relative overflow-hidden bg-shell">
+      <section className="relative overflow-hidden bg-sunk">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[48px_48px]" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-sm border border-shell-line bg-shell-raised px-2.5 py-1 text-xs text-shell-muted">
+            <div className="inline-flex items-center gap-2 rounded-sm border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
               Brand protection and takedown platform
             </div>
             <h1 className="mt-5 text-4xl font-semibold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
               Find the sites impersonating your brand. <span className="text-primary">Take them down.</span>
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-shell-muted sm:text-lg">
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               Brand Monitor watches for lookalike domains, phishing sites and fake accounts that use your name, shows the evidence behind each one, and prepares the takedown
               reports for your team.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <RequestAccess email={contactEmail} />
-              <Link href="/login" className="btn rounded-md border border-shell-line px-4 py-2.5 text-shell-ink hover:bg-shell-raised">
+              <Link href="/login" className="btn rounded-md border border-border px-4 py-2.5 text-foreground hover:bg-raised">
                 Sign in
               </Link>
             </div>
-            <p className="mt-4 text-xs text-shell-faint">Accounts are by invitation. {contactEmail ? "Ask for access and we'll set up your organization." : "Ask your administrator for an invite."}</p>
+            <p className="mt-4 text-xs text-subtle">Accounts are by invitation. {contactEmail ? "Ask for access and we'll set up your organization." : "Ask your administrator for an invite."}</p>
           </div>
           <ProductIllustration />
         </div>
-        <div className="relative border-t border-shell-line bg-shell-raised/50">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 text-xs text-shell-muted sm:px-6">
-            <span className="font-semibold uppercase tracking-[0.14em] text-shell-faint">Watches</span>
+        <div className="relative border-t border-border bg-raised/50">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 text-xs text-muted-foreground sm:px-6">
+            <span className="font-semibold uppercase tracking-[0.14em] text-subtle">Watches</span>
             {SOURCES.map((s) => (
               <span key={s} className="flex items-center gap-2">
-                <span className="h-1 w-1 rounded-full bg-shell-faint" aria-hidden="true" />
+                <span className="h-1 w-1 rounded-full bg-subtle" aria-hidden="true" />
                 {s}
               </span>
             ))}
@@ -179,21 +179,21 @@ export function Landing({ contactEmail }: LandingProps) {
       <Section id="how" eyebrow="How it works" title="From first sighting to takedown, in one place" intro="Impersonation sites go up fast and come back after takedowns. Brand Monitor keeps watching each one until it's gone, and tells you when it returns.">
         <ol className="grid gap-6 md:grid-cols-3">
           {STEPS.map((s) => (
-            <li key={s.n} className="relative rounded-md border border-line bg-card p-6">
-              <div className="font-mono text-xs font-medium text-brand">{s.n}</div>
-              <h3 className="mt-2 text-lg font-semibold text-ink">{s.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{s.text}</p>
+            <li key={s.n} className="relative rounded-md border border-border bg-card p-6">
+              <div className="font-mono text-xs font-medium text-primary">{s.n}</div>
+              <h3 className="mt-2 text-lg font-semibold text-foreground">{s.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-subtle">{s.text}</p>
             </li>
           ))}
         </ol>
       </Section>
 
       <Section id="capabilities" tone="muted" eyebrow="Capabilities" title="Built for the way impersonation actually happens">
-        <div className="grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {CAPABILITIES.map((c) => (
             <div key={c.t} className="bg-card p-6">
-              <h3 className="text-sm font-semibold text-ink">{c.t}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{c.d}</p>
+              <h3 className="text-sm font-semibold text-foreground">{c.t}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-subtle">{c.d}</p>
             </div>
           ))}
         </div>
@@ -203,44 +203,44 @@ export function Landing({ contactEmail }: LandingProps) {
         <div className="grid gap-6 sm:grid-cols-2">
           {TRUST.map((c) => (
             <div key={c.t} className="flex gap-4">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand" aria-hidden="true">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-4 w-4">
                   <path d="m5 12.5 4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-ink">{c.t}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-ink-subtle">{c.d}</p>
+                <h3 className="text-sm font-semibold text-foreground">{c.t}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-subtle">{c.d}</p>
               </div>
             </div>
           ))}
         </div>
       </Section>
 
-      <section className="bg-shell">
+      <section className="bg-sunk">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">See who is using your brand.</h2>
-            <p className="mt-2 text-sm text-shell-muted">Set up your brand, keywords and official accounts, and the first findings arrive within hours.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Set up your brand, keywords and official accounts, and the first findings arrive within hours.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <RequestAccess email={contactEmail} />
-            <Link href="/login" className="btn rounded-md border border-shell-line px-4 py-2.5 text-shell-ink hover:bg-shell-raised">
+            <Link href="/login" className="btn rounded-md border border-border px-4 py-2.5 text-foreground hover:bg-raised">
               Sign in
             </Link>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-shell-line bg-shell">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-xs text-shell-faint sm:px-6">
+      <footer className="border-t border-border bg-sunk">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-xs text-subtle sm:px-6">
           <Logo tone="light" />
           <div className="flex flex-wrap gap-5">
-            <Link href="/login" className="hover:text-shell-ink">
+            <Link href="/login" className="hover:text-foreground">
               Sign in
             </Link>
             {contactEmail && (
-              <a href={`mailto:${contactEmail}`} className="hover:text-shell-ink">
+              <a href={`mailto:${contactEmail}`} className="hover:text-foreground">
                 Contact
               </a>
             )}

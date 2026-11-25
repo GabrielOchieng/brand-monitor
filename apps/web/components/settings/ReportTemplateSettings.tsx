@@ -77,8 +77,8 @@ export function ReportTemplateSettings({ role, brands }: { role: Role | null; br
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">Report templates</h2>
-        <div className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-subtle">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">Report templates</h2>
+        <div className="mt-1 max-w-2xl text-sm leading-relaxed text-subtle">
           The wording of takedown reports for websites. Every report keeps three fixed parts you can move but not remove: the reference tag in the subject (replies are
           matched by it), the evidence block, and the signature block. Analysts edit a draft; an owner or admin publishes it. Reports use the published version, or the
           built-in text until you publish your own.
@@ -107,8 +107,8 @@ export function ReportTemplateSettings({ role, brands }: { role: Role | null; br
           </select>
         </Field>
       </div>
-      {brandId && <p className="text-xs text-ink-subtle">A brand-only version replaces the all-brands one for that brand. Where a brand has none, the all-brands text is used.</p>}
-      {language !== "en" && <p className="text-xs text-ink-subtle">Where there is no text in this language, reports fall back to English.</p>}
+      {brandId && <p className="text-xs text-subtle">A brand-only version replaces the all-brands one for that brand. Where a brand has none, the all-brands text is used.</p>}
+      {language !== "en" && <p className="text-xs text-subtle">Where there is no text in this language, reports fall back to English.</p>}
       {error && <p className="text-sm text-sev-critical">{error}</p>}
 
       {!data ? (
@@ -116,18 +116,18 @@ export function ReportTemplateSettings({ role, brands }: { role: Role | null; br
       ) : (
         <>
           {!brandId && <ProfileCard profile={data.profile} canEdit={canPublish} onSaved={load} />}
-          <div className="card divide-y divide-line">
+          <div className="card divide-y divide-border">
             {data.templates.map((row) => {
               const key = `${row.channel}.${row.kind}`;
               return (
                 <div key={key}>
-                  <button className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-elevated/50" onClick={() => setOpen(open === key ? null : key)} aria-expanded={open === key}>
-                    <span className="text-sm font-medium text-ink">
-                      {CHANNEL_LABELS[row.channel] ?? row.channel} · <span className="font-normal text-ink-muted">{KIND_LABELS[row.kind] ?? row.kind}</span>
+                  <button className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-raised/50" onClick={() => setOpen(open === key ? null : key)} aria-expanded={open === key}>
+                    <span className="text-sm font-medium text-foreground">
+                      {CHANNEL_LABELS[row.channel] ?? row.channel} · <span className="font-normal text-muted-foreground">{KIND_LABELS[row.kind] ?? row.kind}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs">
                       {row.draft && <span className="rounded-full border border-sev-medium/40 bg-sev-medium/10 px-2 py-0.5 text-sev-medium">Draft v{row.draft.version}</span>}
-                      <span className="text-ink-subtle">
+                      <span className="text-subtle">
                         {row.published
                           ? `Published v${row.published.version}`
                           : row.effective.scope === "org"
@@ -177,7 +177,7 @@ function ProfileCard({ profile, canEdit, onSaved }: { profile: TemplatesData["pr
 
   return (
     <div className="card space-y-3 p-5">
-      <h3 className="text-sm font-semibold text-ink">Fixed text in every report</h3>
+      <h3 className="text-sm font-semibold text-foreground">Fixed text in every report</h3>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Company details" hint="Added to the signature block: registered name, address, website.">
           <textarea rows={3} className="field w-full" value={companyDetails} disabled={!canEdit} onChange={(e) => (setCompanyDetails(e.target.value), setState("idle"))} />
@@ -186,7 +186,7 @@ function ProfileCard({ profile, canEdit, onSaved }: { profile: TemplatesData["pr
           <textarea rows={3} className="field w-full" value={disclaimer} disabled={!canEdit} onChange={(e) => (setDisclaimer(e.target.value), setState("idle"))} />
         </Field>
       </div>
-      <p className="text-xs text-ink-subtle">The signature itself is set on the sender mailbox (Automatic reporting).</p>
+      <p className="text-xs text-subtle">The signature itself is set on the sender mailbox (Automatic reporting).</p>
       {error && <p className="text-sm text-sev-critical">{error}</p>}
       {canEdit && (
         <button className="btn-secondary" disabled={state === "saving"} onClick={save}>
@@ -265,7 +265,7 @@ function TemplateEditor({
     apiFetch<any>(path, { method: "POST", ...(body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
 
   return (
-    <div className="space-y-4 border-t border-line bg-elevated/30 px-5 py-4">
+    <div className="space-y-4 border-t border-border bg-raised/30 px-5 py-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_14rem]">
         <div className="min-w-0 space-y-3">
           <Field label="Subject">
@@ -293,13 +293,13 @@ function TemplateEditor({
         </div>
         <div className="min-w-0">
           <div className="label mb-1">Placeholders</div>
-          <p className="mb-2 text-xs text-ink-subtle">Click to insert at the cursor.</p>
+          <p className="mb-2 text-xs text-subtle">Click to insert at the cursor.</p>
           <ul className="max-h-104 space-y-1 overflow-y-auto pr-1">
             {placeholders.map((p) => (
               <li key={p.name}>
-                <button type="button" disabled={!canEdit} onClick={() => insert(p.name)} className="w-full rounded-sm px-1.5 py-1 text-left hover:bg-elevated disabled:cursor-default" title={p.description}>
-                  <code className={`text-xs ${["reportRef", "evidence", "signature"].includes(p.name) ? "font-semibold text-brand" : "text-ink"}`}>{`{{${p.name}}}`}</code>
-                  <span className="block text-[11px] leading-snug text-ink-subtle">{p.description}</span>
+                <button type="button" disabled={!canEdit} onClick={() => insert(p.name)} className="w-full rounded-sm px-1.5 py-1 text-left hover:bg-raised disabled:cursor-default" title={p.description}>
+                  <code className={`text-xs ${["reportRef", "evidence", "signature"].includes(p.name) ? "font-semibold text-primary" : "text-foreground"}`}>{`{{${p.name}}}`}</code>
+                  <span className="block text-[11px] leading-snug text-subtle">{p.description}</span>
                 </button>
               </li>
             ))}
@@ -434,17 +434,17 @@ function TemplateEditor({
       </div>
 
       {savedDraft && (
-        <p className="text-xs text-ink-subtle">
+        <p className="text-xs text-subtle">
           Draft v{savedDraft.version} saved by {savedDraft.createdBy} {timeAgo(savedDraft.updatedAt)}
           {row.published ? `; reports still use v${row.published.version} until it's published.` : "; reports still use the current text until it's published."}
         </p>
       )}
 
       {preview && (
-        <div className="rounded-md border border-line bg-surface p-3">
+        <div className="rounded-md border border-border bg-card p-3">
           <div className="label mb-1">Preview{preview.finding ? `, filled in with ${preview.finding}` : ", filled in with made-up data"}</div>
-          <div className="font-mono text-xs font-semibold text-ink">{preview.rendered.subject || "(no subject: web-form text)"}</div>
-          <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-ink-muted">{preview.rendered.body}</pre>
+          <div className="font-mono text-xs font-semibold text-foreground">{preview.rendered.subject || "(no subject: web-form text)"}</div>
+          <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground">{preview.rendered.body}</pre>
         </div>
       )}
 
@@ -452,14 +452,14 @@ function TemplateEditor({
         <ul className="space-y-1 text-xs">
           {versions.map((v) => (
             <li key={v.id} className="flex flex-wrap items-center gap-x-2">
-              <span className="font-medium text-ink">v{v.version}</span>
-              <span className={v.status === "published" ? "text-ok" : v.status === "draft" ? "text-sev-medium" : "text-ink-subtle"}>{v.status}</span>
-              <span className="text-ink-subtle">
+              <span className="font-medium text-foreground">v{v.version}</span>
+              <span className={v.status === "published" ? "text-ok" : v.status === "draft" ? "text-sev-medium" : "text-subtle"}>{v.status}</span>
+              <span className="text-subtle">
                 {v.publishedAt ? `published by ${v.publishedBy} ${timeAgo(v.publishedAt)}` : `edited by ${v.createdBy} ${timeAgo(v.updatedAt)}`}
               </span>
               {canEdit && (
                 <button
-                  className="text-brand hover:underline"
+                  className="text-primary hover:underline"
                   onClick={() => {
                     setSubject(v.subject);
                     setBody(v.body);

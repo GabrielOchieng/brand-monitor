@@ -73,12 +73,12 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
       <Card title="Stage" description="Every organization starts in test mode. Going live needs the test period to have passed, so you've seen what would have been sent.">
         <div className="grid gap-2 sm:grid-cols-3">
           {STAGES.map((s) => (
-            <div key={s.key} className={`rounded-md border p-3 ${stage === s.key ? "border-brand bg-brand/5" : "border-line"}`}>
-              <div className="text-sm font-medium text-ink">
+            <div key={s.key} className={`rounded-md border p-3 ${stage === s.key ? "border-primary bg-primary/5" : "border-border"}`}>
+              <div className="text-sm font-medium text-foreground">
                 {s.label}
-                {stage === s.key && <span className="ml-2 text-xs font-normal text-brand">current</span>}
+                {stage === s.key && <span className="ml-2 text-xs font-normal text-primary">current</span>}
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-ink-subtle">{s.text}</p>
+              <p className="mt-1 text-xs leading-relaxed text-subtle">{s.text}</p>
               {isOwner && stage !== s.key && (
                 <button
                   className="btn-secondary mt-2 text-xs"
@@ -90,7 +90,7 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
             </div>
           ))}
         </div>
-        <p className="mt-3 text-sm text-ink-muted">
+        <p className="mt-3 text-sm text-muted-foreground">
           Test-mode review: {data.shadowStats.right} right, {data.shadowStats.wrong} wrong, {data.shadowStats.unreviewed} not reviewed
           {reviewed > 0 ? ` (${Math.round((data.shadowStats.wrong / reviewed) * 100)}% wrong)` : ""}.
           {shadowEnds && (shadowEnds > new Date() ? ` Live is possible from ${shadowEnds.toLocaleDateString()}.` : " The test period is over.")}
@@ -102,7 +102,7 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
         <div className="space-y-2">
           {(["registrar", "host", "cert", "blocklist"] as const).map((ch) => (
             <label key={ch} className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm text-ink">{CHANNEL_LABELS[ch]}</span>
+              <span className="text-sm text-foreground">{CHANNEL_LABELS[ch]}</span>
               <select className="field w-80 max-w-full" value={modes[ch] ?? "off"} disabled={!canManage} onChange={(e) => setModes((m) => ({ ...m, [ch]: e.target.value }))}>
                 {Object.entries(MODE_LABELS)
                   .filter(([k]) => ch !== "blocklist" || k === "off" || k === "approval")
@@ -145,7 +145,7 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
             ))}
           </fieldset>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Veto window (hours)">
+            <Field label="Hold before sending (hours)">
               <input type="number" min={1} max={72} className="field w-full" value={policy.vetoHours} disabled={!canManage} onChange={(e) => setPolicy((p) => ({ ...p, vetoHours: Number(e.target.value) }))} />
             </Field>
             <Field label="Reports per day, at most">
@@ -165,7 +165,7 @@ export function AutoTakedownSending({ data, role, onChange, onError }: { data: S
           </div>
           <label className="flex items-center gap-2">
             <input type="checkbox" disabled={!canManage} checked={policy.confirmedSkipsVeto} onChange={(e) => setPolicy((p) => ({ ...p, confirmedSkipsVeto: e.target.checked }))} />
-            Findings an analyst confirmed skip the veto window
+            Threats an analyst confirmed skip the hold
           </label>
         </div>
         {canManage && (

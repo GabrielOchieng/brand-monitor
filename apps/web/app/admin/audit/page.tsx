@@ -46,23 +46,23 @@ export default function AdminAuditPage() {
   return (
     <AdminShell title="Audit log" blocked={blocked} error={error} loading={!data && !error}>
       {data && data.length === 0 ? (
-        <p className="text-sm text-ink-subtle">No admin actions yet.</p>
+        <p className="text-sm text-subtle">No admin actions yet.</p>
       ) : (
         <AdminTable head={["When", "Admin", "Action", "Target", "Details"]}>
           {data?.map((r) => (
             <tr key={r.id}>
               <td className={td}>{new Date(r.createdAt).toLocaleString()}</td>
               <td className={td}>{r.adminEmail}</td>
-              <td className="whitespace-nowrap px-4 py-2.5 text-ink">{ACTION_LABELS[r.action] ?? r.action}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-foreground">{ACTION_LABELS[r.action] ?? r.action}</td>
               <td className={`${td} font-mono text-xs`}>
                 {r.targetType} {r.targetId}
               </td>
-              <td className="px-4 py-2.5 text-xs text-ink-muted">{describe(r.details)}</td>
+              <td className="px-4 py-2.5 text-xs text-muted-foreground">{describe(r.details)}</td>
             </tr>
           ))}
         </AdminTable>
       )}
-      <p className="text-xs text-ink-subtle">The 200 most recent actions.</p>
+      <p className="text-xs text-subtle">The 200 most recent actions.</p>
     </AdminShell>
   );
 }

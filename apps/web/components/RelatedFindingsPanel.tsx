@@ -47,28 +47,28 @@ export function RelatedFindingsPanel({ findingId }: { findingId: string }) {
     <section className="card p-5">
       <h2 className="label">Related findings (possible campaign)</h2>
       {!data.matchedOn ? (
-        <p className="mt-2 text-sm text-ink-subtle">
+        <p className="mt-2 text-sm text-subtle">
           Can't check for related findings yet -- this finding's registrar/registration date isn't available.
         </p>
       ) : data.relatedFindings.length === 0 ? (
-        <p className="mt-2 text-sm text-ink-subtle">
+        <p className="mt-2 text-sm text-subtle">
           No other findings for this brand share a registrar within {data.matchedOn.windowDays} days of this one's registration.
           {data.uncheckableCount > 0 && ` (${data.uncheckableCount} other finding${data.uncheckableCount === 1 ? "" : "s"} couldn't be checked -- registration date unavailable.)`}
         </p>
       ) : (
         <>
-          <p className="mt-2 text-sm text-ink-muted">
-            Registered via <span className="text-ink">{data.matchedOn.registrar}</span> within {data.matchedOn.windowDays} days of the
+          <p className="mt-2 text-sm text-muted-foreground">
+            Registered via <span className="text-foreground">{data.matchedOn.registrar}</span> within {data.matchedOn.windowDays} days of the
             following:
           </p>
-          <ul className="mt-3 divide-y divide-line rounded-md border border-line">
+          <ul className="mt-3 divide-y divide-border rounded-md border border-border">
             {data.relatedFindings.map((r) => (
               <li key={r.id} className="flex items-center justify-between px-4 py-2 text-sm">
-                <Link href={`/threats/${r.id}`} className="font-mono text-ink hover:text-brand-hover">
+                <Link href={`/threats/${r.id}`} className="font-mono text-foreground hover:text-primary">
                   {r.identifier}
                 </Link>
-                <span className="flex items-center gap-2 text-xs text-ink-subtle">
-                  {r.sharedIp && <span className="rounded-md border border-line px-1.5 py-0.5">same IP</span>}
+                <span className="flex items-center gap-2 text-xs text-subtle">
+                  {r.sharedIp && <span className="rounded-md border border-border px-1.5 py-0.5">same IP</span>}
                   {new Date(r.registeredAt).toLocaleDateString()}
                 </span>
               </li>

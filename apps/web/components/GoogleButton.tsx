@@ -38,10 +38,10 @@ export function GoogleButton({ href, label }: { href: string; label: string }) {
 
 export function OrDivider() {
   return (
-    <div className="flex items-center gap-3 text-xs text-ink-faint">
-      <span className="h-px flex-1 bg-line" />
+    <div className="flex items-center gap-3 text-xs text-subtle">
+      <span className="h-px flex-1 bg-border" />
       or
-      <span className="h-px flex-1 bg-line" />
+      <span className="h-px flex-1 bg-border" />
     </div>
   );
 }

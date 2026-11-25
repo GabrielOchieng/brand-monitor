@@ -137,7 +137,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                       setSaved(false);
                     }}
                     placeholder="https://hooks.slack.com/services/…"
-                    className="field min-w-0 flex-1 disabled:bg-elevated/60"
+                    className="field min-w-0 flex-1 disabled:bg-raised/60"
                   />
                   {editable && (
                     <button type="submit" disabled={saving || !urlChanged || !url.trim()} className="btn-primary shrink-0">
@@ -151,16 +151,16 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
 
             {config && (
               <>
-                <div className="flex items-center justify-between gap-4 border-t border-line pt-4">
+                <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
                   <div>
-                    <div className="text-sm font-medium text-ink">Send alerts to this webhook</div>
-                    <div className="text-xs text-ink-subtle">{config.enabled ? "On" : "Off: nothing is posted, whatever the alert settings say."}</div>
+                    <div className="text-sm font-medium text-foreground">Send alerts to this webhook</div>
+                    <div className="text-xs text-subtle">{config.enabled ? "On" : "Off: nothing is posted, whatever the alert settings say."}</div>
                   </div>
                   <Toggle checked={config.enabled} onChange={(v) => save({ url: config.url, enabled: v })} disabled={!editable || saving} label="Webhook on" />
                 </div>
 
                 {config.secret !== null && (
-                  <div className="border-t border-line pt-4">
+                  <div className="border-t border-border pt-4">
                     <div className="label mb-1">Signing secret</div>
                     <div className="flex gap-2">
                       <input
@@ -187,7 +187,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                 )}
 
                 {editable && (
-                  <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                  <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
                     <button onClick={test} disabled={testing} className="btn-secondary">
                       {testing ? "Sending…" : "Send a test"}
                     </button>

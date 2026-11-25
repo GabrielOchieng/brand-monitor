@@ -64,7 +64,7 @@ export function BrandDetails({ brand, editable, onSaved }: { brand: Brand; edita
     <Section title="Brand details" description="The name and domain discovery builds lookalikes from. A pasted link is trimmed to its domain.">
       <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
         <Field label="Name">
-          <input required disabled={!editable} value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} className="field w-full disabled:bg-elevated/60" />
+          <input required disabled={!editable} value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} className="field w-full disabled:bg-raised/60" />
         </Field>
         <Field label="Primary domain" error={domainProblem}>
           <input
@@ -72,7 +72,7 @@ export function BrandDetails({ brand, editable, onSaved }: { brand: Brand; edita
             disabled={!editable}
             value={details.primaryDomain}
             onChange={(e) => setDetails({ ...details, primaryDomain: e.target.value })}
-            className="field w-full disabled:bg-elevated/60"
+            className="field w-full disabled:bg-raised/60"
           />
         </Field>
         {editable && (
@@ -152,7 +152,7 @@ export function VisualReferenceSection({ brand }: { brand: Brand }) {
         <Skeleton className="h-9 w-56" />
       ) : has ? (
         <div>
-          <a href={`${API_URL}/screenshots/brand-${brand.id}.png`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-line">
+          <a href={`${API_URL}/screenshots/brand-${brand.id}.png`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`${API_URL}/screenshots/brand-${brand.id}.png`} alt={`Reference screenshot of ${brand.primaryDomain}`} className="w-full" />
           </a>
@@ -161,7 +161,7 @@ export function VisualReferenceSection({ brand }: { brand: Brand }) {
           </a>
         </div>
       ) : (
-        <p className="text-sm text-ink-subtle">Not captured yet. It&apos;s taken automatically on the next scan of a finding.</p>
+        <p className="text-sm text-subtle">Not captured yet. It&apos;s taken automatically on the next scan of a finding.</p>
       )}
     </Section>
   );

@@ -58,8 +58,8 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
   return (
     <section className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">Report recipients</h2>
-        <div className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-subtle">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">Report recipients</h2>
+        <div className="mt-1 max-w-2xl text-sm leading-relaxed text-subtle">
           Where takedown reports go. A report goes to the most specific entry in the contact book (yours, or the platform&apos;s shared one), else to the abuse contact in the
           registry record, else it becomes a manual task. Nothing is ever guessed. Each report on the finding page shows which rule picked its recipients.
         </div>
@@ -116,7 +116,7 @@ function RedirectCard({ redirectTo, isOwner, onSave }: { redirectTo: string | nu
   const [value, setValue] = useState(redirectTo ?? "");
   return (
     <Card
-      title="Redirect mode"
+      title="Test address"
       description="For testing: every report is delivered to this one address of yours instead of its real recipients, with the real recipients shown at the top. Use it while setting up and checking templates."
     >
       {redirectTo ? (
@@ -124,7 +124,7 @@ function RedirectCard({ redirectTo, isOwner, onSave }: { redirectTo: string | nu
           On: reports would be delivered to <strong>{redirectTo}</strong>.
         </p>
       ) : (
-        <p className="mb-3 text-sm text-ink-subtle">Off.</p>
+        <p className="mb-3 text-sm text-subtle">Off.</p>
       )}
       {isOwner ? (
         <div className="flex flex-wrap items-end gap-2">
@@ -141,7 +141,7 @@ function RedirectCard({ redirectTo, isOwner, onSave }: { redirectTo: string | nu
           )}
         </div>
       ) : (
-        <p className="text-xs text-ink-subtle">Only an owner can change this.</p>
+        <p className="text-xs text-subtle">Only an owner can change this.</p>
       )}
     </Card>
   );
@@ -153,11 +153,11 @@ function FixedRow({ channel, value, editable, onSave }: { channel: string; value
   const dirty = f.to !== value.to.join(", ") || f.cc !== value.cc.join(", ") || f.bcc !== value.bcc.join(", ");
   return (
     <div>
-      <div className="text-sm font-medium text-ink">{CHANNEL_LABELS[channel]}</div>
+      <div className="text-sm font-medium text-foreground">{CHANNEL_LABELS[channel]}</div>
       <div className="mt-1 grid gap-2 sm:grid-cols-3">
         {(["to", "cc", "bcc"] as const).map((k) => (
           <label key={k} className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-xs capitalize text-ink-subtle">{k}</span>
+            <span className="w-8 shrink-0 text-xs capitalize text-subtle">{k}</span>
             <input className="field-sm min-w-0 flex-1" value={f[k]} disabled={!editable} onChange={(e) => (setF((x) => ({ ...x, [k]: e.target.value })), setSaved(false))} />
           </label>
         ))}
@@ -185,13 +185,13 @@ function BlockedCard({ data, editable, onAdd, onRemove }: { data: RecipientsData
       }
     >
       {data.blocked.length === 0 ? (
-        <p className="text-sm text-ink-subtle">Nothing listed.</p>
+        <p className="text-sm text-subtle">Nothing listed.</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {data.blocked.map((b) => (
             <li key={b.id} className="flex flex-wrap items-center gap-x-2">
-              <span className="font-mono text-xs text-ink">{b.value}</span>
-              <span className="text-xs text-ink-subtle">
+              <span className="font-mono text-xs text-foreground">{b.value}</span>
+              <span className="text-xs text-subtle">
                 {b.reason === "bounce" ? "bounced" : "added by " + b.createdBy}
                 {b.expiresAt ? `, until ${new Date(b.expiresAt).toLocaleDateString()}` : ""}
                 {b.note ? ` · ${b.note}` : ""}

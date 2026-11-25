@@ -37,21 +37,21 @@ export default function AdminUsersPage() {
       <AdminTable head={["Email", "Organizations", "Sign-in", "2FA", "Last active", "Created", ""]}>
         {rows.map((u) => (
           <tr key={u.id}>
-            <td className="whitespace-nowrap px-4 py-2.5 text-ink">
+            <td className="whitespace-nowrap px-4 py-2.5 text-foreground">
               {u.email}
-              {u.platformRole && <span className="ml-2 rounded-full border border-brand/30 bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">platform {u.platformRole}</span>}
-              {u.name && <div className="text-xs text-ink-subtle">{u.name}</div>}
+              {u.platformRole && <span className="ml-2 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">platform {u.platformRole}</span>}
+              {u.name && <div className="text-xs text-subtle">{u.name}</div>}
             </td>
-            <td className="px-4 py-2.5 text-ink-muted">
+            <td className="px-4 py-2.5 text-muted-foreground">
               {u.orgs.length === 0
                 ? "none"
                 : u.orgs.map((o, i) => (
                     <span key={o.id}>
                       {i > 0 && ", "}
-                      <Link href={`/admin/orgs/${o.id}`} className="hover:text-brand">
+                      <Link href={`/admin/orgs/${o.id}`} className="hover:text-primary">
                         {o.name}
                       </Link>{" "}
-                      <span className="text-xs text-ink-subtle">({o.role})</span>
+                      <span className="text-xs text-subtle">({o.role})</span>
                     </span>
                   ))}
             </td>
@@ -61,7 +61,7 @@ export default function AdminUsersPage() {
             <td className={td}>{day(u.createdAt)}</td>
             <td className="px-4 py-2.5 text-right">
               {u.id === userId ? (
-                <span className="text-xs text-ink-subtle">you</span>
+                <span className="text-xs text-subtle">you</span>
               ) : (
                 <UserActions
                   user={u}
@@ -75,7 +75,7 @@ export default function AdminUsersPage() {
           </tr>
         ))}
       </AdminTable>
-      <p className="text-xs text-ink-subtle">To remove someone from one organization only, use that organization's page. Platform admins can't be deleted here: revoke the role with the script first.</p>
+      <p className="text-xs text-subtle">To remove someone from one organization only, use that organization's page. Platform admins can't be deleted here: revoke the role with the script first.</p>
     </AdminShell>
   );
 }

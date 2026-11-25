@@ -45,8 +45,8 @@ export const EVENT_LABELS: Record<string, string> = {
   "fixed.save": "Changed the always-also-send-to addresses",
   "blocked.add": "Added to never send to",
   "blocked.remove": "Removed from never send to",
-  "redirect.on": "Turned redirect mode on",
-  "redirect.off": "Turned redirect mode off",
+  "redirect.on": "Turned the test address on",
+  "redirect.off": "Turned the test address off",
   "report.sent": "A report was sent",
   "report.approve": "Approved a report",
   "report.cancel": "Cancelled a report",
@@ -138,7 +138,7 @@ export const ACTION_STATUS_TONE: Record<string, string> = {
 export const MODE_LABELS: Record<string, string> = {
   off: "Off (by hand only)",
   approval: "Approval: prepared, an analyst sends",
-  delayed: "Delayed: sent after the veto window",
+  delayed: "Delayed: sent after the hold",
   automatic: "Automatic: sent at once",
 };
 
