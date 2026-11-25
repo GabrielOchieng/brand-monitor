@@ -172,3 +172,14 @@ Each step is its own commit (pushed only when the owner says so).
   (bridged): AI explanation, indicators, related, takedown tracker, report drafts (step 4).
   Gap: the web app has no component-test setup, so keyboard triage and the bulk bar are checked by
   hand in the browser, not by tests.
+- 2026-11-25, step 4: takedowns. `components/takedown/`: ReportFlow (the threat's Takedown tab as one
+  flow: pick a channel with its recipient shown, first report / follow-up, prepare, then the
+  DraftEditor: thread, fields, attachments, send / approve / retry / mark reported / cancel / test /
+  rewrite / delete; same API calls as the old ReportDrafts), TakedownLog (do-it-yourself kit +
+  requests and outcomes + manual log; was TakedownTracker + TakedownKit), ReportPanel (Takedowns
+  side panel reusing DraftEditor, plus Right/Wrong for test-mode reports). Takedowns page: summary
+  strip, "automatic sending is off" banner from `automationBlockers`, tabs in the URL (`?tab=`), table
+  + panel, phone list linking to `/threats/:id?tab=takedown&report=:id`. `components/ui/Confirm.tsx`
+  replaces window.confirm/prompt here (the rest go in step 5). Status names: shadow = "Test mode",
+  pending_veto = "Sending soon". No API changes. Checked locally with 4 drafts made through the UI and
+  moved into queue states by SQL, deleted afterwards; no Send button was clicked.

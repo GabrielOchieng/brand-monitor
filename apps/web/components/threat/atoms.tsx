@@ -48,6 +48,13 @@ const STATUS_TONE: Record<string, string> = {
   false_positive: "border-border-strong bg-raised text-subtle",
   resolved: "border-ok/40 bg-ok/10 text-ok",
   takedown: "border-primary/40 bg-primary-soft text-primary",
+  // Generic tones for other lifecycles (takedown reports, public reports).
+  info: "border-info/40 bg-info/10 text-info",
+  warn: "border-sev-medium/40 bg-sev-medium/10 text-sev-medium",
+  ok: "border-ok/40 bg-ok/10 text-ok",
+  danger: "border-sev-critical/40 bg-sev-critical/10 text-sev-critical",
+  neutral: "border-border-strong bg-raised text-subtle",
+  primary: "border-primary/40 bg-primary-soft text-primary",
 };
 
 export function Pill({ tone = "investigating", children, className }: { tone?: string; children: React.ReactNode; className?: string }) {

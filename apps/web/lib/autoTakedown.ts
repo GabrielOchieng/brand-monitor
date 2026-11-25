@@ -108,10 +108,10 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 
 export const ACTION_STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
-  shadow: "Shadow (not sent)",
+  shadow: "Test mode (not sent)",
   manual: "Manual task",
   awaiting_approval: "Needs approval",
-  pending_veto: "Waiting (veto window)",
+  pending_veto: "Sending soon",
   queued: "Queued",
   sending: "Sending",
   sent: "Sent",
@@ -120,18 +120,19 @@ export const ACTION_STATUS_LABELS: Record<string, string> = {
   skipped: "Skipped",
 };
 
+// Pill tone (components/threat/atoms.tsx) per report status.
 export const ACTION_STATUS_TONE: Record<string, string> = {
-  draft: "border-line bg-elevated text-ink-muted",
-  shadow: "border-violet-200 bg-violet-50 text-violet-800",
-  manual: "border-amber-200 bg-amber-50 text-amber-800",
-  awaiting_approval: "border-amber-200 bg-amber-50 text-amber-800",
-  pending_veto: "border-sky-200 bg-sky-50 text-sky-800",
-  queued: "border-sky-200 bg-sky-50 text-sky-800",
-  sending: "border-sky-200 bg-sky-50 text-sky-800",
-  sent: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  failed: "border-red-200 bg-red-50 text-red-700",
-  cancelled: "border-line bg-elevated text-ink-subtle",
-  skipped: "border-line bg-elevated text-ink-subtle",
+  draft: "neutral",
+  shadow: "info",
+  manual: "warn",
+  awaiting_approval: "warn",
+  pending_veto: "primary",
+  queued: "primary",
+  sending: "primary",
+  sent: "ok",
+  failed: "danger",
+  cancelled: "neutral",
+  skipped: "neutral",
 };
 
 export const MODE_LABELS: Record<string, string> = {

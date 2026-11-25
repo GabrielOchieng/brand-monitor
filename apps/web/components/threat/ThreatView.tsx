@@ -12,8 +12,8 @@ import { FindingLifecycle } from "../FindingLifecycle";
 import { AiExplanationPanel } from "../AiExplanationPanel";
 import { IndicatorsPanel } from "../IndicatorsPanel";
 import { RelatedFindingsPanel } from "../RelatedFindingsPanel";
-import { TakedownTracker } from "../TakedownTracker";
-import { ReportDrafts } from "../ReportDrafts";
+import { ReportFlow } from "../takedown/ReportFlow";
+import { TakedownLog } from "../takedown/TakedownLog";
 import { Ident, Pill, ScoreMeter, SeverityTag, StatusPill, TypeTag, WebState } from "./atoms";
 import { KV, KeyFacts, ScoreReasons, ScreenshotFrame, SocialCard } from "./Evidence";
 import { ThreatActionButtons, useCanAct, useSetStatus } from "./useThreatActions";
@@ -306,7 +306,7 @@ export function ThreatView({ finding }: { finding: FindingDetail }) {
           </Panel>
         </TabsContent>
 
-        <TabsContent value="takedown" className="grid items-start gap-4 xl:grid-cols-2">
+        <TabsContent value="takedown" className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           {status === "new" || status === "investigating" ? (
             <div className="xl:col-span-2 flex items-start gap-2.5 rounded-md border border-sev-medium/40 bg-sev-medium/8 px-3.5 py-2.5 text-[13px] text-muted-foreground">
               <PauseCircle className="mt-0.5 size-4 shrink-0 text-sev-medium" />
@@ -317,10 +317,10 @@ export function ThreatView({ finding }: { finding: FindingDetail }) {
             </div>
           ) : null}
           <div className="min-w-0">
-            <ReportDrafts findingId={finding.id} />
+            <ReportFlow findingId={finding.id} initialOpen={params.get("report")} />
           </div>
           <div className="min-w-0">
-            <TakedownTracker findingId={finding.id} contacts={takedownContacts} siteLive={web === "live" && finding.websiteDataCurrent} />
+            <TakedownLog findingId={finding.id} contacts={takedownContacts} siteLive={web === "live" && finding.websiteDataCurrent} />
           </div>
         </TabsContent>
       </Tabs>

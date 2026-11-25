@@ -6,6 +6,7 @@ import { AppShell } from "../components/shell/AppShell";
 import { NavProgress } from "../components/NavProgress";
 import { THEME_SCRIPT } from "../components/theme/theme";
 import { Toaster } from "../components/ui/Toast";
+import { ConfirmProvider } from "../components/ui/Confirm";
 
 export const metadata = {
   title: { default: "Brand Monitor", template: "%s · Brand Monitor" },
@@ -28,12 +29,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-screen overflow-x-hidden bg-background font-sans text-[14px] text-foreground">
         <SessionProvider>
           <Toaster>
-            {/* useSearchParams needs a Suspense boundary. */}
-            <Suspense fallback={null}>
-              <NavProgress />
-            </Suspense>
-            {/* The signed-in app's sidebar and top bar; public pages bring their own layout. */}
-            <AppShell>{children}</AppShell>
+            <ConfirmProvider>
+              {/* useSearchParams needs a Suspense boundary. */}
+              <Suspense fallback={null}>
+                <NavProgress />
+              </Suspense>
+              {/* The signed-in app's sidebar and top bar; public pages bring their own layout. */}
+              <AppShell>{children}</AppShell>
+            </ConfirmProvider>
           </Toaster>
         </SessionProvider>
       </body>
