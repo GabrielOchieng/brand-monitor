@@ -103,7 +103,7 @@ export function TakedownResults() {
           <option value={365}>Last 12 months</option>
         </select>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
       {!data ? (
         <LoadingRegion label="Loading results">
           <SkeletonTable rows={4} />

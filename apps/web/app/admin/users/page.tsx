@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
   return (
     <AdminShell title="Users" blocked={blocked} error={error} loading={!data && !error}>
       <input type="search" placeholder="Search email, name or organization" value={q} onChange={(e) => setQ(e.target.value)} className="field w-full sm:max-w-sm" aria-label="Search users" />
-      {message && <p role="status" className={`text-sm ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
+      {message && <p role="status" className={`text-sm ${message.ok ? "text-ok" : "text-sev-critical"}`}>{message.text}</p>}
       <AdminTable head={["Email", "Organizations", "Sign-in", "2FA", "Last active", "Created", ""]}>
         {rows.map((u) => (
           <tr key={u.id}>

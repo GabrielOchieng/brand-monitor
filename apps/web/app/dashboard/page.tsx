@@ -277,13 +277,13 @@ export default function DashboardPage() {
             {creating ? "Creating…" : "Create brand"}
           </button>
         </form>
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-sev-critical">{error}</p>}
       </div>
     );
   }
 
   if (!summary) {
-    return error ? <p className="text-sm text-red-600">{error}</p> : <DashboardSkeleton />;
+    return error ? <p className="text-sm text-sev-critical">{error}</p> : <DashboardSkeleton />;
   }
 
   const runPct = run && run.candidatesTotal > 0 ? Math.round((run.candidatesChecked / run.candidatesTotal) * 100) : 0;
@@ -293,7 +293,7 @@ export default function DashboardPage() {
   return (
     <div>
       {selectedBrand?.monitoringPausedAt && !activeOrgPaused && (
-        <p className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mb-6 rounded-md border border-sev-medium/40 bg-sev-medium/10 px-3 py-2 text-sm text-sev-medium">
           Monitoring of {selectedBrand.name} is paused by the platform admin. Its findings are still here, but nothing new is discovered or scanned.
         </p>
       )}
@@ -348,7 +348,7 @@ export default function DashboardPage() {
               {submitting ? "Adding…" : "Add finding"}
             </button>
           </div>
-          {submitMessage && <p className="mt-2 text-xs text-emerald-700">{submitMessage}</p>}
+          {submitMessage && <p className="mt-2 text-xs text-ok">{submitMessage}</p>}
         </form>
       )}
 
@@ -370,15 +370,15 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-elevated">
             <div
-              className={`h-full rounded-full transition-[width] duration-500 ${run.status === "failed" ? "bg-red-500" : run.status === "completed" ? "bg-emerald-500" : "bg-brand"} ${run.candidatesTotal === 0 && run.status === "running" ? "w-1/4 animate-pulse" : ""}`}
+              className={`h-full rounded-full transition-[width] duration-500 ${run.status === "failed" ? "bg-sev-critical" : run.status === "completed" ? "bg-ok" : "bg-brand"} ${run.candidatesTotal === 0 && run.status === "running" ? "w-1/4 animate-pulse" : ""}`}
               style={run.candidatesTotal > 0 || run.status !== "running" ? { width: `${run.status === "running" ? runPct : 100}%` } : undefined}
             />
           </div>
-          {run.error && <p className="mt-2 text-sm text-red-600">{run.error}</p>}
+          {run.error && <p className="mt-2 text-sm text-sev-critical">{run.error}</p>}
         </div>
       )}
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-sev-critical">{error}</p>}
 
       {/* Open threats */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
@@ -415,7 +415,7 @@ export default function DashboardPage() {
           </div>
           {summary.attention.length === 0 ? (
             <div className="flex flex-col items-center px-5 py-12 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ok/10 text-ok">
                 <CheckIcon className="h-5 w-5" />
               </span>
               <div className="mt-3 text-sm font-medium text-ink">Nothing high-risk is open</div>
@@ -494,10 +494,10 @@ export default function DashboardPage() {
                 {Object.entries(health.sources).map(([name, s]) => (
                   <li key={name} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2 text-ink-muted">
-                      <span className={`h-2 w-2 rounded-full ${s.stale ? "bg-amber-500" : "bg-emerald-500"}`} />
+                      <span className={`h-2 w-2 rounded-full ${s.stale ? "bg-sev-medium" : "bg-ok"}`} />
                       {SOURCE_NAMES[name] ?? name}
                     </span>
-                    <span className={`text-xs ${s.stale ? "text-amber-700" : "text-ink-subtle"}`} title={s.lastSuccessAt ? fullDate(s.lastSuccessAt) : undefined}>
+                    <span className={`text-xs ${s.stale ? "text-sev-medium" : "text-ink-subtle"}`} title={s.lastSuccessAt ? fullDate(s.lastSuccessAt) : undefined}>
                       {s.lastSuccessAt ? timeAgo(s.lastSuccessAt) : s.stale ? "not working" : "waiting"}
                     </span>
                   </li>

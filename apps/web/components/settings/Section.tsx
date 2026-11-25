@@ -15,9 +15,9 @@ export function Section({
 }) {
   return (
     <section>
-      <h2 className={`text-lg font-semibold tracking-tight ${danger ? "text-red-700" : "text-ink"}`}>{title}</h2>
+      <h2 className={`text-lg font-semibold tracking-tight ${danger ? "text-sev-critical" : "text-ink"}`}>{title}</h2>
       <div className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-subtle">{description}</div>
-      <div className={`card mt-5 min-w-0 p-5 sm:p-6 ${danger ? "border-red-200" : ""}`}>{children}</div>
+      <div className={`card mt-5 min-w-0 p-5 sm:p-6 ${danger ? "border-sev-critical/40" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -27,7 +27,7 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
     <label className="block">
       <span className="label mb-1">{label}</span>
       {children}
-      {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : hint ? <span className="mt-1 block text-xs text-ink-subtle">{hint}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-sev-critical">{error}</span> : hint ? <span className="mt-1 block text-xs text-ink-subtle">{hint}</span> : null}
     </label>
   );
 }
@@ -55,7 +55,7 @@ export function Toggle({
         checked ? "bg-brand" : "bg-line"
       }`}
     >
-      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      <span className={`inline-block h-4 w-4 rounded-full bg-card shadow-sm transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
     </button>
   );
 }

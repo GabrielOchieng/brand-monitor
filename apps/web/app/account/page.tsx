@@ -25,7 +25,7 @@ function Section({ title, description, children }: { title: string; description?
 function StatusLine({ status }: { status: Status }) {
   if (!status) return null;
   return (
-    <p role="status" className={`text-sm ${status.ok ? "text-emerald-700" : "text-red-600"}`}>
+    <p role="status" className={`text-sm ${status.ok ? "text-ok" : "text-sev-critical"}`}>
       {status.text}
     </p>
   );
@@ -326,7 +326,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
         <form onSubmit={confirmSetup} className="space-y-4">
           <p className="text-sm text-ink-muted">Scan this with your authenticator app, then enter the 6-digit code it shows.</p>
           {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the API, nothing to optimise */}
-          <img src={setup.qrCodeDataUrl} alt="QR code for your authenticator app" width={180} height={180} className="rounded-md border border-line bg-white p-2" />
+          <img src={setup.qrCodeDataUrl} alt="QR code for your authenticator app" width={180} height={180} className="rounded-md border border-line bg-card p-2" />
           <details className="text-sm text-ink-muted">
             <summary className="cursor-pointer">Can't scan it? Enter this key instead</summary>
             <code className="mt-2 block break-all rounded-sm bg-elevated px-2 py-1 font-mono text-xs text-ink">{setup.secret.match(/.{1,4}/g)?.join(" ")}</code>
@@ -392,7 +392,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
           </div>
           <StatusLine status={status} />
           <div className="flex gap-2">
-            <button type="submit" disabled={busy} className="btn-danger border border-red-200 px-3.5 py-2">
+            <button type="submit" disabled={busy} className="btn-danger border border-sev-critical/40 px-3.5 py-2">
               {busy ? "Turning off…" : "Turn off two-factor"}
             </button>
             <button type="button" className="btn-ghost" onClick={() => reset()}>
@@ -406,7 +406,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
             <button className="btn-secondary" onClick={() => reset("regenerate")}>
               New recovery codes
             </button>
-            <button className="btn-ghost text-red-600 hover:text-red-700" onClick={() => reset("disable")}>
+            <button className="btn-ghost text-sev-critical hover:text-sev-critical" onClick={() => reset("disable")}>
               Turn off
             </button>
           </div>

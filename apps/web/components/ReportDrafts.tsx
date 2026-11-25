@@ -50,7 +50,7 @@ interface Routing {
 // Where a report goes and why (lib/recipients.ts in the API).
 function RoutingNote({ routing }: { routing: Routing }) {
   return (
-    <div className={`rounded-md border px-3 py-2 text-xs ${routing.method === "email" ? "border-line bg-elevated/50 text-ink-muted" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+    <div className={`rounded-md border px-3 py-2 text-xs ${routing.method === "email" ? "border-line bg-elevated/50 text-ink-muted" : "border-sev-medium/40 bg-sev-medium/10 text-sev-medium"}`}>
       <p>
         {routing.method === "email" && <>Goes to {routing.to.join(", ")}. </>}
         {routing.method === "api" && <>Submitted through Cloudflare&apos;s abuse-reports API, not by email. </>}
@@ -164,11 +164,11 @@ export function ReportDrafts({ findingId }: { findingId: string }) {
         return c ? <div className="mt-2"><RoutingNote routing={c.routing} /></div> : null;
       })()}
       {data.redirectTo && (
-        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="mt-2 rounded-md border border-sev-medium/40 bg-sev-medium/10 px-3 py-2 text-xs text-sev-medium">
           Redirect mode is on: when reports are sent, they are delivered to {data.redirectTo} instead of the recipients below.
         </p>
       )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm text-sev-critical">{error}</p>}
 
       <ul className="mt-3 space-y-2">
         {data.drafts.map((d) => (
@@ -240,7 +240,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
     <div className="space-y-3 border-t border-line px-3 py-3 text-sm">
       {draft.routing && <RoutingNote routing={draft.routing} />}
       {data.replies.filter((r) => r.actionId === draft.id).map((r) => (
-        <div key={r.id} className={`rounded-md border px-3 py-2 text-xs ${r.kind === "bounce" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+        <div key={r.id} className={`rounded-md border px-3 py-2 text-xs ${r.kind === "bounce" ? "border-sev-critical/40 bg-sev-critical/10 text-sev-critical" : "border-ok/40 bg-ok/10 text-ok"}`}>
           <div className="font-medium">
             {r.kind === "bounce" ? "Bounced" : `Reply from ${r.fromAddress}`} · {timeAgo(r.receivedAt)}
             {r.ticketRef ? ` · their ticket ${r.ticketRef}` : ""}
@@ -295,7 +295,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
         </fieldset>
       )}
 
-      {message && <p className={`text-xs ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
+      {message && <p className={`text-xs ${message.ok ? "text-ok" : "text-sev-critical"}`}>{message.text}</p>}
       <div className="flex flex-wrap gap-2">
         {editable && (
           <button className="btn-secondary text-xs" disabled={!!busy || !dirty} onClick={() => run("save", async () => (await save(), setMessage({ ok: true, text: "Saved." })))}>
@@ -341,7 +341,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
         )}
         {canEdit && CANCELLABLE.includes(draft.status) && (
           <button
-            className="btn-ghost text-xs text-red-600"
+            className="btn-ghost text-xs text-sev-critical"
             disabled={!!busy}
             onClick={() =>
               run("cancel", async () => {
@@ -398,7 +398,7 @@ function DraftEditor({ draft, data, canEdit, onChanged, onDeleted }: { draft: Dr
         )}
         {canEdit && draft.status === "draft" && (
           <button
-            className="btn-ghost text-xs text-red-600"
+            className="btn-ghost text-xs text-sev-critical"
             disabled={!!busy}
             onClick={() =>
               run("delete", async () => {

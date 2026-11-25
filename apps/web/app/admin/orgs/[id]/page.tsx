@@ -69,7 +69,7 @@ function InviteForm({ orgId, hasOwner, onDone }: { orgId: string; hasOwner: bool
           {busy ? "Sending…" : "Send invite"}
         </button>
       </div>
-      {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
+      {msg && <p className={`text-sm ${msg.ok ? "text-ok" : "text-sev-critical"}`}>{msg.text}</p>}
     </form>
   );
 }
@@ -100,14 +100,14 @@ function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string 
   }
 
   return (
-    <section className="rounded-lg border border-red-200 bg-red-50/40 p-4">
-      <h2 className="text-base font-semibold text-red-700">Delete organization</h2>
+    <section className="rounded-lg border border-sev-critical/40 bg-sev-critical/5 p-4">
+      <h2 className="text-base font-semibold text-sev-critical">Delete organization</h2>
       <p className="mt-1 text-sm text-ink-muted">
         Permanently deletes {org.name}: {brands} brand{brands === 1 ? "" : "s"}, {findings.toLocaleString()} finding{findings === 1 ? "" : "s"}, every scan,
         report and setting, and its screenshots. Members who belong to no other organization are deleted too. This can't be undone.
       </p>
       {!open ? (
-        <button className="btn-danger mt-3 border border-red-200 px-3.5 py-2" onClick={() => setOpen(true)}>
+        <button className="btn-danger mt-3 border border-sev-critical/40 px-3.5 py-2" onClick={() => setOpen(true)}>
           Delete organization…
         </button>
       ) : (
@@ -116,9 +116,9 @@ function DeleteOrg({ org, brands, findings }: { org: { id: string; name: string 
             Type <span className="font-semibold">{org.name}</span> to confirm
           </label>
           <input id="confirm-org-name" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} className="field w-full" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-sev-critical">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={busy || typed.trim() !== org.name.trim()} className="btn bg-red-600 px-3.5 py-2 text-white hover:bg-red-700">
+            <button type="submit" disabled={busy || typed.trim() !== org.name.trim()} className="btn bg-sev-critical px-3.5 py-2 text-white hover:bg-sev-critical">
               {busy ? "Deleting…" : "Delete permanently"}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setOpen(false)}>
@@ -226,9 +226,9 @@ function OrgPage() {
             </button>
             </div>
           </div>
-          {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
+          {notice && <p role="status" className="text-sm text-ok">{notice}</p>}
           {created && !hasOwner && (
-            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Organization created. Invite its first owner below.</p>
+            <p className="rounded-md border border-ok/40 bg-ok/10 px-3 py-2 text-sm text-ok">Organization created. Invite its first owner below.</p>
           )}
           <InviteForm orgId={id} hasOwner={hasOwner} onDone={reload} />
 

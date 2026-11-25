@@ -209,7 +209,7 @@ function Settings() {
                             active
                               ? "bg-brand/10 font-medium text-brand"
                               : i.danger
-                                ? "text-red-600 hover:bg-red-50"
+                                ? "text-sev-critical hover:bg-sev-critical/10"
                                 : "text-ink-muted hover:bg-elevated hover:text-ink"
                           }`}
                         >
@@ -226,7 +226,7 @@ function Settings() {
 
         {/* The chosen setting */}
         <div className="min-w-0">
-          {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+          {error && <p className="mb-4 text-sm text-sev-critical">{error}</p>}
           {!editable && (brandSection || section === "team") && <ReadOnlyNote />}
 
           {section === "add-brand" ? (

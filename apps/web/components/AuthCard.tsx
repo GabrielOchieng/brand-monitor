@@ -51,7 +51,7 @@ export function AuthCard({ title, subtitle, children }: AuthCardProps) {
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+    <p role="alert" className="rounded-md border border-sev-critical/40 bg-sev-critical/10 px-3 py-2 text-sm text-sev-critical">
       {message}
     </p>
   );

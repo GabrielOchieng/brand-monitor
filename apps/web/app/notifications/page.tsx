@@ -59,7 +59,7 @@ export default function NotificationsPage() {
           )
         }
       />
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
 
       {loading && (
         <LoadingRegion label="Loading notifications" className="mt-6">

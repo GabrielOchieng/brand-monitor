@@ -121,7 +121,7 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
   if (!data) {
     return (
       <LoadingRegion label="Loading automatic reporting settings">
-        {error ? <p className="text-sm text-red-600">{error}</p> : <Skeleton className="h-40 w-full" />}
+        {error ? <p className="text-sm text-sev-critical">{error}</p> : <Skeleton className="h-40 w-full" />}
       </LoadingRegion>
     );
   }
@@ -145,14 +145,14 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
 
       {/* Status and switches */}
       <Card title="Status">
         <div className="flex flex-wrap items-center gap-3">
           <span
             className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-              stopped ? "border-red-200 bg-red-50 text-red-700" : live ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-line bg-elevated text-ink-subtle"
+              stopped ? "border-sev-critical/40 bg-sev-critical/10 text-sev-critical" : live ? "border-ok/40 bg-ok/10 text-ok" : "border-line bg-elevated text-ink-subtle"
             }`}
           >
             {stopped ? "Stopped" : live ? "Ready to send" : enabled ? "On, but blocked" : "Off"}
@@ -170,7 +170,7 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
           </ul>
         )}
         {stopped && (
-          <p className="mt-3 text-sm text-red-700">
+          <p className="mt-3 text-sm text-sev-critical">
             Stopped {timeAgo(data.automation!.stoppedAt!)}
             {data.automation!.stoppedBy ? ` by ${data.automation!.stoppedBy}` : ""}
             {data.automation!.stopReason ? `: ${data.automation!.stopReason}` : ""}. Only an owner can resume.
@@ -252,7 +252,7 @@ export function AutoTakedownSettings({ role }: { role: Role | null }) {
               <li key={e.id} className="flex flex-wrap gap-x-2">
                 <span className="text-ink">{EVENT_LABELS[e.action] ?? e.action}</span>
                 {e.action === "sender.test" && e.details && (
-                  <span className={e.details.ok ? "text-emerald-700" : "text-red-600"}>
+                  <span className={e.details.ok ? "text-ok" : "text-sev-critical"}>
                     {e.details.ok ? "delivered" : "failed"} ({String(e.details.to)})
                   </span>
                 )}
@@ -396,7 +396,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
       title="Sender mailbox"
       description="Reports are sent from your organization's own mailbox (for example brandprotection@yourcompany.com), never from Brand Monitor's, so registrars see your domain and replies come back to you."
     >
-      {!data.encryptionConfigured && <p className="mb-3 text-sm text-red-600">The server has no AUTH_ENCRYPTION_KEY, so sender credentials can&apos;t be stored.</p>}
+      {!data.encryptionConfigured && <p className="mb-3 text-sm text-sev-critical">The server has no AUTH_ENCRYPTION_KEY, so sender credentials can&apos;t be stored.</p>}
 
       {s && !editing && (
         <div className="space-y-3 text-sm">
@@ -424,7 +424,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
               </span>
             ))}
             <dt className="text-ink-subtle">Last test</dt>
-            <dd className={s.lastTestOk ? "text-emerald-700" : s.lastTestOk === false ? "text-red-600" : "text-ink-subtle"}>
+            <dd className={s.lastTestOk ? "text-ok" : s.lastTestOk === false ? "text-sev-critical" : "text-ink-subtle"}>
               {s.lastTestAt ? `${s.lastTestOk ? "Delivered" : "Failed"} to ${s.lastTestTo}, ${timeAgo(s.lastTestAt)}` : "Not tested since the last change"}
               {s.lastTestOk === false && s.lastTestError && <span className="mt-0.5 block text-xs">{s.lastTestError}</span>}
             </dd>
@@ -442,7 +442,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
             </div>
           )}
           {testResult && (
-            <p className={`text-sm ${testResult.ok ? "text-emerald-700" : "text-red-600"}`}>
+            <p className={`text-sm ${testResult.ok ? "text-ok" : "text-sev-critical"}`}>
               {testResult.ok ? (
                 <>
                   <CheckIcon className="mr-1 inline h-4 w-4" />
@@ -465,7 +465,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                     : "Matches replies to reports by their [BM-…] tag, marks takedowns acknowledged and stops reporting to addresses that bounce. Needs the gmail.readonly scope in the domain-wide delegation too."}
               </p>
               {s.readReplies && (
-                <p className={`mt-1 text-xs ${s.repliesError ? "text-red-600" : "text-ink-subtle"}`}>
+                <p className={`mt-1 text-xs ${s.repliesError ? "text-sev-critical" : "text-ink-subtle"}`}>
                   {s.repliesError ? `Last check failed: ${s.repliesError}` : s.repliesCheckedAt ? `Last checked ${timeAgo(s.repliesCheckedAt)}.` : "Not checked yet (every 10 minutes)."}
                 </p>
               )}
@@ -495,7 +495,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
                 <button className="btn-ghost text-xs" onClick={() => setEditing(true)}>
                   Edit
                 </button>
-                <button className="btn-ghost text-xs text-red-600" onClick={remove}>
+                <button className="btn-ghost text-xs text-sev-critical" onClick={remove}>
                   Remove
                 </button>
               </>
@@ -586,7 +586,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
             <textarea rows={4} className="field w-full" value={form.signature} onChange={set("signature")} />
           </Field>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-sev-critical">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" className="btn-primary" disabled={saving || !data.encryptionConfigured}>
               {saving ? "Saving…" : "Save sender"}
@@ -601,7 +601,7 @@ function SenderCard({ data, isOwner, canTest, onChange }: { data: Overview; isOw
         </form>
       )}
       {!s && !isOwner && <p className="text-sm text-ink-subtle">No sender mailbox yet. An owner sets it up.</p>}
-      {error && !editing && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && !editing && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Card>
   );
 }
@@ -703,13 +703,13 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
                 <div className="flex items-center gap-2">
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      status === "in_force" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-line bg-elevated text-ink-subtle"
+                      status === "in_force" ? "border-ok/40 bg-ok/10 text-ok" : "border-line bg-elevated text-ink-subtle"
                     }`}
                   >
                     {{ in_force: "In force", revoked: "Revoked", expired: "Expired", not_started: "Not started" }[status]}
                   </span>
                   {isOwner && !a.revokedAt && (
-                    <button className="btn-ghost text-xs text-red-600" onClick={() => call(`/api/takedown-automation/authorizations/${a.id}/revoke`, "POST", `Revoke ${a.signatoryName}'s authorization? It can't be undone.`)}>
+                    <button className="btn-ghost text-xs text-sev-critical" onClick={() => call(`/api/takedown-automation/authorizations/${a.id}/revoke`, "POST", `Revoke ${a.signatoryName}'s authorization? It can't be undone.`)}>
                       Revoke
                     </button>
                   )}
@@ -727,7 +727,7 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
                       {DOCUMENT_KIND_LABELS[d.kind] ?? d.kind} · {formatBytes(d.sizeBytes)} · {d.uploadedBy}, {timeAgo(d.createdAt)}
                     </span>
                     {isOwner && (
-                      <button className="text-red-600 hover:underline" onClick={() => call(`/api/takedown-automation/documents/${d.id}`, "DELETE", `Delete ${d.filename}?`)}>
+                      <button className="text-sev-critical hover:underline" onClick={() => call(`/api/takedown-automation/documents/${d.id}`, "DELETE", `Delete ${d.filename}?`)}>
                         delete
                       </button>
                     )}
@@ -792,7 +792,7 @@ function AuthorizationCard({ data, isOwner, onChange }: { data: Overview; isOwne
           </div>
         </form>
       )}
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Card>
   );
 }

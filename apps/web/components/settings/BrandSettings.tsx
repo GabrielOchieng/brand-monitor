@@ -85,11 +85,11 @@ export function BrandDetails({ brand, editable, onSaved }: { brand: Brand; edita
                 Discard
               </button>
             )}
-            {saved && !dirty && <span className="text-xs text-emerald-700">Saved</span>}
+            {saved && !dirty && <span className="text-xs text-ok">Saved</span>}
           </div>
         )}
       </form>
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Section>
   );
 }
@@ -193,11 +193,11 @@ export function DeleteBrandSection({ brand, onDeleted }: { brand: Brand; onDelet
       <button
         onClick={remove}
         disabled={deleting || confirmText.trim() !== brand.name}
-        className="btn mt-4 border border-red-200 bg-white px-3.5 py-2 text-red-600 hover:bg-red-50"
+        className="btn mt-4 border border-sev-critical/40 bg-card px-3.5 py-2 text-sev-critical hover:bg-sev-critical/10"
       >
         <TrashIcon className="h-4 w-4" /> {deleting ? "Deleting…" : `Delete ${brand.name}`}
       </button>
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Section>
   );
 }
@@ -251,7 +251,7 @@ export function AddBrandSection({ onCreated }: { onCreated: (id: string) => Prom
           </button>
         </div>
       </form>
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
     </Section>
   );
 }

@@ -54,7 +54,7 @@ export function ReportLink({
             <LinkIcon className="h-4 w-4" /> {busy ? "Creating…" : "Create link"}
           </button>
         )}
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-xs text-sev-critical">{error}</p>}
       </div>
     );
   }
@@ -64,7 +64,7 @@ export function ReportLink({
       <div className="flex gap-2">
         <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="field min-w-0 flex-1 font-mono text-xs" aria-label="Public report link" />
         <button onClick={copy} className="btn-secondary shrink-0">
-          {copied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : null}
+          {copied ? <CheckIcon className="h-4 w-4 text-ok" /> : null}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
@@ -82,7 +82,7 @@ export function ReportLink({
           </button>
         </div>
       )}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-sev-critical">{error}</p>}
     </div>
   );
 }

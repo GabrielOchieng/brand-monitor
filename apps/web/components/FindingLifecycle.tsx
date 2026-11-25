@@ -158,7 +158,7 @@ export function FindingLifecycle({
         </div>
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
 
       <div className="mt-5 border-t border-line pt-4">
         <h3 className="label">Notes</h3>

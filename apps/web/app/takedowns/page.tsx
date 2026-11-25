@@ -132,7 +132,7 @@ export default function TakedownQueuePage() {
         ))}
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
       {notice && <p className="mt-3 text-sm text-ink-muted">{notice}</p>}
 
       {tab === "results" ? (
@@ -161,10 +161,10 @@ export default function TakedownQueuePage() {
                     {a.finding ? ` · ${a.finding.brand.name}` : ""}
                   </div>
                   <div className="mt-1 break-all text-xs text-ink-subtle">To: {a.to.length ? a.to.join(", ") : "nobody yet"}</div>
-                  {a.status === "pending_veto" && a.sendAfter && <div className="mt-1 text-xs text-sky-800">Goes out {new Date(a.sendAfter) > new Date() ? `at ${fullDate(a.sendAfter)}` : "on the next run"} unless cancelled.</div>}
-                  {a.holdReason && <div className="mt-1 text-xs text-amber-800">On hold: {a.holdReason}</div>}
+                  {a.status === "pending_veto" && a.sendAfter && <div className="mt-1 text-xs text-info">Goes out {new Date(a.sendAfter) > new Date() ? `at ${fullDate(a.sendAfter)}` : "on the next run"} unless cancelled.</div>}
+                  {a.holdReason && <div className="mt-1 text-xs text-sev-medium">On hold: {a.holdReason}</div>}
                   {a.skipReason && <div className="mt-1 text-xs text-ink-subtle">Skipped: {a.skipReason}</div>}
-                  {a.error && <div className="mt-1 text-xs text-red-700">{a.error}</div>}
+                  {a.error && <div className="mt-1 text-xs text-sev-critical">{a.error}</div>}
                   {a.sentAt && (
                     <div className="mt-1 text-xs text-ink-subtle">
                       Sent {timeAgo(a.sentAt)}
@@ -218,7 +218,7 @@ export default function TakedownQueuePage() {
                       </>
                     )}
                     {["awaiting_approval", "pending_veto", "queued", "manual", "failed", "shadow"].includes(a.status) && (
-                      <button className="btn-ghost text-xs text-red-600" disabled={busy === a.id} onClick={() => act(a.id, "cancel", undefined, "Cancel this report? It won't be made again automatically.")}>
+                      <button className="btn-ghost text-xs text-sev-critical" disabled={busy === a.id} onClick={() => act(a.id, "cancel", undefined, "Cancel this report? It won't be made again automatically.")}>
                         Cancel
                       </button>
                     )}

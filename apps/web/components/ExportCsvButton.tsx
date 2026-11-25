@@ -32,7 +32,7 @@ export function ExportCsvButton({ query }: { query: string }) {
 
   return (
     <span className="inline-flex items-center gap-2">
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-sev-critical">{error}</span>}
       <button onClick={handleExport} disabled={busy} className="btn-secondary px-3 py-1.5 text-xs">
         <DownloadIcon className="h-3.5 w-3.5" />
         {busy ? "Exporting…" : "Export CSV"}

@@ -110,7 +110,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-3 text-sm text-sev-critical">{error}</p>}
 
       {loading && (
         <LoadingRegion label="Loading reports" className="mt-3">

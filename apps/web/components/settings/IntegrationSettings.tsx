@@ -144,7 +144,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                   )}
                 </div>
               </Field>
-              {saved && !urlChanged && <p className="mt-1 text-xs text-emerald-700">Saved</p>}
+              {saved && !urlChanged && <p className="mt-1 text-xs text-ok">Saved</p>}
             </form>
 
             {config && (
@@ -172,7 +172,7 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                         {showSecret ? "Hide" : "Show"}
                       </button>
                       <button onClick={copySecret} className="btn-secondary shrink-0">
-                        {copied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : null}
+                        {copied ? <CheckIcon className="h-4 w-4 text-ok" /> : null}
                         {copied ? "Copied" : "Copy"}
                       </button>
                     </div>
@@ -189,15 +189,15 @@ export function IntegrationSettings({ editable }: { editable: boolean }) {
                     <button onClick={test} disabled={testing} className="btn-secondary">
                       {testing ? "Sending…" : "Send a test"}
                     </button>
-                    {testResult?.ok && <span className="text-xs text-emerald-700">Delivered: the endpoint accepted it.</span>}
-                    {testResult && !testResult.ok && <span className="text-xs text-red-600">Not delivered: {testResult.error}</span>}
+                    {testResult?.ok && <span className="text-xs text-ok">Delivered: the endpoint accepted it.</span>}
+                    {testResult && !testResult.ok && <span className="text-xs text-sev-critical">Not delivered: {testResult.error}</span>}
                   </div>
                 )}
               </>
             )}
           </div>
         )}
-        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs text-sev-critical">{error}</p>}
       </Section>
     </div>
   );

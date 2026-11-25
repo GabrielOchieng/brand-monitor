@@ -30,7 +30,7 @@ function Confirm() {
   if (!state) return <p className="text-sm text-ink-subtle">Confirming…</p>;
   return (
     <>
-      <p className={`text-sm ${state.ok ? "text-ink-muted" : "text-red-600"}`}>{state.text}</p>
+      <p className={`text-sm ${state.ok ? "text-ink-muted" : "text-sev-critical"}`}>{state.text}</p>
       <Link href={state.ok ? "/account" : "/login"} className="btn-secondary mt-4 w-full">
         {state.ok ? "Back to your account" : "Go to sign in"}
       </Link>

@@ -18,7 +18,7 @@ function RequestAccess({ email, className = "" }: { email: string | null; classN
 
 function Section({ id, eyebrow, title, intro, children, tone = "light" }: { id?: string; eyebrow: string; title: string; intro?: ReactNode; children: ReactNode; tone?: "light" | "muted" }) {
   return (
-    <section id={id} className={`scroll-mt-16 border-t border-line ${tone === "muted" ? "bg-base" : "bg-white"}`}>
+    <section id={id} className={`scroll-mt-16 border-t border-line ${tone === "muted" ? "bg-base" : "bg-card"}`}>
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="max-w-2xl">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{eyebrow}</div>
@@ -112,7 +112,7 @@ type LandingProps = { contactEmail: string | null };
 
 export function Landing({ contactEmail }: LandingProps) {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-card">
       <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" aria-label="Brand Monitor home">
@@ -179,7 +179,7 @@ export function Landing({ contactEmail }: LandingProps) {
       <Section id="how" eyebrow="How it works" title="From first sighting to takedown, in one place" intro="Impersonation sites go up fast and come back after takedowns. Brand Monitor keeps watching each one until it's gone, and tells you when it returns.">
         <ol className="grid gap-6 md:grid-cols-3">
           {STEPS.map((s) => (
-            <li key={s.n} className="relative rounded-lg border border-line bg-white p-6">
+            <li key={s.n} className="relative rounded-lg border border-line bg-card p-6">
               <div className="font-mono text-xs font-medium text-brand">{s.n}</div>
               <h3 className="mt-2 text-lg font-semibold text-ink">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{s.text}</p>
@@ -191,7 +191,7 @@ export function Landing({ contactEmail }: LandingProps) {
       <Section id="capabilities" tone="muted" eyebrow="Capabilities" title="Built for the way impersonation actually happens">
         <div className="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           {CAPABILITIES.map((c) => (
-            <div key={c.t} className="bg-white p-6">
+            <div key={c.t} className="bg-card p-6">
               <h3 className="text-sm font-semibold text-ink">{c.t}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-subtle">{c.d}</p>
             </div>

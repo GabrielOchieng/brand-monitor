@@ -149,7 +149,7 @@ export function ThreatsTable({
           <button onClick={() => setSelectedIds(new Set())} className="btn-ghost text-xs">
             Cancel
           </button>
-          {error && <span className="text-red-600">{error}</span>}
+          {error && <span className="text-sev-critical">{error}</span>}
         </div>
       )}
 

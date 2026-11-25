@@ -60,7 +60,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
     }
   }
 
-  if (!data) return error ? <p className="text-sm text-red-600">{error}</p> : <Skeleton className="h-60 w-full" />;
+  if (!data) return error ? <p className="text-sm text-sev-critical">{error}</p> : <Skeleton className="h-60 w-full" />;
 
   return (
     <section className="space-y-5">
@@ -71,7 +71,7 @@ export function ReportRecipientSettings({ role }: { role: Role | null }) {
           registry record, else it becomes a manual task. Nothing is ever guessed. Each report on the finding page shows which rule picked its recipients.
         </div>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
 
       <RedirectCard redirectTo={data.redirectTo} isOwner={isOwner} onSave={(v) => call("/api/report-recipients/redirect", "PUT", { redirectTo: v })} />
 
@@ -127,7 +127,7 @@ function RedirectCard({ redirectTo, isOwner, onSave }: { redirectTo: string | nu
       description="For testing: every report is delivered to this one address of yours instead of its real recipients, with the real recipients shown at the top. Use it while setting up and checking templates."
     >
       {redirectTo ? (
-        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mb-3 rounded-md border border-sev-medium/40 bg-sev-medium/10 px-3 py-2 text-sm text-sev-medium">
           On: reports would be delivered to <strong>{redirectTo}</strong>.
         </p>
       ) : (
@@ -204,7 +204,7 @@ function BlockedCard({ data, editable, onAdd, onRemove }: { data: RecipientsData
                 {b.note ? ` · ${b.note}` : ""}
               </span>
               {editable && (
-                <button className="text-xs text-red-600 hover:underline" onClick={() => onRemove(b.id)}>
+                <button className="text-xs text-sev-critical hover:underline" onClick={() => onRemove(b.id)}>
                   remove
                 </button>
               )}

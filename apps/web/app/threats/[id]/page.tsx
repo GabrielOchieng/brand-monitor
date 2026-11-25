@@ -122,7 +122,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
               aria-label={`Open the suspicious site ${finding.identifier} in a new tab`}
             >
               <span className="truncate">{target.secondary ?? finding.identifier}</span>
-              <span className="shrink-0 text-xs text-amber-700">· suspicious site, opens in a new tab</span>
+              <span className="shrink-0 text-xs text-sev-medium">· suspicious site, opens in a new tab</span>
               <ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
             </a>
           </div>
@@ -177,7 +177,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
             <section className="card overflow-hidden">
               <div className="flex items-center justify-between border-b border-line px-5 py-3">
                 <h2 className="label">Screenshot</h2>
-                {!finding.websiteDataCurrent && finding.websiteIntel && <span className="text-xs text-amber-700">From an earlier scan</span>}
+                {!finding.websiteDataCurrent && finding.websiteIntel && <span className="text-xs text-sev-medium">From an earlier scan</span>}
               </div>
               {finding.websiteIntel?.screenshotPath ? (
                 <ScreenshotImage src={`${API_URL}${finding.websiteIntel.screenshotPath}`} alt={`Screenshot of ${finding.identifier}`} />
@@ -200,11 +200,11 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
                     <span className="text-ink-muted">{e.reason}</span>
                     <span className="hidden h-1.5 overflow-hidden rounded-full bg-elevated sm:block">
                       <span
-                        className={`block h-full rounded-full ${e.delta >= 0 ? "bg-brand" : "bg-emerald-500"}`}
+                        className={`block h-full rounded-full ${e.delta >= 0 ? "bg-brand" : "bg-ok"}`}
                         style={{ width: `${(Math.abs(e.delta) / maxDelta) * 100}%` }}
                       />
                     </span>
-                    <span className={`text-right font-mono font-medium tabular-nums ${e.delta >= 0 ? "text-ink" : "text-emerald-700"}`}>
+                    <span className={`text-right font-mono font-medium tabular-nums ${e.delta >= 0 ? "text-ink" : "text-ok"}`}>
                       {e.delta >= 0 ? "+" : ""}
                       {e.delta}
                     </span>
@@ -255,7 +255,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
             <section className="card p-5">
               <h2 className="label">Website</h2>
               {!finding.websiteDataCurrent && (
-                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                <p className="mt-2 rounded-md border border-sev-medium/40 bg-sev-medium/10 px-2 py-1 text-xs text-sev-medium">
                   {finding.websiteIntel ? "The latest recheck couldn't scan the site; this is from an earlier scan." : "Never scanned successfully yet."}
                 </p>
               )}
@@ -312,7 +312,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
                   <div className="text-xs text-ink-faint" title={fullDate(c.detectedAt)}>
                     {timeAgo(c.detectedAt)}
                   </div>
-                  <div className={c.field === "site" ? "font-medium text-red-700" : "text-ink-muted"}>
+                  <div className={c.field === "site" ? "font-medium text-sev-critical" : "text-ink-muted"}>
                     <span className="font-medium text-ink">{CHANGE_LABELS[c.field] ?? c.field}:</span> {formatChangeValue(c.field, c.oldValue)} →{" "}
                     {formatChangeValue(c.field, c.newValue)}
                   </div>
@@ -336,9 +336,9 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
 
 function StateBadge({ tone, title, children }: { tone: "amber" | "emerald" | "sky"; title: string; children: React.ReactNode }) {
   const tones = {
-    amber: "border-amber-200 bg-amber-50 text-amber-800",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    sky: "border-sky-200 bg-sky-50 text-sky-800",
+    amber: "border-sev-medium/40 bg-sev-medium/10 text-sev-medium",
+    emerald: "border-ok/40 bg-ok/10 text-ok",
+    sky: "border-info/40 bg-info/10 text-info",
   };
   return (
     <span title={title} className={`rounded-full border px-2 py-0.5 font-medium ${tones[tone]}`}>

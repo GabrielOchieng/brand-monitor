@@ -66,7 +66,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
     }
   }
 
-  if (!data) return error ? <p className="text-sm text-red-600">{error}</p> : null;
+  if (!data) return error ? <p className="text-sm text-sev-critical">{error}</p> : null;
   const inForce = data.authorizations.filter((a) => authorizationStatus(a) === "in_force");
 
   return (
@@ -152,7 +152,7 @@ export function AutoTakedownAdmin({ orgId, orgName }: { orgId: string; orgName: 
             ))}
           </ul>
         )}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-sev-critical">{error}</p>}
       </div>
     </section>
   );

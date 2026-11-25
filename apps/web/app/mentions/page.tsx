@@ -49,9 +49,9 @@ const PLATFORM_LABEL: Record<string, string> = {
 };
 
 const SENTIMENT_CLASS: Record<string, string> = {
-  negative: "border-red-200 bg-red-50 text-red-700",
+  negative: "border-sev-critical/40 bg-sev-critical/10 text-sev-critical",
   neutral: "border-line bg-surface text-ink-muted",
-  positive: "border-green-200 bg-green-50 text-green-700",
+  positive: "border-ok/40 bg-ok/10 text-ok",
 };
 
 function capitalize(s: string) {
@@ -226,7 +226,7 @@ export default function MentionsPage() {
         </select>
       </div>
 
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm text-sev-critical">{error}</p>}
       {(loading || !data) && !error && (
         <LoadingRegion label="Loading mentions" className="mt-3">
           <SkeletonList rows={5} lines={2} />

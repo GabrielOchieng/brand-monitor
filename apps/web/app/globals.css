@@ -4,58 +4,56 @@
 
 /* Legacy tokens (first redesign). Pages still on the old look use them; deleted once every page is
    migrated to the theme in theme.css (UI_REDESIGN_PLAN.md step 7). */
-@theme {
-  --color-critical: #c81e1e;
-  --color-high: #d9480f;
-  --color-medium: #b7791f;
-  --color-low: #5b6473;
-  --color-base: #f4f6f9;
-  --color-surface: #ffffff;
-  --color-panel: #ffffff;
-  --color-elevated: #edf0f4;
-  --color-line: #dfe3ea;
+@theme inline {
+  --color-critical: var(--sev-critical);
+  --color-high: var(--sev-high);
+  --color-medium: var(--sev-medium);
+  --color-low: var(--sev-low);
+  --color-base: var(--background);
+  --color-surface: var(--card);
+  --color-panel: var(--card);
+  --color-elevated: var(--raised);
+  --color-line: var(--border);
 
-  --color-ink: #0f1623;
-  --color-ink-muted: #3f4859;
-  --color-ink-subtle: #637083;
-  --color-ink-faint: #97a1b1;
+  --color-ink: var(--foreground);
+  --color-ink-muted: var(--muted-foreground);
+  --color-ink-subtle: var(--subtle);
+  --color-ink-faint: var(--subtle);
 
-  --color-brand: #0d6c76;
-  --color-brand-hover: #0a5860;
-  --color-brand-strong: #084a51;
-  --color-brand-soft: #e5f2f3;
-  --color-brand-muted: #0d6c7614;
+  --color-brand: var(--primary);
+  --color-brand-hover: var(--primary);
+  --color-brand-strong: var(--primary);
+  --color-brand-soft: var(--primary-soft);
+  --color-brand-muted: var(--primary-soft);
 
-  --color-shell: #0b1322;
-  --color-shell-raised: #121c2f;
-  --color-shell-line: #1e2a40;
-  --color-shell-ink: #e6ebf2;
-  --color-shell-muted: #97a3b8;
-  --color-shell-faint: #64718a;
+  --color-shell: var(--sunk);
+  --color-shell-raised: var(--raised);
+  --color-shell-line: var(--border);
+  --color-shell-ink: var(--foreground);
+  --color-shell-muted: var(--muted-foreground);
+  --color-shell-faint: var(--subtle);
 
 
-  --shadow-card:
-    0 1px 2px 0 rgb(15 22 35 / 0.04), 0 1px 3px 0 rgb(15 22 35 / 0.06);
-  --shadow-pop:
-    0 8px 24px -6px rgb(15 22 35 / 0.18), 0 2px 6px -2px rgb(15 22 35 / 0.08);
+  --shadow-card: 0 0 0 0 transparent;
+  --shadow-pop: var(--shadow-popover);
 }
 
 @utility card {
-  @apply rounded-lg border border-line bg-panel shadow-card;
+  @apply rounded-md border border-line bg-panel;
 }
 
 @utility btn {
   /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
      actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
-  @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility btn-primary {
-  @apply btn bg-brand px-3.5 py-2 text-white shadow-xs hover:bg-brand-hover active:bg-brand-strong;
+  @apply btn bg-brand px-3.5 py-2 text-primary-foreground hover:brightness-110;
 }
 
 @utility btn-secondary {
-  @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted shadow-xs hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
+  @apply btn border border-border-strong bg-raised px-3.5 py-2 text-ink-muted hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
 }
 
 @utility btn-ghost {
@@ -63,11 +61,11 @@
 }
 
 @utility btn-danger {
-  @apply btn px-2 py-1 text-red-700 hover:bg-red-50 hover:text-red-800;
+  @apply btn px-2 py-1 text-sev-critical hover:bg-sev-critical/10;
 }
 
 @utility field {
-  @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-xs placeholder:text-ink-faint focus:border-brand focus:outline-hidden focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
+  @apply rounded-md border border-border-strong bg-background px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-hidden focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
 }
 
 @utility field-sm {

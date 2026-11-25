@@ -108,7 +108,7 @@ export function ReportTemplateSettings({ role, brands }: { role: Role | null; br
       </div>
       {brandId && <p className="text-xs text-ink-subtle">A brand-only version replaces the all-brands one for that brand. Where a brand has none, the all-brands text is used.</p>}
       {language !== "en" && <p className="text-xs text-ink-subtle">Where there is no text in this language, reports fall back to English.</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
 
       {!data ? (
         <Skeleton className="h-60 w-full" />
@@ -125,7 +125,7 @@ export function ReportTemplateSettings({ role, brands }: { role: Role | null; br
                       {CHANNEL_LABELS[row.channel] ?? row.channel} · <span className="font-normal text-ink-muted">{KIND_LABELS[row.kind] ?? row.kind}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs">
-                      {row.draft && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">Draft v{row.draft.version}</span>}
+                      {row.draft && <span className="rounded-full border border-sev-medium/40 bg-sev-medium/10 px-2 py-0.5 text-sev-medium">Draft v{row.draft.version}</span>}
                       <span className="text-ink-subtle">
                         {row.published
                           ? `Published v${row.published.version}`
@@ -186,7 +186,7 @@ function ProfileCard({ profile, canEdit, onSaved }: { profile: TemplatesData["pr
         </Field>
       </div>
       <p className="text-xs text-ink-subtle">The signature itself is set on the sender mailbox (Automatic reporting).</p>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
       {canEdit && (
         <button className="btn-secondary" disabled={state === "saving"} onClick={save}>
           {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : "Save"}
@@ -306,13 +306,13 @@ function TemplateEditor({
       </div>
 
       {errors.length > 0 && (
-        <ul className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+        <ul className="rounded-md border border-sev-critical/40 bg-sev-critical/10 px-3 py-2 text-xs text-sev-critical">
           {errors.map((e) => (
             <li key={e}>{e}</li>
           ))}
         </ul>
       )}
-      {message && <p className={`text-sm ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
+      {message && <p className={`text-sm ${message.ok ? "text-ok" : "text-sev-critical"}`}>{message.text}</p>}
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -390,7 +390,7 @@ function TemplateEditor({
         )}
         {canEdit && row.templateId && savedDraft && (
           <button
-            className="btn-ghost text-red-600"
+            className="btn-ghost text-sev-critical"
             disabled={!!busy}
             onClick={() =>
               run("discard", async () => {
@@ -408,7 +408,7 @@ function TemplateEditor({
         )}
         {canPublish && row.templateId && row.published && (
           <button
-            className="btn-ghost text-red-600"
+            className="btn-ghost text-sev-critical"
             disabled={!!busy}
             onClick={() =>
               run("retire", async () => {
@@ -451,7 +451,7 @@ function TemplateEditor({
           {versions.map((v) => (
             <li key={v.id} className="flex flex-wrap items-center gap-x-2">
               <span className="font-medium text-ink">v{v.version}</span>
-              <span className={v.status === "published" ? "text-emerald-700" : v.status === "draft" ? "text-amber-700" : "text-ink-subtle"}>{v.status}</span>
+              <span className={v.status === "published" ? "text-ok" : v.status === "draft" ? "text-sev-medium" : "text-ink-subtle"}>{v.status}</span>
               <span className="text-ink-subtle">
                 {v.publishedAt ? `published by ${v.publishedBy} ${timeAgo(v.publishedAt)}` : `edited by ${v.createdBy} ${timeAgo(v.updatedAt)}`}
               </span>

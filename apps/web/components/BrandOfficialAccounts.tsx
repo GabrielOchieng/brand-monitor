@@ -99,7 +99,7 @@ export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: s
                   <div className="truncate text-sm font-medium text-ink hover:text-brand">{d.primary}</div>
                   <div className="truncate text-xs text-ink-subtle">{d.secondary}</div>
                 </a>
-                {editable && <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-red-600">
+                {editable && <button onClick={() => save(urls.filter((x) => x !== u))} disabled={saving} aria-label={`Remove ${u}`} className="btn-ghost shrink-0 hover:text-sev-critical">
                   <TrashIcon className="h-3.5 w-3.5" />
                 </button>}
               </li>
@@ -120,7 +120,7 @@ export function BrandOfficialAccounts({ brandId, editable = true }: { brandId: s
           {saving ? "Saving…" : "Add"}
         </button>
       </form>}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-xs text-sev-critical">{error}</p>}
     </div>
   );
 }

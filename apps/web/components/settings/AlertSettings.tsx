@@ -118,10 +118,10 @@ export function AlertSettings({ editable }: { editable: boolean }) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 text-sm font-medium text-ink">
                         {meta.title}
-                        {savedKind === rule.kind && <span className="text-xs font-normal text-emerald-700">Saved</span>}
+                        {savedKind === rule.kind && <span className="text-xs font-normal text-ok">Saved</span>}
                       </div>
                       <p className="mt-0.5 text-xs text-ink-subtle">{meta.description}</p>
-                      {rule.enabled && rule.channels.length === 0 && <p className="mt-1 text-xs text-amber-700">On, but no channel is selected, so nothing is sent.</p>}
+                      {rule.enabled && rule.channels.length === 0 && <p className="mt-1 text-xs text-sev-medium">On, but no channel is selected, so nothing is sent.</p>}
                     </div>
                   </div>
 
@@ -174,7 +174,7 @@ export function AlertSettings({ editable }: { editable: boolean }) {
             })}
           </ul>
         )}
-        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs text-sev-critical">{error}</p>}
       </Section>
     </div>
   );

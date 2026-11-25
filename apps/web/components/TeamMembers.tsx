@@ -154,7 +154,7 @@ export function TeamMembers() {
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
     </div>
   );
 }
@@ -206,7 +206,7 @@ function InviteForm({ isOwner, onInvited }: { isOwner: boolean; onInvited: () =>
       <p className="mt-2 text-xs text-ink-subtle">
         {capitalize(role)}: {ROLE_HELP[role]}.
       </p>
-      {message && <p className={`mt-2 text-sm ${message.ok ? "text-emerald-700" : "text-red-600"}`}>{message.text}</p>}
+      {message && <p className={`mt-2 text-sm ${message.ok ? "text-ok" : "text-sev-critical"}`}>{message.text}</p>}
     </form>
   );
 }

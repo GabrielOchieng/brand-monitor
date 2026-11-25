@@ -80,7 +80,7 @@ export function TakedownKit({
                     {KIND_LABEL[c.kind]}
                   </span>
                 </span>
-                <span className={`shrink-0 text-xs ${reported ? "text-green-700" : "text-ink-faint"}`}>
+                <span className={`shrink-0 text-xs ${reported ? "text-ok" : "text-ink-faint"}`}>
                   {reported ? `Reported ${new Date(reported).toLocaleDateString()}` : isOpen ? "Hide" : "Prepare"}
                 </span>
               </button>

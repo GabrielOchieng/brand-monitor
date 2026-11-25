@@ -125,7 +125,7 @@ export function TakedownTracker({
       <h2 className="label">Takedown requests</h2>
 
       {siteLive && takedowns.some((t) => t.status === "completed") && (
-        <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-800">
+        <p className="mt-2 rounded-md border border-sev-critical/40 bg-sev-critical/10 px-2 py-1 text-xs text-sev-critical">
           A takedown is marked completed, but the latest scan still shows live content. Removing content leaves the domain
           with the attacker. Ask the registrar to suspend the domain (clientHold) as well.
         </p>
@@ -206,7 +206,7 @@ export function TakedownTracker({
         </div>
       </form>
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm text-sev-critical">{error}</p>}
     </section>
   );
 }

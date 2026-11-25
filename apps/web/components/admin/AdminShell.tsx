@@ -90,7 +90,7 @@ export function AdminShell({ title, actions, blocked, error, loading, children }
           );
         })}
       </nav>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-sev-critical">{error}</p>}
       {loading ? (
         <LoadingRegion label="Loading">
           <SkeletonList rows={4} lines={1} />
@@ -146,12 +146,12 @@ export function ago(iso: string | null): string {
 export const day = (iso: string) => new Date(iso).toLocaleDateString();
 
 export function MonitoringStatus({ pausedAt, pausedBrands = 0, brands = 1 }: { pausedAt: string | null; pausedBrands?: number; brands?: number }) {
-  if (pausedAt) return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">Paused</span>;
+  if (pausedAt) return <span className="rounded-full bg-sev-medium/10 px-2 py-0.5 text-xs font-medium text-sev-medium">Paused</span>;
   if (pausedBrands > 0)
     return (
-      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+      <span className="rounded-full bg-sev-medium/10 px-2 py-0.5 text-xs font-medium text-sev-medium">
         {pausedBrands} of {brands} paused
       </span>
     );
-  return <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">On</span>;
+  return <span className="rounded-full bg-ok/10 px-2 py-0.5 text-xs font-medium text-ok">On</span>;
 }
