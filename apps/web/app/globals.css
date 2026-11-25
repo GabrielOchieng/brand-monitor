@@ -1,6 +1,122 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-critical: #c81e1e;
+  --color-high: #d9480f;
+  --color-medium: #b7791f;
+  --color-low: #5b6473;
+  --color-base: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-panel: #ffffff;
+  --color-elevated: #edf0f4;
+  --color-line: #dfe3ea;
+
+  --color-ink: #0f1623;
+  --color-ink-muted: #3f4859;
+  --color-ink-subtle: #637083;
+  --color-ink-faint: #97a1b1;
+
+  --color-brand: #0d6c76;
+  --color-brand-hover: #0a5860;
+  --color-brand-strong: #084a51;
+  --color-brand-soft: #e5f2f3;
+  --color-brand-muted: #0d6c7614;
+
+  --color-shell: #0b1322;
+  --color-shell-raised: #121c2f;
+  --color-shell-line: #1e2a40;
+  --color-shell-ink: #e6ebf2;
+  --color-shell-muted: #97a3b8;
+  --color-shell-faint: #64718a;
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --shadow-card:
+    0 1px 2px 0 rgb(15 22 35 / 0.04), 0 1px 3px 0 rgb(15 22 35 / 0.06);
+  --shadow-pop:
+    0 8px 24px -6px rgb(15 22 35 / 0.18), 0 2px 6px -2px rgb(15 22 35 / 0.08);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility card {
+  @apply rounded-lg border border-line bg-panel shadow-card;
+}
+
+@utility btn {
+  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
+     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
+  @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-brand px-3.5 py-2 text-white shadow-xs hover:bg-brand-hover active:bg-brand-strong;
+}
+
+@utility btn-secondary {
+  @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted shadow-xs hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
+}
+
+@utility btn-ghost {
+  @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
+}
+
+@utility btn-danger {
+  @apply btn px-2 py-1 text-red-700 hover:bg-red-50 hover:text-red-800;
+}
+
+@utility field {
+  @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-xs placeholder:text-ink-faint focus:border-brand focus:outline-hidden focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
+}
+
+@utility field-sm {
+  @apply field px-2.5 py-1.5 text-xs;
+}
+
+@utility label {
+  @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
+}
+
+@utility pill {
+  /* Status pills: a tone class plus .pill. */
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
+}
+
+@utility data-table {
+  /* Data tables: dense, scannable, aligned. */
+  @apply w-full text-sm;
+  & thead th {
+    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
+  }
+  & tbody td {
+    @apply border-b border-line/70 px-4 py-3 align-middle;
+  }
+  & tbody tr:last-child td {
+    @apply border-b-0;
+  }
+}
+
+@utility ident {
+  /* Domains, URLs, IPs, references: the data analysts read character by character. */
+  @apply font-mono text-[0.92em] tracking-tight;
+}
 
 /* Design system (tailwind.config.js holds the tokens). Every page uses these classes instead of
    ad hoc borders, buttons and badges, so the product looks and behaves the same everywhere. */
@@ -19,64 +135,5 @@
   }
   ::selection {
     background: #0d6c7633;
-  }
-}
-
-@layer components {
-  .card {
-    @apply rounded-lg border border-line bg-panel shadow-card;
-  }
-
-  /* Buttons: one height scale. primary = the one main action on a screen; secondary = other
-     actions; ghost = low-emphasis/inline; danger = destructive (text style, red). */
-  .btn {
-    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-primary {
-    @apply btn bg-brand px-3.5 py-2 text-white shadow-sm hover:bg-brand-hover active:bg-brand-strong;
-  }
-  .btn-secondary {
-    @apply btn border border-line bg-white px-3.5 py-2 text-ink-muted shadow-sm hover:border-ink-faint/50 hover:bg-elevated hover:text-ink;
-  }
-  .btn-ghost {
-    @apply btn px-2 py-1 text-ink-subtle hover:bg-elevated hover:text-ink;
-  }
-  .btn-danger {
-    @apply btn px-2 py-1 text-red-700 hover:bg-red-50 hover:text-red-800;
-  }
-
-  .field {
-    @apply rounded-md border border-line bg-white px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-elevated/60 disabled:text-ink-subtle;
-  }
-  .field-sm {
-    @apply field px-2.5 py-1.5 text-xs;
-  }
-
-  .label {
-    @apply block text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-  }
-
-  /* Status pills: a tone class plus .pill. */
-  .pill {
-    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
-  }
-
-  /* Data tables: dense, scannable, aligned. */
-  .data-table {
-    @apply w-full text-sm;
-  }
-  .data-table thead th {
-    @apply whitespace-nowrap border-b border-line bg-elevated/50 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-subtle;
-  }
-  .data-table tbody td {
-    @apply border-b border-line/70 px-4 py-3 align-middle;
-  }
-  .data-table tbody tr:last-child td {
-    @apply border-b-0;
-  }
-
-  /* Domains, URLs, IPs, references: the data analysts read character by character. */
-  .ident {
-    @apply font-mono text-[0.92em] tracking-tight;
   }
 }

@@ -76,7 +76,7 @@ export function TakedownKit({
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate font-medium text-ink">{c.title}</span>
-                  <span className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-subtle">
+                  <span className="shrink-0 rounded-sm border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-subtle">
                     {KIND_LABEL[c.kind]}
                   </span>
                 </span>

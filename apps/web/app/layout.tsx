@@ -10,9 +10,9 @@ export const metadata = {
   description: "Find and take down lookalike domains, scam websites and fake accounts impersonating your brand.",
 };
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 // For the data analysts read character by character: domains, URLs, IPs, references.
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap", weight: ["400", "500"] });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap", weight: ["400", "500"] });
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

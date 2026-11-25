@@ -182,7 +182,7 @@ export default async function ThreatDetailPage({ params }: { params: Promise<{ i
               {finding.websiteIntel?.screenshotPath ? (
                 <ScreenshotImage src={`${API_URL}${finding.websiteIntel.screenshotPath}`} alt={`Screenshot of ${finding.identifier}`} />
               ) : (
-                <div className="flex aspect-[16/7] items-center justify-center bg-elevated/50 px-6 text-center text-sm text-ink-subtle">
+                <div className="flex aspect-16/7 items-center justify-center bg-elevated/50 px-6 text-center text-sm text-ink-subtle">
                   {finding.websiteIntel ? "No screenshot from the last successful scan." : "Not scanned successfully yet. The first scan normally runs within a few minutes."}
                 </div>
               )}
@@ -450,7 +450,7 @@ function Row({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-4">
       <dt className="shrink-0 text-ink-subtle">{label}</dt>
-      <dd className="min-w-0 break-words text-right text-ink">{value ?? "—"}</dd>
+      <dd className="min-w-0 wrap-break-word text-right text-ink">{value ?? "—"}</dd>
     </div>
   );
 }

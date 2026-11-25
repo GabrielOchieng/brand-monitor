@@ -84,7 +84,7 @@ export function ThreatFilters({
         </Filter>
       )}
       <Filter label="Assignee">
-        <select value={params.get("assigneeId") ?? ""} onChange={(e) => apply({ assigneeId: e.target.value })} className="field-sm max-w-[14rem]">
+        <select value={params.get("assigneeId") ?? ""} onChange={(e) => apply({ assigneeId: e.target.value })} className="field-sm max-w-56">
           <option value="">Anyone</option>
           <option value="unassigned">Unassigned</option>
           {members.map((m) => (
@@ -94,7 +94,7 @@ export function ThreatFilters({
           ))}
         </select>
       </Filter>
-      <div className="min-w-[12rem] flex-1">
+      <div className="min-w-48 flex-1">
         <label className="label mb-1">Search</label>
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />

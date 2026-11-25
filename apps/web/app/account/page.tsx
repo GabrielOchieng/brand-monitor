@@ -329,7 +329,7 @@ function TwoFactorSection({ me, onChanged }: { me: Me; onChanged: () => void }) 
           <img src={setup.qrCodeDataUrl} alt="QR code for your authenticator app" width={180} height={180} className="rounded-md border border-line bg-white p-2" />
           <details className="text-sm text-ink-muted">
             <summary className="cursor-pointer">Can't scan it? Enter this key instead</summary>
-            <code className="mt-2 block break-all rounded bg-elevated px-2 py-1 font-mono text-xs text-ink">{setup.secret.match(/.{1,4}/g)?.join(" ")}</code>
+            <code className="mt-2 block break-all rounded-sm bg-elevated px-2 py-1 font-mono text-xs text-ink">{setup.secret.match(/.{1,4}/g)?.join(" ")}</code>
           </details>
           <div className="sm:max-w-sm">
             <label htmlFor="totp-confirm-code" className="label mb-1">

@@ -113,7 +113,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
         <input id="reporterEmail" name="reporterEmail" type="email" className="field mt-1.5 w-full" />
       </div>
       {/* Honeypot: invisible to people, filled in by bots. */}
-      <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+      <div aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 overflow-hidden">
         <label htmlFor="website">Website</label>
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>

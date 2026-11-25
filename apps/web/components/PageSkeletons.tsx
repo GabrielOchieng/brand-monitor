@@ -62,7 +62,7 @@ export function FindingSkeleton() {
         <div className="space-y-6 lg:col-span-2">
           <div className="card p-5">
             <Skeleton className="h-3 w-24" />
-            <Skeleton className="mt-3 aspect-[16/10] w-full" />
+            <Skeleton className="mt-3 aspect-16/10 w-full" />
           </div>
           <SkeletonCard lines={4} />
           <SkeletonCard lines={3} />

@@ -54,7 +54,7 @@ function ProductIllustration() {
         <ul className="divide-y divide-shell-line">
           {rows.map((r) => (
             <li key={r.d} className="flex items-center gap-3 px-4 py-3">
-              <span className={`w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide ring-1 ${r.tone}`}>{r.sev}</span>
+              <span className={`w-16 shrink-0 rounded-sm px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide ring-1 ${r.tone}`}>{r.sev}</span>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-mono text-[13px] text-shell-ink">{r.d}</div>
                 <div className="truncate text-[11px] text-shell-muted">{r.why}</div>
@@ -113,7 +113,7 @@ type LandingProps = { contactEmail: string | null };
 export function Landing({ contactEmail }: LandingProps) {
   return (
     <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-shell-line bg-shell/95 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
           <Link href="/" aria-label="Brand Monitor home">
             <Logo tone="light" />
@@ -139,7 +139,7 @@ export function Landing({ contactEmail }: LandingProps) {
       </header>
 
       <section className="relative overflow-hidden bg-shell">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:48px_48px]" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[48px_48px]" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.05fr_1fr]">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-shell-line bg-shell-raised px-3 py-1 text-xs text-shell-muted">

@@ -292,10 +292,10 @@ function TemplateEditor({
         <div className="min-w-0">
           <div className="label mb-1">Placeholders</div>
           <p className="mb-2 text-xs text-ink-subtle">Click to insert at the cursor.</p>
-          <ul className="max-h-[26rem] space-y-1 overflow-y-auto pr-1">
+          <ul className="max-h-104 space-y-1 overflow-y-auto pr-1">
             {placeholders.map((p) => (
               <li key={p.name}>
-                <button type="button" disabled={!canEdit} onClick={() => insert(p.name)} className="w-full rounded px-1.5 py-1 text-left hover:bg-elevated disabled:cursor-default" title={p.description}>
+                <button type="button" disabled={!canEdit} onClick={() => insert(p.name)} className="w-full rounded-sm px-1.5 py-1 text-left hover:bg-elevated disabled:cursor-default" title={p.description}>
                   <code className={`text-xs ${["reportRef", "evidence", "signature"].includes(p.name) ? "font-semibold text-brand" : "text-ink"}`}>{`{{${p.name}}}`}</code>
                   <span className="block text-[11px] leading-snug text-ink-subtle">{p.description}</span>
                 </button>

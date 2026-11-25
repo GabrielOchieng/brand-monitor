@@ -163,7 +163,7 @@ export function AppFrame({ children }: AppFrameProps) {
       )}
 
       <div className="flex min-h-screen min-w-0 flex-col lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-white/90 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
           <button ref={menuButton} className="-ml-1 rounded-md p-1.5 text-ink-subtle hover:bg-elevated hover:text-ink lg:hidden" aria-label="Open navigation" aria-expanded={drawer} onClick={() => setDrawer(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-5 w-5" aria-hidden="true">
               <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />

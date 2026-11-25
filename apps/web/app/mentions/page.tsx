@@ -243,15 +243,15 @@ export default function MentionsPage() {
                 <span title={fullDate(m.firstSeenAt)}>· found {timeAgo(m.firstSeenAt)}</span>
                 <span className="ml-auto flex gap-1.5">
                   {m.category ? (
-                    <span className="rounded border border-line px-1.5 py-0.5">{capitalize(m.category)}</span>
+                    <span className="rounded-sm border border-line px-1.5 py-0.5">{capitalize(m.category)}</span>
                   ) : (
-                    <span className="rounded border border-dashed border-line px-1.5 py-0.5">Unlabelled</span>
+                    <span className="rounded-sm border border-dashed border-line px-1.5 py-0.5">Unlabelled</span>
                   )}
-                  {m.sentiment && <span className={`rounded border px-1.5 py-0.5 ${SENTIMENT_CLASS[m.sentiment]}`}>{capitalize(m.sentiment)}</span>}
+                  {m.sentiment && <span className={`rounded-sm border px-1.5 py-0.5 ${SENTIMENT_CLASS[m.sentiment]}`}>{capitalize(m.sentiment)}</span>}
                 </span>
               </div>
               <a href={m.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-start gap-1 font-medium text-ink hover:text-brand-hover">
-                <span className="min-w-0 break-words">{m.title ?? m.url}</span>
+                <span className="min-w-0 wrap-break-word">{m.title ?? m.url}</span>
                 <ExternalLinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               </a>
               {cleanSnippet(m.snippet, m.title) && <p className="mt-1 line-clamp-3 text-ink-muted">{cleanSnippet(m.snippet, m.title)}</p>}
