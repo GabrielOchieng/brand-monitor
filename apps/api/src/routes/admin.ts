@@ -34,9 +34,11 @@ async function adminOf(request: FastifyRequest): Promise<{ userId: string; email
 }
 
 export async function adminRoutes(app: FastifyInstance) {
-  app.addHook("preHandler", async (request, reply) => {
-    if (request.url.startsWith("/api/admin/")) await requirePlatformAdmin(request, reply);
-  });
+  // Every route in this plugin, unconditionally. The hook is scoped to this plugin by Fastify's
+  // encapsulation (it isn't wrapped in fastify-plugin), so no path test is needed -- and one on the
+  // raw request.url was bypassable: the router matches the decoded path, so /api/%61dmin/... reached
+  // these handlers without the check.
+  app.addHook("preHandler", requirePlatformAdmin);
 
   // Every org with its size, this month's usage and when a member was last active.
   app.get("/api/admin/overview", async () => {
