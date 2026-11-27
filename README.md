@@ -197,7 +197,9 @@ link and/or a phone/WhatsApp number plus a description, with no login.
 - Spam protection: Cloudflare Turnstile when configured, a honeypot field and 5 reports/hour per
   IP. Only what the reporter typed and an optional email are stored, no IP or device data.
   If the Turnstile widget can't load (a network filter or browser extension blocking
-  `challenges.cloudflare.com`), the form says so and suggests another network or browser; the
+  `challenges.cloudflare.com`), the form says so and suggests another network or browser. A setup
+  error (Turnstile's 110xxx codes, e.g. 110200 = this domain isn't on the widget's hostname list) says
+  it's on our side instead (`lib/turnstileErrors.ts`). The
   access-request form also offers `NEXT_PUBLIC_CONTACT_EMAIL` when set.
 - This and the access-request form (below) are the only unauthenticated write routes.
 

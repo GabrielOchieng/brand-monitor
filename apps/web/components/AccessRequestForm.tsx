@@ -89,7 +89,7 @@ export function AccessRequestForm({ siteKey }: { siteKey: string }) {
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
       {siteKey && <div ref={captcha.ref} />}
-      {captcha.failed && <TurnstileFailed email={CONTACT_EMAIL} />}
+      {captcha.failure && <TurnstileFailed kind={captcha.failure} email={CONTACT_EMAIL} />}
       <FormError message={error} />
       <Button type="submit" className="w-full" disabled={state === "sending" || !captcha.ready}>
         {state === "sending" ? "Sending…" : "Request access"}

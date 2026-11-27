@@ -87,7 +87,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
       {siteKey && <div ref={captcha.ref} />}
-      {captcha.failed && <TurnstileFailed />}
+      {captcha.failure && <TurnstileFailed kind={captcha.failure} />}
       {error && <p className="text-sm text-sev-critical">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={state === "sending" || !captcha.ready}>
         {state === "sending" ? "Sending…" : "Send report"}
