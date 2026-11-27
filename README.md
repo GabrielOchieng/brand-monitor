@@ -196,6 +196,9 @@ link and/or a phone/WhatsApp number plus a description, with no login.
 - Each report raises an in-app notification, and the finding page lists its reports.
 - Spam protection: Cloudflare Turnstile when configured, a honeypot field and 5 reports/hour per
   IP. Only what the reporter typed and an optional email are stored, no IP or device data.
+  If the Turnstile widget can't load (a network filter or browser extension blocking
+  `challenges.cloudflare.com`), the form says so and suggests another network or browser; the
+  access-request form also offers `NEXT_PUBLIC_CONTACT_EMAIL` when set.
 - This and the access-request form (below) are the only unauthenticated write routes.
 
 ### 2. What each recheck collects

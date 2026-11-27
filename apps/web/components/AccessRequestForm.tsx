@@ -7,6 +7,9 @@ import { useTurnstile } from "../lib/useTurnstile";
 import { Button } from "./ui/Button";
 import { Field, Input, Textarea } from "./ui/Field";
 import { FormError } from "./AuthCard";
+import { TurnstileFailed } from "./TurnstileFailed";
+
+const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || null;
 
 const ERROR_TEXT: Record<string, string> = {
   captcha_failed: "Please complete the check above the button and try again.",
@@ -86,6 +89,7 @@ export function AccessRequestForm({ siteKey }: { siteKey: string }) {
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
       {siteKey && <div ref={captcha.ref} />}
+      {captcha.failed && <TurnstileFailed email={CONTACT_EMAIL} />}
       <FormError message={error} />
       <Button type="submit" className="w-full" disabled={state === "sending" || !captcha.ready}>
         {state === "sending" ? "Sending…" : "Request access"}
