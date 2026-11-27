@@ -1,16 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { API_URL } from "../lib/api";
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (el: HTMLElement, opts: { sitekey: string; callback: (token: string) => void; "expired-callback": () => void }) => string;
-      reset: (id?: string) => void;
-    };
-  }
-}
+import { useTurnstile } from "../lib/useTurnstile";
 
 const ERROR_TEXT: Record<string, string> = {
   invalid_url: "That link doesn't look right. Copy it straight from the browser's address bar.",
@@ -20,33 +12,10 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_request: "Please give a link or a phone number.",
 };
 
-// Cloudflare Turnstile only when a site key is configured; otherwise the API skips the
-// check too (honeypot + rate limit only).
 export function ReportForm({ token, siteKey }: { token: string; siteKey: string }) {
-  const [captchaToken, setCaptchaToken] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState("");
-  const widgetRef = useRef<HTMLDivElement>(null);
-  const widgetId = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!siteKey) return;
-    const render = () => {
-      if (widgetRef.current && window.turnstile && widgetId.current === undefined) {
-        widgetId.current = window.turnstile.render(widgetRef.current, {
-          sitekey: siteKey,
-          callback: setCaptchaToken,
-          "expired-callback": () => setCaptchaToken(""),
-        });
-      }
-    };
-    if (window.turnstile) return render();
-    const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.async = true;
-    script.onload = render;
-    document.head.appendChild(script);
-  }, [siteKey]);
+  const captcha = useTurnstile(siteKey);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,7 +26,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
       description: String(form.get("description") ?? "").trim() || undefined,
       reporterEmail: String(form.get("reporterEmail") ?? "").trim(),
       website: String(form.get("website") ?? ""),
-      turnstileToken: captchaToken || undefined,
+      turnstileToken: captcha.token || undefined,
     };
     if (!body.url && !body.phone) {
       setError(ERROR_TEXT.invalid_request);
@@ -78,8 +47,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
       setError("Couldn't send the report. Check your connection and try again.");
     }
     setState("idle");
-    if (window.turnstile && widgetId.current !== undefined) window.turnstile.reset(widgetId.current);
-    setCaptchaToken("");
+    captcha.reset();
   }
 
   if (state === "sent") {
@@ -117,9 +85,9 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
         <label htmlFor="website">Website</label>
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
-      {siteKey && <div ref={widgetRef} />}
+      {siteKey && <div ref={captcha.ref} />}
       {error && <p className="text-sm text-sev-critical">{error}</p>}
-      <button type="submit" className="btn-primary w-full" disabled={state === "sending" || (Boolean(siteKey) && !captchaToken)}>
+      <button type="submit" className="btn-primary w-full" disabled={state === "sending" || !captcha.ready}>
         {state === "sending" ? "Sending…" : "Send report"}
       </button>
     </form>
