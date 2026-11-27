@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScore, type ScoringInput } from "./scoring";
+import { computeScore, GONE_SCORE_CAP, type ScoringInput } from "./scoring";
 
 const base: ScoringInput = {
   domain: "unrelated-example.com",
@@ -218,5 +218,30 @@ describe("RECRUITMENT_FEE", () => {
     const result = computeScore({ ...base, pageText: "Jambojet cabin crew recruitment", recruitmentFee: true });
     expect(result.score).toBe(55);
     expect(result.severity).toBe("medium");
+  });
+});
+
+describe("computeScore for a site that's gone", () => {
+  // jambojetbooking.online: brand verbatim + keywords, new, on clientHold.
+  const named: ScoringInput = { ...base, domain: "jambojetbooking.online", registeredAt: new Date(Date.now() - 3 * 24 * 3600 * 1000) };
+
+  it("caps a suspended domain at the top of low, whatever its name scores", () => {
+    expect(computeScore(named).severity).not.toBe("low");
+    const result = computeScore({ ...named, siteGone: "suspended" });
+    expect(result.score).toBe(GONE_SCORE_CAP);
+    expect(result.severity).toBe("low");
+    expect(result.events.at(-1)?.ruleCode).toBe("DOMAIN_SUSPENDED");
+  });
+
+  it("caps a domain that no longer resolves", () => {
+    const result = computeScore({ ...named, siteGone: "unresolved" });
+    expect(result.severity).toBe("low");
+    expect(result.events.at(-1)?.ruleCode).toBe("DOMAIN_UNRESOLVED");
+  });
+
+  it("records the reason without changing a score that's already low", () => {
+    const result = computeScore({ ...base, siteGone: "suspended" });
+    expect(result.score).toBe(0);
+    expect(result.events).toEqual([expect.objectContaining({ ruleCode: "DOMAIN_SUSPENDED", delta: 0 })]);
   });
 });

@@ -86,14 +86,16 @@ export function TypeTag({ type }: { type: string }) {
   );
 }
 
-// Live / parked / offline, from the latest scan.
-export function WebState({ state }: { state: "live" | "parked" | "offline" | null | undefined }) {
+const WEB_STATE_LABEL = { live: "Live", parked: "Parked", offline: "Offline", suspended: "Suspended" } as const;
+const WEB_STATE_DOT = { live: "bg-sev-critical", parked: "bg-sev-medium", offline: "bg-sev-low", suspended: "bg-ok" } as const;
+
+// Live / parked / offline from the latest scan; suspended = the registrar has the domain on hold.
+export function WebState({ state }: { state: keyof typeof WEB_STATE_LABEL | null | undefined }) {
   if (!state) return null;
-  const dot = state === "live" ? "bg-sev-critical" : state === "parked" ? "bg-sev-medium" : "bg-sev-low";
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
-      <span className={cn("size-[7px] rounded-full", dot)} aria-hidden="true" />
-      {state === "live" ? "Live" : state === "parked" ? "Parked" : "Offline"}
+      <span className={cn("size-[7px] rounded-full", WEB_STATE_DOT[state])} aria-hidden="true" />
+      {WEB_STATE_LABEL[state]}
     </span>
   );
 }

@@ -1,6 +1,8 @@
 // Small derived values the console shows next to a finding, computed from stored data only.
 
-export type WebState = "live" | "parked" | "offline";
+import { isOnHold } from "./rdap";
+
+export type WebState = "live" | "parked" | "offline" | "suspended";
 
 const DOWN_STATUSES = new Set([404, 410, 451]);
 
@@ -8,13 +10,20 @@ interface WebInput {
   type: string;
   downSince: Date | null;
   websiteIntel: { looksParked: boolean; httpStatus: number | null } | null;
+  // Optional so callers that don't load it keep the old behaviour.
+  domainIntel?: { statusCodes: string[]; currentlyResolves: boolean; firstResolvedAt: Date | null } | null;
 }
 
-// What the site looked like at the last successful scan. Social accounts and apps aren't scanned
-// (null), and neither is a finding whose first scan hasn't run yet.
+// What the site looked like at the last successful scan, unless the registry or DNS says it's
+// gone since: a failed scan leaves website_intel untouched, so it would still say "live" for a
+// suspended domain (jambojetbooking.online, 2026-11). Social accounts and apps aren't scanned
+// (null), and neither is a finding whose first scan hasn't run yet. Same rules as lib/siteGone.ts.
 export function webState(f: WebInput): WebState | null {
   if (f.type === "social") return null;
+  const di = f.domainIntel;
+  if (di && isOnHold(di.statusCodes)) return "suspended";
   if (f.downSince) return "offline";
+  if (di && di.firstResolvedAt && !di.currentlyResolves) return "offline";
   const wi = f.websiteIntel;
   if (!wi) return null;
   if (wi.httpStatus != null && (DOWN_STATUSES.has(wi.httpStatus) || wi.httpStatus >= 500)) return "offline";

@@ -17,6 +17,18 @@ describe("webState", () => {
     for (const s of [404, 410, 451, 503]) expect(webState({ type: "domain", downSince: null, websiteIntel: intel(false, s) })).toBe("offline");
   });
 
+  // jambojetbooking.online: the last scan that loaded was HTTP 200, then the registrar put it on hold.
+  it("is suspended when the registry has the domain on hold, whatever the last scan saw", () => {
+    const domainIntel = { statusCodes: ["clientHold", "clientTransferProhibited"], currentlyResolves: false, firstResolvedAt: new Date() };
+    expect(webState({ type: "domain", downSince: null, websiteIntel: intel(false, 200), domainIntel })).toBe("suspended");
+  });
+
+  it("is offline when a domain that resolved no longer does", () => {
+    const domainIntel = { statusCodes: [], currentlyResolves: false, firstResolvedAt: new Date() };
+    expect(webState({ type: "domain", downSince: null, websiteIntel: intel(false, 200), domainIntel })).toBe("offline");
+    expect(webState({ type: "domain", downSince: null, websiteIntel: intel(false, 200), domainIntel: { ...domainIntel, currentlyResolves: true } })).toBe("live");
+  });
+
   it("tells parked from live", () => {
     expect(webState({ type: "domain", downSince: null, websiteIntel: intel(true, 200) })).toBe("parked");
     expect(webState({ type: "url", downSince: null, websiteIntel: intel(false, 200) })).toBe("live");

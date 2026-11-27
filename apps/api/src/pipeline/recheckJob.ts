@@ -13,7 +13,8 @@ import { asksRecruitmentFee } from "../lib/recruitmentScam";
 import { computeNextScanAt } from "./cadence";
 import { ensureBrandFaviconHash, ensureBrandOwnIndicators, ensureBrandScreenshotHash, findMostSharedIndicator, saveScreenshot } from "./enrichmentShared";
 import { extractIndicators, withoutOwnIndicators, PAYMENT_INDICATOR_KINDS, type Indicator } from "../lib/indicators";
-import { diffRegistration, describeChange } from "./registrationChanges";
+import { diffRegistration, describeChange, holdTransition } from "./registrationChanges";
+import { siteGoneState } from "../lib/siteGone";
 import { runSocialRecheck } from "./socialFindings";
 import { isDefinitelyDown, isLiveContent, nextTakedownWatch } from "./takedownWatch";
 import { boss, QUEUE_ALERT_DISPATCH } from "../queue/boss";
@@ -63,6 +64,16 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
   const wasEverRegistered = Boolean(finding.domainIntel?.firstResolvedAt);
   const registration =
     isDomainType && (dns.exists || wasEverRegistered) ? (await lookupRdap(hostname)) ?? (await lookupWhois(hostname)) : null;
+
+  // A failed registry lookup falls back to the last known status codes, as the write below does.
+  const siteGone = isDomainType
+    ? siteGoneState({
+        statusCodes: registration?.statusCodes ?? finding.domainIntel?.statusCodes ?? [],
+        everResolved: wasEverRegistered,
+        resolvesNow: dns.exists,
+        resolvedLastScan: finding.domainIntel ? finding.domainIntel.currentlyResolves : null,
+      })
+    : null;
 
   const ip = dns.a[0] ?? dns.aaaa[0] ?? null;
   const hosting = isDomainType && ip && ip !== finding.domainIntel?.hostingLookupIp ? await lookupIpRdap(ip) : null;
@@ -162,6 +173,7 @@ export async function runRecheckJob(data: RecheckJobData): Promise<void> {
     publicReportCount,
     recruitmentFee: asksRecruitmentFee(`${websiteResult?.title ?? ""}
 ${websiteResult?.extractedText ?? ""}`, brandRoot),
+    siteGone,
   });
 
   let screenshotPath: string | null = null;
@@ -413,6 +425,7 @@ ${websiteResult?.extractedText ?? ""}`, brandRoot),
       justActivated,
       reactivated: watch.reactivated,
       registrationChanges: registrationChanges.filter((c) => c.alert).map(describeChange),
+      hold: holdTransition(registrationChanges),
     };
     await boss.send(QUEUE_ALERT_DISPATCH, alertData, { db: fromPrisma(tx) });
   });

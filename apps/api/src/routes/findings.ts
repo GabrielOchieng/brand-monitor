@@ -18,6 +18,7 @@ import { recordSocialSighting } from "../pipeline/socialFindings";
 import { allowManualSubmit } from "../lib/rateLimit";
 import { toCsv } from "../lib/csv";
 import { medianDays, perDay, topReason, webState } from "../lib/findingView";
+import { SITE_GONE_WHERE } from "../lib/siteGone";
 
 // How long a "pending" AiExplanation row can sit before we treat it as an abandoned
 // attempt (e.g. the server crashed mid-call) rather than a concurrent in-flight request.
@@ -33,14 +34,18 @@ const PatchFindingSchema = z.object({
 
 const EXPORT_MAX_ROWS = 5000;
 
+const WEB_STATE_DOMAIN_INTEL = { statusCodes: true, currentlyResolves: true, firstResolvedAt: true } as const;
+
 // Default (no status/severity filter) shows everything -- don't silently hide real
 // production data the first time filtering ships. assigneeId/brandId need no extra
 // tenant validation beyond what RLS already provides: a garbage or foreign-org id in
 // either just yields zero rows via the brand_id IN (...) policy join, never a leak.
 function findingsWhere(q: z.infer<typeof FindingsQuerySchema>): Prisma.FindingWhereInput {
   return {
-    // "open": everything still needing attention -- the threat feed's default view.
-    ...(q.status === "open" ? { status: { notIn: ["false_positive", "resolved"] } } : q.status ? { status: q.status } : {}),
+    // "open": everything still needing attention -- the threat feed's default view. A site that's
+    // gone (suspended or no longer resolving) needs nothing until it comes back; it still shows
+    // under its status's own view.
+    ...(q.status === "open" ? { status: { notIn: ["false_positive", "resolved"] }, NOT: SITE_GONE_WHERE } : q.status ? { status: q.status } : {}),
     ...(q.severity ? { severity: q.severity } : {}),
     ...(q.brandId ? { brandId: q.brandId } : {}),
     ...(q.type ? { type: q.type } : {}),
@@ -110,17 +115,19 @@ export async function findingsRoutes(app: FastifyInstance) {
 
     // Counts per status for the view tabs: every other filter applies, the status one doesn't.
     const countWhere = findingsWhere({ ...q, status: undefined });
-    const [findings, total, byStatus] = await withTenant(orgId, (tx) =>
+    const openWhere = findingsWhere({ ...q, status: "open" });
+    const [findings, total, byStatus, openCount] = await withTenant(orgId, (tx) =>
       Promise.all([
         tx.finding.findMany({
           where,
           orderBy: { [q.sortBy]: q.sortDir },
           skip: (q.page - 1) * q.pageSize,
           take: q.pageSize,
-          include: { brand: { select: { name: true } }, websiteIntel: { select: { looksParked: true, httpStatus: true } } },
+          include: { brand: { select: { name: true } }, websiteIntel: { select: { looksParked: true, httpStatus: true } }, domainIntel: { select: WEB_STATE_DOMAIN_INTEL } },
         }),
         tx.finding.count({ where }),
         tx.finding.groupBy({ by: ["status"], where: countWhere, _count: { _all: true } }),
+        tx.finding.count({ where: openWhere }),
       ])
     );
     const scanIds = findings.map((f) => f.lastScanId).filter((id): id is string => !!id);
@@ -148,6 +155,8 @@ export async function findingsRoutes(app: FastifyInstance) {
       })),
       total,
       statusCounts,
+      // "Needs action" isn't a sum of statusCounts: it leaves out gone sites.
+      openCount,
       page: q.page,
       pageSize: q.pageSize,
     });
@@ -740,7 +749,10 @@ export async function findingsRoutes(app: FastifyInstance) {
         : await tx.brand.findFirst({ orderBy: { createdAt: "asc" } });
       if (!brand) return null;
 
-      const findings = await tx.finding.findMany({ where: { brandId: brand.id }, include: { websiteIntel: { select: { looksParked: true, httpStatus: true } } } });
+      const findings = await tx.finding.findMany({
+        where: { brandId: brand.id },
+        include: { websiteIntel: { select: { looksParked: true, httpStatus: true } }, domainIntel: { select: WEB_STATE_DOMAIN_INTEL } },
+      });
       const bySeverity = { low: 0, medium: 0, high: 0, critical: 0 } as Record<string, number>;
       for (const f of findings) bySeverity[f.severity] = (bySeverity[f.severity] ?? 0) + 1;
 

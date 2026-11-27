@@ -208,8 +208,18 @@ return nothing; the finding is still created, just without an age signal.
 
 **Registration & site history** (`pipeline/registrationChanges.ts`). Changes between scans
 (registrar, nameservers, last-changed date, status, expiry, IP) are kept on the finding page.
-Registrar, nameserver, last-changed and status changes fire a `registration_changed` alert. This
-catches a dormant domain being re-armed before its website comes back.
+Registrar, nameserver and status changes fire a `registration_changed` alert. This
+catches a dormant domain being re-armed before its website comes back. Grace-period codes
+(`addPeriod`, `renewPeriod`, `autoRenewPeriod`, `transferPeriod`) coming and going don't alert,
+and neither does the last-changed date on its own (it's listed alongside a real change). A registry
+hold (`clientHold`/`serverHold`) appearing sends "suspended by the registrar"; its removal sends
+"suspension lifted".
+
+**Gone sites** (`lib/siteGone.ts`). A domain on registry hold, or one that resolved before and
+failed two DNS lookups in a row, is scored low (`DOMAIN_SUSPENDED` / `DOMAIN_UNRESOLVED` cap the
+score at 29), shows as **Suspended** / **Offline** instead of the last scan's "Live", and leaves the
+Needs action view (it stays under its status's own view). It keeps being rechecked; if it comes back
+it re-scores and alerts as usual.
 
 **Website scan** (`apps/scanner`, Playwright in Docker). Loads the page in headless Chromium,
 takes a screenshot and detects login and payment forms and parked pages. It also returns link
@@ -261,6 +271,8 @@ breakdown from the latest scan; older scans are kept underneath but not shown.
 | `HIGH_RISK_TLD` | +10 | TLD with elevated abuse history |
 | `PARKING_PAGE_DEDUCTION` | −10 | Parked or for-sale page |
 | `OWN_DOMAIN_DEDUCTION` | −40 | One of the brand's own domains |
+| `DOMAIN_SUSPENDED` | caps at 29 | Domain on registry hold (`clientHold`/`serverHold`) |
+| `DOMAIN_UNRESOLVED` | caps at 29 | Domain resolved before, now fails two lookups in a row |
 
 Social findings use the two social rules in place of the domain-name rules.
 
@@ -273,7 +285,7 @@ on/off, channels and threshold, one rule per kind (`routes/alertRules.ts`).
 |---|---|---|
 | `severity_threshold` | A finding's severity crosses into the threshold | on, high |
 | `website_activated` | A dormant domain starts serving real content (once per finding) | on |
-| `registration_changed` | Registrar, nameservers, status or last-changed date change | on |
+| `registration_changed` | Registrar, nameservers or status change (not grace periods or the last-changed date alone); says so when a registry hold is placed or lifted | on |
 | `site_reactivated` | A taken-down site comes back | on |
 | `public_report` | Someone submits the public report form (in-app only) | on |
 | `new_finding` | Any new finding at or above a severity | off, created when first enabled |
@@ -451,7 +463,7 @@ Plex Mono with look-alike characters (`acmeaír`, `jamb0jet`) highlighted.
 | Page | What it shows |
 |---|---|
 | **Overview** (`/dashboard`) | Summary strip (open threats by severity and how many are live, new this week with a 14-day trend, decisions waiting on you, sites taken down in 30 days with the median time), **Needs a decision** (open high/critical, untriaged first, with Confirm / Dismiss and Undo), takedowns waiting on you, source health, activity. Buttons: Run discovery, Search social & web, Add a suspicious link. |
-| **Threats** (`/threats`) | The triage queue. Saved views with counts (Needs action, New, Investigating, Confirmed, Resolved, Dismissed, All), filters in the URL (search, severity, type, brand, assignee), sorting, paging, CSV export. Each row shows the main score reason and whether the site is live, parked or offline. On desktop a row opens a **side panel** (screenshot, why this score, key facts, decision buttons); keyboard: j/k move, Enter open, x select, c confirm, d dismiss, o full page, Esc close. Selected rows get a bulk bar (status, assignee). Phones get stacked rows. |
+| **Threats** (`/threats`) | The triage queue. Saved views with counts (Needs action, New, Investigating, Confirmed, Resolved, Dismissed, All), filters in the URL (search, severity, type, brand, assignee), sorting, paging, CSV export. Each row shows the main score reason and whether the site is live, parked, offline or suspended. Needs action leaves out sites that are gone (suspended or no longer resolving). On desktop a row opens a **side panel** (screenshot, why this score, key facts, decision buttons); keyboard: j/k move, Enter open, x select, c confirm, d dismiss, o full page, Esc close. Selected rows get a bulk bar (status, assignee). Phones get stacked rows. |
 | **Threat page** (`/threats/[id]`) | Sticky header with severity, score, status, live state and the decision buttons (a bottom bar on phones), then tabs, linkable with `?tab=`: **Evidence** (screenshot or social post, AI explanation, public reports, why this score, triage with status / assignee / tags / notes, key facts), **Infrastructure** (registration, DNS, hosting, website, abuse contacts), **Related** (shared contact and payment details, same-registrar campaign), **History** (registration and site changes, evidence), **Takedown** (send a report: pick who to report to, prepare, review, edit and send from your mailbox; and the takedown log: the report-it-yourself kit and request outcomes). |
 | **Takedowns** (`/takedowns`) | Summary strip, a banner when automatic sending is off and why, tabs (Needs approval, Sending soon, Manual tasks, Failed, Test mode, Sent, Cancelled, Results) in the URL, and a table with a side panel per report: its text, the conversation so far, and every action its state allows (approve and send, send now, cancel, retry, mark reported, test to yourself, Right / Wrong for test-mode reports). Results: who answers and how fast, per channel, registrar and host. |
 | **Mentions** (`/mentions`) | Non-threat brand mentions for the selected brand: 7-day summary with the sentiment split, platform, category and sentiment filters, paging. |
