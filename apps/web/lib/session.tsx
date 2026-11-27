@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ApiError, apiFetch } from "./api";
+import { isPublicPath } from "./publicPaths";
 
 export type Role = "owner" | "admin" | "analyst" | "viewer";
 
@@ -32,14 +33,8 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-// Pages that work signed out. middleware.ts sends everything else to /login when there's no
-// session cookie at all; this provider handles a cookie that's there but no longer valid.
-export const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/confirm-email", "/report/"];
-export function isPublicPath(pathname: string | null): boolean {
-  // "/" is the public landing page (exact match only: as a prefix it would cover everything).
-  if (pathname === "/") return true;
-  return !!pathname && PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p.endsWith("/") ? p : `${p}/`));
-}
+// middleware.ts sends signed-out visitors of non-public pages to /login when there's no session
+// cookie at all; this provider handles a cookie that's there but no longer valid.
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
