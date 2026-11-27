@@ -642,7 +642,7 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `TAKEDOWN_SMTP_ALLOW_PRIVATE` | Local testing only: lets an org's SMTP sender point at a private address (e.g. Mailpit). Never in production |
 
 Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL` and optionally
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_CONTACT_EMAIL` (the landing page's "Request access"
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_CONTACT_EMAIL` (the landing page's and sign-in page's "Request access"
 address; unset = the button is hidden).
 
 A missing optional key turns its feature off rather than crashing: no Tavily key means no
