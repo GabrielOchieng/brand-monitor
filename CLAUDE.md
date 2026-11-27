@@ -42,7 +42,9 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   Tavily; `type` `social`, never scanned -- `pipeline/socialFindings.ts`), web search (`web_search`,
   same daily job; fake customer-care numbers / recruitment fees / booking pitches on non-social sites --
   `pipeline/webSearchFindings.ts`), manual submission, public
-  scam reports (`public_report`, `routes/publicReports.ts` -- the only unauthenticated write route).
+  scam reports (`public_report`, `routes/publicReports.ts`). That and `POST /api/public/access-requests`
+  (`routes/accessRequests.ts`, new orgs asking for an account, handled in `/admin/access-requests`) are the
+  only unauthenticated write routes.
   `Finding.source` is a free-text string; `type` is `domain`, `url` or `social`.
 - Rechecks also extract contact/payment details from the page (`lib/indicators.ts` ->
   `finding_indicators`); a value shared by two findings links them and scores `SHARED_INDICATOR`.
@@ -61,7 +63,7 @@ partly outdated). **When you ship a feature or change behaviour, update those do
   `card`, `primary`, `muted-foreground`, `border`...) plus `sunk`/`raised`/`hover`, `subtle`, `border-strong`
   and `sev-critical/high/medium/low`, `ok`, `info`. Never hard-code colours. Signed-in pages render in
   `components/shell/AppShell.tsx` (sidebar, top bar with brand switcher, Ctrl+K search, notifications,
-  account menu; bottom bar on phones); `/`, sign-in pages and `/report/*` are bare (`isBarePath` in
+  account menu; bottom bar on phones); `/`, sign-in pages (incl. `/request-access`) and `/report/*` are bare (`isBarePath` in
   `shell/nav.ts`). Build from `components/ui/` (Button, Panel, Field/FormSection, Tabs/LinkTabs,
   Dialog/Sheet, Menu, Switch, Banner, StatStrip, Toast, Confirm) and `components/threat/atoms.tsx`
   (SeverityTag, ScoreMeter, StatusPill, Pill, Ident). Ask with `useConfirm()`, never `window.confirm`.

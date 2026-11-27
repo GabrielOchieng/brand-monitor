@@ -173,22 +173,14 @@ function SecondFactorForm({ challenge, onDone, onRestart }: { challenge: string;
   );
 }
 
-const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || null;
-
 export default function LoginPage() {
   const subtitle = (
     <>
-      Accounts are by invitation. Ask an owner or admin of your organization for one.
-      {CONTACT_EMAIL && (
-        <>
-          {" "}
-          New organization?{" "}
-          <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Brand Monitor: request access")}`} className="font-medium text-primary hover:underline">
-            Request access
-          </a>
-          .
-        </>
-      )}
+      Accounts are by invitation. Ask an owner or admin of your organization for one. New organization?{" "}
+      <Link href="/request-access" className="font-medium text-primary hover:underline">
+        Request access
+      </Link>
+      .
     </>
   );
   return (

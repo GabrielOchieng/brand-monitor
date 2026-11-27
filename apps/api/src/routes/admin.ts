@@ -14,6 +14,7 @@ import { recordAdminAction } from "../auth/audit";
 import { tavilyPeriod } from "../lib/tavily";
 import { automationBlockers, loadAutomationState, recordAutomationEvent } from "../lib/takedownAutomation";
 import { ContactSchema } from "./reportRecipients";
+import { ACCESS_REQUEST_STATUSES } from "../lib/accessRequests";
 
 // The platform admin panel. Everything here reads across organizations through adminPrisma
 // (see adminDb.ts), behind requirePlatformAdmin (platform role + 2FA). Every change is
@@ -494,6 +495,31 @@ export async function adminRoutes(app: FastifyInstance) {
       lastActiveAt: u.sessions[0]?.lastSeenAt ?? null,
       orgs: u.memberships.map((m) => ({ id: m.organization.id, name: m.organization.name, role: m.role })),
     }));
+  });
+
+  // ---- Access requests from new organizations (public form, routes/accessRequests.ts).
+
+  app.get("/api/admin/access-requests", async () => adminPrisma.accessRequest.findMany({ orderBy: { createdAt: "desc" }, take: 500 }));
+
+  app.post("/api/admin/access-requests/:id/status", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = z.object({ status: z.enum(ACCESS_REQUEST_STATUSES) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
+    const { status } = parsed.data;
+    const admin = await adminOf(request);
+    const updated = await adminPrisma.$transaction(async (tx) => {
+      const row = await tx.accessRequest.findUnique({ where: { id } });
+      if (!row) return null;
+      const done = status !== "new";
+      const saved = await tx.accessRequest.update({
+        where: { id },
+        data: { status, handledBy: done ? admin.email : null, handledAt: done ? new Date() : null },
+      });
+      await recordAdminAction(admin, "access_request.update", { type: "access_request", id }, { organization: row.organization, email: row.email, status }, tx);
+      return saved;
+    });
+    if (!updated) return reply.status(404).send({ error: "not_found" });
+    return reply.send(updated);
   });
 
   app.get("/api/admin/audit", async (request) => {

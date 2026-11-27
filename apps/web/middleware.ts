@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // /report/<token> is the public scam-report form a brand shares with its customers; "/" is the
 // landing page (it sends a signed-in visitor on to the dashboard itself).
 // "/" is the landing page: it sends a visitor with a session cookie on to the dashboard itself.
-const PUBLIC = [/^\/$/, /^\/login$/, /^\/forgot-password$/, /^\/reset-password$/, /^\/invite$/, /^\/confirm-email$/, /^\/report\//];
+const PUBLIC = [/^\/$/, /^\/login$/, /^\/forgot-password$/, /^\/reset-password$/, /^\/invite$/, /^\/confirm-email$/, /^\/request-access$/, /^\/report\//];
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

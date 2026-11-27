@@ -32,6 +32,7 @@ const ACTION_LABELS: Record<string, string> = {
   "platform_contact.create": "Added a contact-book entry",
   "platform_contact.update": "Changed a contact-book entry",
   "platform_contact.delete": "Deleted a contact-book entry",
+  "access_request.update": "Updated an access request",
 };
 
 function describe(details: Record<string, unknown> | null): string {
