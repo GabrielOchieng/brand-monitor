@@ -1016,3 +1016,21 @@ model TakedownIntegration {
   @@id([organizationId, provider])
   @@map("takedown_integrations")
 }
+
+// Access requests from new organizations (public form, routes/accessRequests.ts). Platform-wide:
+// no RLS, no app-role grants; only adminPrisma touches it.
+model AccessRequest {
+  id           String    @id @default(cuid())
+  name         String
+  email        String
+  organization String
+  brands       String
+  message      String?
+  status       String    @default("new") // new | handled | dismissed
+  handledBy    String?   @map("handled_by") // admin email
+  handledAt    DateTime? @map("handled_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("access_requests")
+}

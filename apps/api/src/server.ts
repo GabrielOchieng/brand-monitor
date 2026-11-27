@@ -16,6 +16,7 @@ import { webhookConfigRoutes } from "./routes/webhookConfig";
 import { alertRuleRoutes } from "./routes/alertRules";
 import { membersRoutes } from "./routes/members";
 import { publicReportRoutes } from "./routes/publicReports";
+import { accessRequestRoutes } from "./routes/accessRequests";
 import { mentionRoutes } from "./routes/mentions";
 import { takedownAutomationRoutes } from "./routes/takedownAutomation";
 import { reportTemplateRoutes } from "./routes/reportTemplates";
@@ -98,6 +99,7 @@ async function main() {
   await app.register(alertRuleRoutes);
   await app.register(membersRoutes);
   await app.register(publicReportRoutes);
+  await app.register(accessRequestRoutes);
   await app.register(mentionRoutes);
   await app.register(takedownAutomationRoutes);
   await app.register(reportTemplateRoutes);

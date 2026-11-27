@@ -41,7 +41,7 @@ export function isActive(pathname: string, item: NavItem): boolean {
 
 // Pages that aren't part of the signed-in app: the landing page, sign-in flows and the public
 // scam-report form. They bring their own layout.
-const AUTH_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/confirm-email"];
+const AUTH_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/confirm-email", "/request-access"];
 
 export function isBarePath(pathname: string | null): boolean {
   if (!pathname) return false;

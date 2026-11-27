@@ -7,13 +7,11 @@ import { SeverityTag } from "../threat/atoms";
 // (README "Features"); there are no customer logos, testimonials or made-up numbers. The product
 // visual is an illustration with clearly fictional example domains.
 
-function RequestAccess({ email, className = "" }: { email: string | null; className?: string }) {
-  if (!email) return null;
-  const href = `mailto:${email}?subject=${encodeURIComponent("Brand Monitor: request access")}`;
+function RequestAccess({ className = "" }: { className?: string }) {
   return (
-    <a href={href} className={`btn-primary px-4 py-2.5 ${className}`}>
+    <Link href="/request-access" className={`btn-primary px-4 py-2.5 ${className}`}>
       Request access
-    </a>
+    </Link>
   );
 }
 
@@ -133,7 +131,7 @@ export function Landing({ contactEmail }: LandingProps) {
             <Link href="/login" className="btn rounded-md px-3 py-2 text-foreground hover:bg-raised">
               Sign in
             </Link>
-            <RequestAccess email={contactEmail} className="hidden sm:inline-flex" />
+            <RequestAccess className="hidden sm:inline-flex" />
           </div>
         </div>
       </header>
@@ -154,12 +152,12 @@ export function Landing({ contactEmail }: LandingProps) {
               reports for your team.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <RequestAccess email={contactEmail} />
+              <RequestAccess />
               <Link href="/login" className="btn rounded-md border border-border px-4 py-2.5 text-foreground hover:bg-raised">
                 Sign in
               </Link>
             </div>
-            <p className="mt-4 text-xs text-subtle">Accounts are by invitation. {contactEmail ? "Ask for access and we'll set up your organization." : "Ask your administrator for an invite."}</p>
+            <p className="mt-4 text-xs text-subtle">Accounts are by invitation. Request access and we'll set up your organization.</p>
           </div>
           <ProductIllustration />
         </div>
@@ -224,7 +222,7 @@ export function Landing({ contactEmail }: LandingProps) {
             <p className="mt-2 text-sm text-muted-foreground">Set up your brand, keywords and official accounts, and the first findings arrive within hours.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <RequestAccess email={contactEmail} />
+            <RequestAccess />
             <Link href="/login" className="btn rounded-md border border-border px-4 py-2.5 text-foreground hover:bg-raised">
               Sign in
             </Link>

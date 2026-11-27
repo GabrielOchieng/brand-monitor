@@ -20,7 +20,8 @@ export type AdminAction =
   | "org.auto_takedown_disallow"
   | "platform_contact.create"
   | "platform_contact.update"
-  | "platform_contact.delete";
+  | "platform_contact.delete"
+  | "access_request.update";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -29,7 +30,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export async function recordAdminAction(
   admin: { userId: string; email: string },
   action: AdminAction,
-  target: { type: "org" | "user" | "brand" | "contact"; id: string },
+  target: { type: "org" | "user" | "brand" | "contact" | "access_request"; id: string },
   details?: Record<string, unknown>,
   db: Db = adminPrisma
 ): Promise<void> {

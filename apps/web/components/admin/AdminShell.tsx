@@ -16,6 +16,7 @@ import { EmptyState } from "../ui/EmptyState";
 const TABS = [
   { href: "/admin", label: "Organizations" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/access-requests", label: "Access requests" },
   { href: "/admin/contacts", label: "Contact book" },
   { href: "/admin/audit", label: "Audit log" },
 ];

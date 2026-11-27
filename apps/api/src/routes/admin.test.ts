@@ -25,6 +25,8 @@ describe("admin routes require a platform admin", () => {
     ["GET", "/api/%61%64%6d%69%6e/users"],
     ["GET", "/api/%61dmin/audit"],
     ["GET", "/api/%61dmin/contacts"],
+    ["GET", "/api/%61dmin/access-requests"],
+    ["POST", "/api/%61dmin/access-requests/ar_x/status"],
     ["GET", "/api/%61dmin/orgs/org_x"],
     ["GET", "/api/%61dmin/orgs/org_x/takedown-documents/doc_x"],
     ["POST", "/api/%61dmin/orgs/org_x/pause"],

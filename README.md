@@ -196,7 +196,7 @@ link and/or a phone/WhatsApp number plus a description, with no login.
 - Each report raises an in-app notification, and the finding page lists its reports.
 - Spam protection: Cloudflare Turnstile when configured, a honeypot field and 5 reports/hour per
   IP. Only what the reporter typed and an optional email are stored, no IP or device data.
-- This is the only unauthenticated write route.
+- This and the access-request form (below) are the only unauthenticated write routes.
 
 ### 2. What each recheck collects
 
@@ -453,7 +453,7 @@ page shows the brand picked here), **search** (Ctrl/Cmd+K: any threat by domain,
 page), the **notifications** bell (latest alerts, mark all read) and the account menu (account and
 security, theme, switching organization, sign out). On phones a bottom bar holds Overview, Threats,
 Takedowns and More. Signed out: the landing page (`/`, `components/landing/Landing.tsx`; "Request
-access" opens an email to `NEXT_PUBLIC_CONTACT_EMAIL`, hidden when unset; a visitor with a session goes
+access" opens the `/request-access` form; a visitor with a session goes
 straight to the Overview), the sign-in pages (`components/AuthCard.tsx`) and the public scam-report form
 (always light, because a brand's customers see it). Theme tokens are in `app/theme.css` (shadcn-style
 names plus severity colours), components in `components/ui/` (built on Radix: dialogs, menus, tabs,
@@ -484,7 +484,12 @@ selected brand is remembered per browser.
   and admins invite people by email on the **Team** page, choosing their role (only owners
   invite owners); the invite link lasts 7 days, and the new person sets a password on accepting.
   "Forgot password" emails a 1-hour reset link. Only platform admins create organizations (see
-  below). The very first account is created from the CLI (`npm run auth:create-user`, see Local
+  below). A new organization asks through **Request access** (`/request-access`, linked from the
+  landing and sign-in pages; `routes/accessRequests.ts`): name, work email, organization, brands and
+  an optional message. Each request is saved in `access_requests` and emailed to every platform
+  admin over our SMTP (a failed email still leaves it saved), and is handled under **Access requests**
+  in `/admin` (mark handled / dismiss / reopen, audit-logged). Same spam protection as the scam-report
+  form, with 3 requests/hour per IP. The very first account is created from the CLI (`npm run auth:create-user`, see Local
   setup).
 - **Platform admin panel** (`/admin`, "Admin panel" in the avatar menu; `routes/admin.ts`): for
   `users.platform_role = 'admin'`, set only with `npm run auth:make-admin -- --email <email>`
@@ -642,8 +647,8 @@ API (`apps/api/.env`, full comments in `.env.example`):
 | `TAKEDOWN_SMTP_ALLOW_PRIVATE` | Local testing only: lets an org's SMTP sender point at a private address (e.g. Mailpit). Never in production |
 
 Web (`apps/web/.env.local`): `NEXT_PUBLIC_API_URL` and optionally
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_CONTACT_EMAIL` (the landing page's and sign-in page's "Request access"
-address; unset = the button is hidden).
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` (the scam-report and access-request forms) and `NEXT_PUBLIC_CONTACT_EMAIL`
+(the landing page footer's "Contact" link; unset = hidden).
 
 A missing optional key turns its feature off rather than crashing: no Tavily key means no
 social/web search, no AI key means the explain button shows an error.
