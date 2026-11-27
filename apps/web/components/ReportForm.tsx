@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { API_URL } from "../lib/api";
 import { useTurnstile } from "../lib/useTurnstile";
+import { TurnstileFailed } from "./TurnstileFailed";
 
 const ERROR_TEXT: Record<string, string> = {
   invalid_url: "That link doesn't look right. Copy it straight from the browser's address bar.",
@@ -86,6 +87,7 @@ export function ReportForm({ token, siteKey }: { token: string; siteKey: string 
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />
       </div>
       {siteKey && <div ref={captcha.ref} />}
+      {captcha.failed && <TurnstileFailed />}
       {error && <p className="text-sm text-sev-critical">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={state === "sending" || !captcha.ready}>
         {state === "sending" ? "Sending…" : "Send report"}
