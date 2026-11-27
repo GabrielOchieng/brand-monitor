@@ -29,6 +29,8 @@ export interface AlertDispatchJobData {
   // Human-readable, alert-worthy registry changes since the previous scan (see
   // pipeline/registrationChanges.ts).
   registrationChanges?: string[];
+  // A registrar suspension (clientHold/serverHold) appeared or went away in those changes.
+  hold?: "placed" | "lifted";
 }
 
 interface RuleLike {
@@ -80,14 +82,14 @@ export function ruleMatches(rule: Pick<RuleLike, "kind" | "config">, data: Alert
   }
 }
 
-interface AlertContent {
+export interface AlertContent {
   event: string; // webhook event name
   headline?: string; // email; undefined = the classic score-change wording
   details?: string[];
   inApp: string;
 }
 
-function alertContent(kind: string, data: AlertDispatchJobData, identifier: string): AlertContent {
+export function alertContent(kind: string, data: AlertDispatchJobData, identifier: string): AlertContent {
   if (kind === "site_reactivated") {
     return {
       event: "finding.reactivated",
@@ -98,6 +100,28 @@ function alertContent(kind: string, data: AlertDispatchJobData, identifier: stri
   }
   if (kind === "registration_changed") {
     const changes = data.registrationChanges ?? [];
+    if (data.hold === "placed") {
+      return {
+        event: "finding.registration_changed",
+        headline: "suspended by the registrar",
+        details: [
+          "The registry now lists this domain on hold, which takes it out of DNS: the site is down. It's scored low and leaves Needs action, but keeps being checked, and you'll get an alert if the suspension is lifted.",
+          ...changes,
+        ],
+        inApp: `${identifier} was suspended by the registrar and is down`,
+      };
+    }
+    if (data.hold === "lifted") {
+      return {
+        event: "finding.registration_changed",
+        headline: "suspension lifted",
+        details: [
+          "The registry no longer lists this domain on hold, so it can resolve again. If the site comes back it will be re-scored on its next scan.",
+          ...changes,
+        ],
+        inApp: `${identifier}: the registrar suspension was lifted`,
+      };
+    }
     return {
       event: "finding.registration_changed",
       headline: "registration changed",

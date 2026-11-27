@@ -76,7 +76,7 @@ export default async function ThreatsPage({ searchParams }: { searchParams: Sear
       <LinkTabs
         label="Views"
         className="mb-3"
-        items={VIEWS.map((v) => ({ href: hrefWith({ status: v.key === "open" ? undefined : v.key }), label: v.label, count: count(v.statuses), active: v.key === view }))}
+        items={VIEWS.map((v) => ({ href: hrefWith({ status: v.key === "open" ? undefined : v.key }), label: v.label, count: v.key === "open" ? data.openCount : count(v.statuses), active: v.key === view }))}
       />
       <ThreatToolbar brands={brands} members={members} />
 

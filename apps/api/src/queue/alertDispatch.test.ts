@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ruleMatches, type AlertDispatchJobData } from "./alertDispatch";
+import { alertContent, ruleMatches, type AlertDispatchJobData } from "./alertDispatch";
 
 const base: AlertDispatchJobData = {
   findingId: "f1",
@@ -34,5 +34,27 @@ describe("ruleMatches", () => {
     expect(ruleMatches(rule("registration_changed"), base)).toBe(false);
     expect(ruleMatches(rule("registration_changed"), { ...base, registrationChanges: ["Nameservers: a → b"] })).toBe(true);
     expect(ruleMatches(rule("registration_changed"), { ...base, isFirstScan: true, registrationChanges: ["x"] })).toBe(false);
+  });
+});
+
+describe("alertContent for registration changes", () => {
+  const changes = ["Registry status: clientTransferProhibited → clientHold, clientTransferProhibited", "Registrar suspension: not suspended → suspended"];
+
+  it("says a new hold means the site is down", () => {
+    const c = alertContent("registration_changed", { ...base, registrationChanges: changes, hold: "placed" }, "x.online");
+    expect(c.headline).toBe("suspended by the registrar");
+    expect(c.details?.[0]).toMatch(/site is down/);
+    expect(c.details?.slice(1)).toEqual(changes);
+  });
+
+  it("says when a hold is lifted", () => {
+    const c = alertContent("registration_changed", { ...base, registrationChanges: changes, hold: "lifted" }, "x.online");
+    expect(c.headline).toBe("suspension lifted");
+  });
+
+  it("keeps the plain wording for other registry changes", () => {
+    const c = alertContent("registration_changed", { ...base, registrationChanges: ["Nameservers: a → b"] }, "x.online");
+    expect(c.headline).toBe("registration changed");
+    expect(c.details).toEqual(["Nameservers: a → b"]);
   });
 });

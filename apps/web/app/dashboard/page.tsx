@@ -31,7 +31,7 @@ interface AttentionItem {
   riskScore: number;
   status: string;
   firstDetectedAt: string;
-  webState: "live" | "parked" | "offline" | null;
+  webState: "live" | "parked" | "offline" | "suspended" | null;
   topReason: string | null;
 }
 

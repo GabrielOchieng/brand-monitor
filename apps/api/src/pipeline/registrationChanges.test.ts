@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { diffRegistration, type PreviousRegistration } from "./registrationChanges";
+import { diffRegistration, holdTransition, type PreviousRegistration } from "./registrationChanges";
 import type { RegistrationInfo } from "../lib/rdap";
 
 const prev: PreviousRegistration = {
@@ -31,17 +31,46 @@ describe("diffRegistration", () => {
     expect(diffRegistration(prev, next, ["34.111.179.208"])).toEqual([]);
   });
 
-  it("catches the flyjambojet.org case: the record was updated while the site sat dormant", () => {
+  // flyjambojet.org (2026-09): only the update date moved while the site sat dormant. Recorded,
+  // but since 2026-11 it no longer alerts on its own: grace periods ending bump it too.
+  it("records an update date that moved on its own without alerting", () => {
     const changes = diffRegistration(prev, { ...next, lastChangedAt: "2026-09-12T16:12:23.508Z" }, ["34.111.179.208"]);
     expect(changes).toEqual([
-      { field: "last_changed", oldValue: "2026-09-07T16:11:39.192Z", newValue: "2026-09-12T16:12:23.508Z", alert: true },
+      { field: "last_changed", oldValue: "2026-09-07T16:11:39.192Z", newValue: "2026-09-12T16:12:23.508Z", alert: false },
     ]);
   });
 
+  it("alerts on the update date when it comes with a real change", () => {
+    const changes = diffRegistration(prev, { ...next, lastChangedAt: "2026-09-12T16:12:23.508Z", nameservers: ["ada.ns.cloudflare.com"] }, ["34.111.179.208"]);
+    expect(changes.filter((c) => c.alert).map((c) => c.field).sort()).toEqual(["last_changed", "nameservers"]);
+  });
+
+  // jambojetbooking.online, 2026-11-25: on hold since registration; only addPeriod ended.
+  it("doesn't alert when only a grace period ends", () => {
+    const changes = diffRegistration(
+      { ...prev, lastChangedAt: new Date("2026-11-23T10:10:45.778Z"), statusCodes: ["addPeriod", "clientHold", "clientTransferProhibited"] },
+      { ...next, lastChangedAt: "2026-11-25T18:32:49.427Z", statusCodes: ["clientHold", "clientTransferProhibited"] },
+      ["34.111.179.208"]
+    );
+    expect(changes.map((c) => c.field).sort()).toEqual(["last_changed", "status"]);
+    expect(changes.every((c) => !c.alert)).toBe(true);
+    expect(holdTransition(changes)).toBeUndefined();
+  });
+
+  it("flags a registrar hold being placed", () => {
+    const changes = diffRegistration(prev, { ...next, statusCodes: ["clientHold", "clientTransferProhibited"] }, ["34.111.179.208"]);
+    expect(changes).toEqual([
+      { field: "status", oldValue: "clientTransferProhibited", newValue: "clientHold, clientTransferProhibited", alert: true },
+      { field: "hold", oldValue: "not suspended", newValue: "suspended", alert: true },
+    ]);
+    expect(holdTransition(changes)).toBe("placed");
+  });
+
   it("flags a registrar hold being lifted", () => {
-    const changes = diffRegistration({ ...prev, statusCodes: ["clientHold", "clientTransferProhibited"] }, next, ["34.111.179.208"]);
-    expect(changes).toHaveLength(1);
-    expect(changes[0]).toMatchObject({ field: "status", oldValue: "clientHold, clientTransferProhibited", newValue: "clientTransferProhibited", alert: true });
+    const changes = diffRegistration({ ...prev, statusCodes: ["serverHold", "clientTransferProhibited"] }, next, ["34.111.179.208"]);
+    expect(changes).toHaveLength(2);
+    expect(changes[0]).toMatchObject({ field: "status", oldValue: "clientTransferProhibited, serverHold", newValue: "clientTransferProhibited", alert: true });
+    expect(holdTransition(changes)).toBe("lifted");
   });
 
   it("flags new nameservers", () => {

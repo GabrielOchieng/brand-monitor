@@ -1,4 +1,4 @@
-export type WebStateValue = "live" | "parked" | "offline" | null;
+export type WebStateValue = "live" | "parked" | "offline" | "suspended" | null;
 
 // One row of GET /api/findings.
 export interface FindingRow {
@@ -24,6 +24,8 @@ export interface FindingsResponse {
   page: number;
   pageSize: number;
   statusCounts: Record<string, number>;
+  // "Needs action": open statuses minus sites that are gone (suspended or not resolving).
+  openCount: number;
 }
 
 export interface Member {
@@ -108,9 +110,12 @@ export interface FindingDetail {
 }
 
 // Same rule as the API's lib/findingView.ts webState(), from the detail payload.
-export function detailWebState(f: Pick<FindingDetail, "type" | "downSince" | "websiteIntel">): WebStateValue {
+export function detailWebState(f: Pick<FindingDetail, "type" | "downSince" | "websiteIntel" | "domainIntel">): WebStateValue {
   if (f.type === "social") return null;
+  const di = f.domainIntel;
+  if (di && di.statusCodes.some((s) => s === "clientHold" || s === "serverHold")) return "suspended";
   if (f.downSince) return "offline";
+  if (di && di.firstResolvedAt && !di.currentlyResolves) return "offline";
   const wi = f.websiteIntel;
   if (!wi) return null;
   if (wi.httpStatus != null && ([404, 410, 451].includes(wi.httpStatus) || wi.httpStatus >= 500)) return "offline";

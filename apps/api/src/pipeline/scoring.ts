@@ -1,6 +1,7 @@
 import { severityForScore } from "@brand-monitor/shared";
 import { similarityRatio } from "../lib/levenshtein";
 import { isHighRiskTld } from "./permutations";
+import type { SiteGone } from "../lib/siteGone";
 
 export interface ScoreEvent {
   delta: number;
@@ -35,6 +36,8 @@ export interface ScoringInput {
   // Set only for a social-media account finding (lib/socialUrls.ts). Its "domain" is the
   // platform's, so none of the domain-name rules apply -- these two replace them.
   social?: { handleImpersonation: boolean; contactDetails: boolean } | null;
+  // The domain is suspended by its registrar or no longer resolves (lib/siteGone.ts).
+  siteGone?: SiteGone | null;
 }
 
 export interface ScoringResult {
@@ -42,6 +45,9 @@ export interface ScoringResult {
   severity: ReturnType<typeof severityForScore>;
   events: ScoreEvent[];
 }
+
+// The top of the low band (shared severityForScore: medium starts at 30).
+export const GONE_SCORE_CAP = 29;
 
 // Deterministic, additive, explainable -- every point traceable to a named rule.
 // Reduced ruleset vs. the full ARCHITECTURE.md §6 model to match what the POC actually
@@ -156,6 +162,20 @@ export function computeScore(input: ScoringInput): ScoringResult {
   // asserting a listing is confirmed phishing on the feed's say-so alone.
   if (input.phishFeedListed) {
     events.push({ delta: 60, reason: "Reported as phishing by public threat feeds (phishunt.io)", ruleCode: "PHISH_FEED_LISTED" });
+  }
+
+  // A gone site can't hurt anyone right now, however suspicious its name: it's capped at low.
+  // Recorded even when the score is already low, so the breakdown says why nothing else counts.
+  if (input.siteGone) {
+    const sofar = events.reduce((sum, e) => sum + e.delta, 0);
+    events.push({
+      delta: Math.min(0, GONE_SCORE_CAP - sofar),
+      reason:
+        input.siteGone === "suspended"
+          ? "Domain is suspended by its registrar (registry hold), so the site is down"
+          : "Domain no longer resolves, so the site is down",
+      ruleCode: input.siteGone === "suspended" ? "DOMAIN_SUSPENDED" : "DOMAIN_UNRESOLVED",
+    });
   }
 
   const rawScore = events.reduce((sum, e) => sum + e.delta, 0);
